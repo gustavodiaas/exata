@@ -112,7 +112,6 @@ export default function GBOAnalysis() {
 
     if (shiftTime <= 0 || rawDemand <= 0) return undefined
 
-    // Regra importada do seu modelo antigo
     const demand = demandPeriod === "mes" ? rawDemand / 21 : rawDemand
 
     let shiftTimeInSeconds = shiftTime
@@ -261,7 +260,7 @@ export default function GBOAnalysis() {
         <input ref={fileInputRef} type="file" accept=".xlsx,.xls" onChange={handleFileChange} className="hidden" />
 
         <div className="pt-6 pb-8 px-4 w-full flex justify-center z-50 print:hidden border-b border-border mb-6">
-          <header className="w-full max-w-7xl px-6 flex items-center justify-between">
+          <header className="w-full max-w-[95%] px-6 flex items-center justify-between">
             <div className="flex items-center gap-4">
               <div className="flex flex-col">
                 <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground">
@@ -297,7 +296,7 @@ export default function GBOAnalysis() {
           </header>
         </div>
 
-        <div className="container mx-auto max-w-7xl px-4 pb-12 print:p-12 print:max-w-none print:w-[100vw] print:break-inside-avoid">
+        <div className="w-full max-w-[95%] mx-auto px-4 pb-12 print:p-12 print:max-w-none print:w-[100vw] print:break-inside-avoid">
           <Tabs defaultValue="gbo" className="w-full space-y-6">
             <div className="flex justify-center print:hidden">
               <TabsList className="bg-muted p-1 rounded-xl shadow-sm h-auto border border-border">
@@ -313,8 +312,8 @@ export default function GBOAnalysis() {
             <TabsContent value="gbo" className="outline-none space-y-6">
               <div className="flex flex-col xl:flex-row gap-8 pb-12 print:p-0">
                 
-                {/* COLUNA ESQUERDA: FOMULÁRIOS (40%) */}
-                <div className="xl:w-[40%] flex flex-col gap-6 print:hidden">
+                {/* COLUNA ESQUERDA: FOMULÁRIOS (30% ou 40% fluído) */}
+                <div className="xl:w-[35%] flex flex-col gap-6 print:hidden">
                   
                   <div className="bg-card p-6 rounded-2xl shadow-sm border border-border space-y-4">
                     <h3 className="font-bold text-foreground border-b border-border pb-2 flex items-center gap-2">
@@ -460,8 +459,8 @@ export default function GBOAnalysis() {
                   </div>
                 </div>
 
-                {/* COLUNA DIREITA: GRÁFICOS (60%) */}
-                <div className="xl:w-[60%] flex flex-col gap-6 print:w-full">
+                {/* COLUNA DIREITA: GRÁFICOS (65% ou 60% fluído) */}
+                <div className="xl:w-[65%] flex flex-col gap-6 print:w-full">
                   {operations.length > 0 ? (
                     <>
                       <div className="print:hidden">
