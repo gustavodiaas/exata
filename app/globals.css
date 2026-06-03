@@ -73,10 +73,11 @@
 
 @layer base {
   * {
-    @apply border-border;
+    border-color: hsl(var(--border));
   }
   body {
-    @apply bg-background text-foreground;
+    background-color: hsl(var(--background));
+    color: hsl(var(--foreground));
   }
   
   /* Destrói as classes antigas de poluição visual */
@@ -84,7 +85,7 @@
     box-shadow: none !important;
   }
   .glass-panel {
-    background: var(--card) !important;
+    background: hsl(var(--card)) !important;
     backdrop-filter: none !important;
     border: 1px solid hsl(var(--border)) !important;
     box-shadow: none !important;
