@@ -62,7 +62,8 @@
     "tailwindcss-animate": "^1.0.7",
     "vaul": "latest",
     "xlsx": "latest",
-    "zod": "3.25.67"
+    "zod": "3.25.67",
+    "@radix-ui/react-tabs": "^1.0.4"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.1.9",
