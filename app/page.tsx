@@ -16,6 +16,7 @@ import {
   HelpCircle,
   CheckCircle2,
   FileImage,
+  ChevronDown,
 } from "lucide-react"
 import { GBOChart } from "@/components/gbo-chart"
 import { CalculationsDashboard } from "@/components/calculations-dashboard"
@@ -66,6 +67,7 @@ export default function GBOAnalysis() {
   const [workShiftTime, setWorkShiftTime] = useState("")
   const [dailyDemand, setDailyDemand] = useState("")
   const [demandUnit, setDemandUnit] = useState("peças")
+  const [demandPeriod, setDemandPeriod] = useState<"dia" | "mes">("dia")
   const [timeUnitTakt, setTimeUnitTakt] = useState<"minutes" | "seconds" | "hours">("minutes")
   const [previousTimeUnitTakt, setPreviousTimeUnitTakt] = useState<"minutes" | "seconds" | "hours">("minutes")
   const [errors, setErrors] = useState<{
@@ -106,9 +108,12 @@ export default function GBOAnalysis() {
   const calculateTaktTime = (): number | undefined => {
     if (!workShiftTime || !dailyDemand) return undefined
     const shiftTime = Number.parseFloat(workShiftTime)
-    const demand = Number.parseFloat(dailyDemand)
+    const rawDemand = Number.parseFloat(dailyDemand)
 
-    if (shiftTime <= 0 || demand <= 0) return undefined
+    if (shiftTime <= 0 || rawDemand <= 0) return undefined
+
+    // Regra importada do seu modelo antigo
+    const demand = demandPeriod === "mes" ? rawDemand / 21 : rawDemand
 
     let shiftTimeInSeconds = shiftTime
     if (timeUnitTakt === "minutes") {
@@ -234,7 +239,7 @@ export default function GBOAnalysis() {
     <>
       <style dangerouslySetInnerHTML={{__html: `
         @media print {
-          @page { size: landscape; margin: 0; }
+          @page { size: landscape; margin: 1cm; }
           body { 
             background: white !important; 
             -webkit-print-color-adjust: exact !important; 
@@ -255,19 +260,11 @@ export default function GBOAnalysis() {
       <div className="min-h-screen bg-background relative print:min-h-0 print:bg-transparent">
         <input ref={fileInputRef} type="file" accept=".xlsx,.xls" onChange={handleFileChange} className="hidden" />
 
-        <div className="pt-6 pb-8 px-4 w-full flex justify-center z-50 print:hidden">
-          <header className="glass-panel tech-glow rounded-2xl w-full max-w-5xl px-6 py-3 flex items-center justify-between shadow-lg">
+        <div className="pt-6 pb-8 px-4 w-full flex justify-center z-50 print:hidden border-b border-border mb-6">
+          <header className="w-full max-w-7xl px-6 flex items-center justify-between">
             <div className="flex items-center gap-4">
-              <div className="p-2.5 rounded-xl bg-primary/10 border border-primary/20 relative group overflow-hidden">
-                <div className="absolute inset-0 bg-primary/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300"></div>
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-primary relative z-10">
-                  <path d="M3 3v18h18" />
-                  <path d="M18 9l-5 5-4-4-5 5" />
-                  <circle cx="18" cy="9" r="2.5" fill="currentColor" />
-                </svg>
-              </div>
               <div className="flex flex-col">
-                <h1 className="text-lg sm:text-xl font-bold tracking-tight text-foreground bg-clip-text text-transparent bg-gradient-to-r from-foreground to-foreground/70">
+                <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground">
                   Gráfico de Balanceamento de Operações (GBO)
                 </h1>
               </div>
@@ -282,21 +279,17 @@ export default function GBOAnalysis() {
                     <span className="sr-only">Ajuda</span>
                   </Button>
                 </DialogTrigger>
-                <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto glass-panel border-primary/20">
+                <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto bg-card border-border rounded-2xl shadow-xl">
                   <DialogHeader>
-                    <DialogTitle className="text-primary flex items-center gap-2">
-                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 3v18h18"/><path d="M18 9l-5 5-4-4-5 5"/><circle cx="18" cy="9" r="2.5" fill="currentColor"/></svg>
+                    <DialogTitle className="text-primary flex items-center gap-2 font-bold text-lg">
+                      <HelpCircle className="w-5 h-5" />
                       Manual Técnico GBO
                     </DialogTitle>
-                    <DialogDescription>Protocolo Analítico de Balanceamento</DialogDescription>
+                    <DialogDescription className="text-muted-foreground">Protocolo Analítico de Balanceamento</DialogDescription>
                   </DialogHeader>
-                  <div className="space-y-4 text-sm mt-4 text-muted-foreground">
-                    <p>
-                      O <strong>GBO (Gráfico de Balanceamento de Operações)</strong> é uma ferramenta analítica de fluxo. Ele plota os tempos de ciclo individuais de cada operação em relação ao Takt Time estabelecido.
-                    </p>
-                    <p>
-                      <strong>Objetivo:</strong> Identificar restrições sistêmicas (gargalos) e fornecer uma base de dados limpa para o nivelamento da capacidade produtiva, reduzindo ociosidade e superprodução.
-                    </p>
+                  <div className="space-y-4 text-sm mt-4 leading-relaxed text-justify text-foreground">
+                    <p>O <strong>GBO (Gráfico de Balanceamento de Operações)</strong> é uma ferramenta analítica de fluxo. Ele plota os tempos de ciclo individuais de cada operação em relação ao Takt Time estabelecido.</p>
+                    <p><strong>Objetivo:</strong> Identificar restrições sistêmicas (gargalos) e fornecer uma base de dados limpa para o nivelamento da capacidade produtiva, reduzindo ociosidade e superprodução.</p>
                   </div>
                 </DialogContent>
               </Dialog>
@@ -304,10 +297,10 @@ export default function GBOAnalysis() {
           </header>
         </div>
 
-        <div className="container mx-auto px-4 pb-12 print:p-12 print:max-w-none print:w-[100vw] print:break-inside-avoid">
+        <div className="container mx-auto max-w-7xl px-4 pb-12 print:p-12 print:max-w-none print:w-[100vw] print:break-inside-avoid">
           <Tabs defaultValue="gbo" className="w-full space-y-6">
             <div className="flex justify-center print:hidden">
-              <TabsList className="glass-panel border-primary/20 bg-background/50 p-1 rounded-xl shadow-md h-auto">
+              <TabsList className="bg-muted p-1 rounded-xl shadow-sm h-auto border border-border">
                 <TabsTrigger value="gbo" className="px-6 py-2.5 text-xs font-bold uppercase tracking-wider rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all">
                   📊 Balanceamento GBO
                 </TabsTrigger>
@@ -318,206 +311,175 @@ export default function GBOAnalysis() {
             </div>
 
             <TabsContent value="gbo" className="outline-none space-y-6">
-              <div className="grid gap-6 lg:gap-8 xl:grid-cols-3 print:flex print:w-full">
-                <div className="xl:col-span-1 print:hidden">
-                  <Card className="tech-card tech-glow">
-                    <CardHeader className="pb-4">
-                      <CardTitle className="text-xl flex items-center gap-2">
-                        <div className="w-2 h-2 rounded-full bg-accent animate-pulse"></div>
-                        Inserir Operações
-                      </CardTitle>
-                      <CardDescription>Adicione operações para gerar o gráfico GBO</CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-6">
-                      <div className="space-y-4 p-4 bg-gradient-to-br from-muted/30 to-accent/5 rounded-xl border border-accent/20 tech-glow">
-                        <Label className="text-sm font-semibold flex items-center gap-2">
-                          <div className="w-1.5 h-1.5 rounded-full bg-accent"></div>
-                          Cálculo do Takt Time
-                        </Label>
-                        <div className="space-y-3">
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                            <div className="space-y-2">
-                              <Label className="text-xs">Tempo do Turno</Label>
-                              <Input
-                                type="number"
-                                step="0.1"
-                                min="0"
-                                placeholder="8.0"
-                                value={workShiftTime}
-                                onChange={(e) => { setWorkShiftTime(e.target.value); validateTaktFields(); }}
-                                onBlur={validateTaktFields}
-                                className={errors.workShiftTime ? "border-red-500 focus:border-red-500" : ""}
-                              />
-                            </div>
-                            <div className="space-y-2">
-                              <Label className="text-xs">Unidade</Label>
-                              <Select value={timeUnitTakt} onValueChange={(v: any) => setTimeUnitTakt(v)}>
-                                <SelectTrigger><SelectValue /></SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="minutes">Min</SelectItem>
-                                  <SelectItem value="hours">Horas</SelectItem>
-                                  <SelectItem value="seconds">Seg</SelectItem>
-                                </SelectContent>
-                              </Select>
-                            </div>
-                          </div>
-                          <div className="space-y-2">
-                            <Label className="text-xs">Demanda Diária ({demandUnit}/dia)</Label>
-                            <div className="grid grid-cols-2 gap-2">
-                              <Input
-                                type="number"
-                                step="1"
-                                min="0"
-                                placeholder="100"
-                                value={dailyDemand}
-                                onChange={(e) => { setDailyDemand(e.target.value); validateTaktFields(); }}
-                                onBlur={validateTaktFields}
-                                className={errors.dailyDemand ? "border-red-500 focus:border-red-500" : ""}
-                              />
-                              <Select value={demandUnit} onValueChange={setDemandUnit}>
-                                <SelectTrigger><SelectValue /></SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="peças">Peças</SelectItem>
-                                  <SelectItem value="m²">m²</SelectItem>
-                                  <SelectItem value="m³">m³</SelectItem>
-                                  <SelectItem value="kg">kg</SelectItem>
-                                  <SelectItem value="litros">Litros</SelectItem>
-                                  <SelectItem value="unidades">Unidades</SelectItem>
-                                  <SelectItem value="metros">Metros</SelectItem>
-                                  <SelectItem value="toneladas">Toneladas</SelectItem>
-                                </SelectContent>
-                              </Select>
-                            </div>
-                          </div>
-                          {calculateTaktTime() && (
-                            <Alert className="bg-primary/10 border-primary/20">
-                              <CheckCircle2 className="h-4 w-4 text-primary" />
-                              <AlertDescription>
-                                <strong>Takt Time: </strong>
-                                {timeUnitTakt === "hours" ? (calculateTaktTime()! / 3600).toFixed(2)
-                                  : timeUnitTakt === "minutes" ? (calculateTaktTime()! / 60).toFixed(2)
-                                  : calculateTaktTime()!.toFixed(2)} {timeUnitTakt}/{demandUnit.toLowerCase()}
-                              </AlertDescription>
-                            </Alert>
-                          )}
+              <div className="flex flex-col xl:flex-row gap-8 pb-12 print:p-0">
+                
+                {/* COLUNA ESQUERDA: FOMULÁRIOS (40%) */}
+                <div className="xl:w-[40%] flex flex-col gap-6 print:hidden">
+                  
+                  <div className="bg-card p-6 rounded-2xl shadow-sm border border-border space-y-4">
+                    <h3 className="font-bold text-foreground border-b border-border pb-2 flex items-center gap-2">
+                      <div className="w-2 h-2 rounded-full bg-primary animate-pulse"></div>
+                      Cálculo do Takt Time
+                      <div className="ml-auto flex items-center gap-1.5">
+                        <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Demanda</span>
+                        <div className="flex rounded-lg overflow-hidden border border-border">
+                          <button
+                            onClick={() => setDemandPeriod("dia")}
+                            className={`px-3 py-1 text-[10px] font-bold uppercase tracking-widest transition-all ${demandPeriod === "dia" ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-muted/80"}`}
+                          >
+                            Dia
+                          </button>
+                          <button
+                            onClick={() => setDemandPeriod("mes")}
+                            className={`px-3 py-1 text-[10px] font-bold uppercase tracking-widest transition-all ${demandPeriod === "mes" ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-muted/80"}`}
+                          >
+                            Mês
+                          </button>
                         </div>
                       </div>
-
-                      <div className="space-y-2">
-                        <Label className="flex items-center gap-2">
-                          <div className="w-1.5 h-1.5 rounded-full bg-primary"></div>
-                          Unidade de Tempo
-                        </Label>
-                        <Select value={timeUnit} onValueChange={(v: any) => setTimeUnit(v)}>
-                          <SelectTrigger><SelectValue /></SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="minutes">Minutos</SelectItem>
-                            <SelectItem value="seconds">Segundos</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-
-                      <div className="space-y-4">
-                        <div className="space-y-2">
-                          <Label className="flex items-center gap-2">
-                            <div className="w-1.5 h-1.5 rounded-full bg-primary"></div>
-                            Nome da Operação
-                          </Label>
-                          <Input
-                            placeholder="Ex: Montagem, Soldagem..."
-                            value={newOperationName}
-                            onChange={(e) => {
-                              setNewOperationName(e.target.value)
-                              if (errors.operationName) setErrors((prev) => ({ ...prev, operationName: undefined }))
-                            }}
-                            onKeyPress={handleKeyPress}
+                    </h3>
+                    
+                    <div className="space-y-3">
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest pl-1">Tempo do Turno</label>
+                          <input type="number" step="0.1" min="0" placeholder="8.0" value={workShiftTime}
+                            onChange={(e) => { setWorkShiftTime(e.target.value); validateTaktFields(); }} onBlur={validateTaktFields}
+                            className={`w-full h-12 px-4 rounded-xl border border-border bg-input text-foreground text-sm outline-none focus:ring-2 focus:ring-primary transition-all ${errors.workShiftTime ? "ring-2 ring-destructive" : ""}`}
                           />
                         </div>
-                        <div className="space-y-2">
-                          <Label className="flex items-center gap-2">
-                            <div className="w-1.5 h-1.5 rounded-full bg-primary"></div>
-                            Tempo ({timeUnit})
-                          </Label>
-                          <Input
-                            type="number"
-                            step="0.1"
-                            min="0"
-                            placeholder="0.0"
-                            value={newOperationTime}
-                            onChange={(e) => {
-                              setNewOperationTime(e.target.value)
-                              if (errors.operationTime) setErrors((prev) => ({ ...prev, operationTime: undefined }))
-                            }}
-                            onKeyPress={handleKeyPress}
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest pl-1">Unidade</label>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <button className="w-full h-12 px-4 rounded-xl bg-input border border-border text-sm font-medium text-foreground flex items-center justify-between outline-none hover:bg-muted transition-all focus:ring-2 focus:ring-primary">
+                                {timeUnitTakt === "minutes" ? "Minutos" : timeUnitTakt === "hours" ? "Horas" : "Segundos"}
+                                <ChevronDown className="w-4 h-4 text-muted-foreground" />
+                              </button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent className="w-[var(--radix-dropdown-menu-trigger-width)] bg-card border border-border p-2 rounded-2xl shadow-xl z-[150]">
+                              <DropdownMenuItem onClick={() => setTimeUnitTakt("minutes")} className={`w-full text-left text-sm font-bold py-2.5 px-3 rounded-xl cursor-pointer transition-all ${timeUnitTakt === "minutes" ? "bg-primary text-primary-foreground" : "text-foreground hover:bg-muted"}`}>Minutos</DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => setTimeUnitTakt("hours")} className={`w-full text-left text-sm font-bold py-2.5 px-3 rounded-xl cursor-pointer transition-all ${timeUnitTakt === "hours" ? "bg-primary text-primary-foreground" : "text-foreground hover:bg-muted"}`}>Horas</DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => setTimeUnitTakt("seconds")} className={`w-full text-left text-sm font-bold py-2.5 px-3 rounded-xl cursor-pointer transition-all ${timeUnitTakt === "seconds" ? "bg-primary text-primary-foreground" : "text-foreground hover:bg-muted"}`}>Segundos</DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div>
+                      </div>
+                      
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest pl-1">Demanda ({demandUnit}/{demandPeriod === "mes" ? "mês" : "dia"})</label>
+                        <div className="grid grid-cols-2 gap-4">
+                          <input type="number" step="1" min="0" placeholder="100" value={dailyDemand}
+                            onChange={(e) => { setDailyDemand(e.target.value); validateTaktFields(); }} onBlur={validateTaktFields}
+                            className={`w-full h-12 px-4 rounded-xl border border-border bg-input text-foreground text-sm outline-none focus:ring-2 focus:ring-primary transition-all ${errors.dailyDemand ? "ring-2 ring-destructive" : ""}`}
+                          />
+                          <input 
+                            type="text" 
+                            placeholder="Ex: caixas" 
+                            value={demandUnit} 
+                            onChange={(e) => setDemandUnit(e.target.value)} 
+                            className="w-full h-12 px-4 rounded-xl border border-border bg-input text-foreground text-sm outline-none focus:ring-2 focus:ring-primary transition-all"
                           />
                         </div>
-                        <Button
-                          onClick={addOperation}
-                          className="w-full tech-glow"
-                          disabled={!newOperationName.trim() || !newOperationTime.trim() || isLoading}
-                        >
-                          <Plus className="h-4 w-4 mr-2" /> Adicionar Operação
-                        </Button>
                       </div>
 
-                      <div className="flex flex-col sm:flex-row gap-2">
-                        <Button variant="outline" size="sm" className="flex-1 tech-glow" onClick={handleImportExcel} disabled={isLoading}>
-                          <Upload className="h-4 w-4 mr-2" /> Importar
-                        </Button>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="outline" size="sm" className="flex-1 tech-glow" disabled={isLoading}>
-                              <Download className="h-4 w-4 mr-2" /> Exportar
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent>
-                            <DropdownMenuItem onClick={downloadTemplate}>
-                              <FileSpreadsheet className="h-4 w-4 mr-2 text-primary" /> Baixar Modelo (Excel)
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={handleExportChartPDF} disabled={operations.length === 0}>
-                              <FileImage className="h-4 w-4 mr-2" /> Exportar Gráfico (PDF)
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={handleExportExcel} disabled={operations.length === 0}>
-                              <FileSpreadsheet className="h-4 w-4 mr-2" /> Exportar Dados (Excel)
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </div>
+                      {calculateTaktTime() && (
+                        <div className="bg-primary/5 border border-primary/20 p-4 rounded-xl flex items-center gap-3 mt-4">
+                          <CheckCircle2 className="h-5 w-5 text-primary" />
+                          <p className="text-sm font-semibold text-primary">
+                            Takt Time: {timeUnitTakt === "hours" ? (calculateTaktTime()! / 3600).toFixed(2)
+                              : timeUnitTakt === "minutes" ? (calculateTaktTime()! / 60).toFixed(2)
+                              : calculateTaktTime()!.toFixed(2)} {timeUnitTakt === "hours" ? "h" : timeUnitTakt === "minutes" ? "min" : "seg"}/{demandUnit}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
 
-                      <DraggableOperationsList 
-                        operations={operations} 
-                        timeUnit={timeUnit} 
-                        onReorder={reorderOperations} 
-                        onRemove={removeOperation} 
-                        onEdit={editOperation}
+                  <div className="bg-card p-6 rounded-2xl shadow-sm border border-border space-y-4">
+                    <div className="flex items-center justify-between border-b border-border pb-2">
+                      <h3 className="font-bold text-foreground text-sm tracking-wide uppercase">Nova Operação</h3>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <button className="h-8 px-3 rounded-lg bg-input border border-border text-[10px] font-bold text-muted-foreground flex items-center gap-1 outline-none hover:bg-muted transition-all focus:ring-2 focus:ring-primary">
+                            {timeUnit === "minutes" ? "Minutos" : "Segundos"}
+                            <ChevronDown className="w-3 h-3 text-muted-foreground" />
+                          </button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent className="w-32 bg-card border border-border p-1.5 rounded-xl shadow-xl z-[150]">
+                          <DropdownMenuItem onClick={() => setTimeUnit("minutes")} className={`w-full text-left text-[10px] font-bold py-2 px-2.5 rounded-lg cursor-pointer transition-all ${timeUnit === "minutes" ? "bg-primary text-primary-foreground" : "text-foreground hover:bg-muted"}`}>Minutos</DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => setTimeUnit("seconds")} className={`w-full text-left text-[10px] font-bold py-2 px-2.5 rounded-lg cursor-pointer transition-all ${timeUnit === "seconds" ? "bg-primary text-primary-foreground" : "text-foreground hover:bg-muted"}`}>Segundos</DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
+                    
+                    <div className="space-y-3">
+                      <input placeholder="Nome da Operação" value={newOperationName} onKeyPress={handleKeyPress}
+                        onChange={(e) => { setNewOperationName(e.target.value); if (errors.operationName) setErrors((prev) => ({ ...prev, operationName: undefined })); }}
+                        className="w-full h-12 px-4 rounded-xl border border-border bg-input text-foreground text-sm outline-none focus:ring-2 focus:ring-primary transition-all"
                       />
-                    </CardContent>
-                  </Card>
+                      <input type="number" step="0.01" min="0" placeholder="Tempo" value={newOperationTime} onKeyPress={handleKeyPress}
+                        onChange={(e) => { setNewOperationTime(e.target.value); if (errors.operationTime) setErrors((prev) => ({ ...prev, operationTime: undefined })); }}
+                        className="w-full h-12 px-4 rounded-xl border border-border bg-input text-foreground text-sm outline-none focus:ring-2 focus:ring-primary transition-all"
+                      />
+                      <button 
+                        onClick={addOperation} disabled={!newOperationName.trim() || !newOperationTime.trim() || isLoading}
+                        className="w-full h-12 flex items-center justify-center bg-primary text-primary-foreground rounded-xl font-bold text-xs uppercase tracking-widest shadow-md hover:opacity-90 transition-all disabled:opacity-50 disabled:cursor-not-allowed mt-2"
+                      >
+                        <Plus className="h-4 w-4 mr-2" /> Adicionar
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-3">
+                    <button onClick={handleImportExcel} disabled={isLoading} className="flex-1 h-12 flex items-center justify-center bg-card border border-border text-muted-foreground font-bold text-xs rounded-xl hover:bg-muted transition-colors shadow-sm">
+                      <Upload className="h-4 w-4 mr-2" /> Importar
+                    </button>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <button disabled={isLoading} className="flex-1 h-12 flex items-center justify-center bg-card border border-border text-muted-foreground font-bold text-xs rounded-xl hover:bg-muted transition-colors shadow-sm">
+                          <Download className="h-4 w-4 mr-2" /> Exportar
+                        </button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent className="w-56 bg-card rounded-2xl shadow-xl border border-border p-2">
+                        <DropdownMenuItem onClick={handleExportChartPDF} disabled={operations.length === 0} className="cursor-pointer text-sm font-medium py-2 px-3 rounded-lg hover:bg-muted text-foreground">
+                          <FileImage className="h-4 w-4 mr-2 text-destructive" /> Exportar Gráfico (PDF)
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={handleExportExcel} disabled={operations.length === 0} className="cursor-pointer text-sm font-medium py-2 px-3 rounded-lg hover:bg-muted text-foreground">
+                          <FileSpreadsheet className="h-4 w-4 mr-2 text-green-600" /> Exportar Dados (Excel)
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
+                  <button onClick={downloadTemplate} disabled={isLoading} className="w-full h-12 flex items-center justify-center bg-card border border-border text-muted-foreground font-bold text-xs rounded-xl hover:bg-muted transition-colors shadow-sm">
+                    <FileSpreadsheet className="h-4 w-4 mr-2 text-green-600" /> Baixar Modelo Padrão (Excel)
+                  </button>
+
+                  <div className="bg-card border border-border rounded-2xl shadow-sm p-6">
+                    <DraggableOperationsList operations={operations} timeUnit={timeUnit} onReorder={reorderOperations} onRemove={removeOperation} onEdit={editOperation} />
+                  </div>
                 </div>
 
-                <div className="xl:col-span-2 space-y-6 lg:space-y-8 print:w-full print:space-y-0">
+                {/* COLUNA DIREITA: GRÁFICOS (60%) */}
+                <div className="xl:w-[60%] flex flex-col gap-6 print:w-full">
                   {operations.length > 0 ? (
                     <>
-                      <div className="tech-card tech-glow print:hidden">
+                      <div className="print:hidden">
                         <CalculationsDashboard operations={operations} timeUnit={timeUnit} taktTime={calculateTaktTime()} taktTimeUnit={timeUnitTakt} demandUnit={demandUnit} />
                       </div>
-                      <div className="tech-card tech-glow p-4 rounded-lg bg-card print-chart print:p-8 print:border-none print:shadow-none print:bg-transparent">
+                      
+                      <div id="gbo-chart-container" className="bg-card rounded-3xl shadow-sm border border-border p-6 print:border-none print:shadow-none print:p-0">
                         <GBOChart operations={operations} timeUnit={timeUnit} taktTime={calculateTaktTime()} taktTimeUnit={timeUnitTakt} demandUnit={demandUnit} />
                       </div>
                     </>
                   ) : (
-                    <Card className="tech-card tech-glow print:hidden">
-                      <CardContent className="flex flex-col items-center justify-center py-16">
-                        <div className="p-4 rounded-full bg-muted/30 mb-4">
-                          <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" className="text-muted-foreground opacity-20">
-                            <path d="M3 3v18h18" />
-                            <path d="M18 9l-5 5-4-4-5 5" />
-                            <circle cx="18" cy="9" r="2.5" fill="currentColor" />
-                          </svg>
-                        </div>
-                        <h3 className="text-lg font-semibold text-muted-foreground mb-2">Nenhuma operação adicionada</h3>
-                      </CardContent>
-                    </Card>
+                    <div className="h-full min-h-[400px] flex flex-col items-center justify-center bg-card border border-border rounded-2xl shadow-sm print:hidden">
+                      <div className="p-4 rounded-full bg-input mb-4">
+                        <Plus className="w-8 h-8 text-muted-foreground" />
+                      </div>
+                      <h3 className="text-lg font-bold text-foreground">Nenhuma operação adicionada</h3>
+                      <p className="text-sm text-muted-foreground mt-2">Preencha o formulário ao lado para gerar o gráfico</p>
+                    </div>
                   )}
                 </div>
               </div>
