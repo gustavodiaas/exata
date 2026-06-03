@@ -17,6 +17,8 @@ import {
   CheckCircle2,
   FileImage,
   ChevronDown,
+  BarChart,
+  Settings
 } from "lucide-react"
 import { GBOChart } from "@/components/gbo-chart"
 import { CalculationsDashboard } from "@/components/calculations-dashboard"
@@ -264,7 +266,7 @@ export default function GBOAnalysis() {
             <div className="flex items-center gap-4">
               <div className="flex flex-col">
                 <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground">
-                  Gráfico de Balanceamento de Operações (GBO)
+                  Cadastro de Produto
                 </h1>
               </div>
             </div>
@@ -300,11 +302,13 @@ export default function GBOAnalysis() {
           <Tabs defaultValue="gbo" className="w-full space-y-6">
             <div className="flex justify-center print:hidden">
               <TabsList className="bg-muted p-1 rounded-xl shadow-sm h-auto border border-border">
-                <TabsTrigger value="gbo" className="px-6 py-2.5 text-xs font-bold uppercase tracking-wider rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all">
-                  📊 Balanceamento GBO
+                <TabsTrigger value="gbo" className="px-6 py-2.5 text-xs font-bold uppercase tracking-wider rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all flex items-center gap-2">
+                  <BarChart className="w-4 h-4" />
+                  Cadastrar Produto
                 </TabsTrigger>
-                <TabsTrigger value="pcp" className="px-6 py-2.5 text-xs font-bold uppercase tracking-wider rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all">
-                  ⚙️ Programação PCP / Heijunka
+                <TabsTrigger value="pcp" className="px-6 py-2.5 text-xs font-bold uppercase tracking-wider rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all flex items-center gap-2">
+                  <Settings className="w-4 h-4" />
+                  Programação Fabril
                 </TabsTrigger>
               </TabsList>
             </div>
