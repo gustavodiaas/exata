@@ -18,7 +18,8 @@ import {
   FileImage,
   ChevronDown,
   BarChart,
-  Settings
+  Settings,
+  Trash2
 } from "lucide-react"
 import { GBOChart } from "@/components/gbo-chart"
 import { CalculationsDashboard } from "@/components/calculations-dashboard"
@@ -236,6 +237,22 @@ export default function GBOAnalysis() {
     if (fileInputRef.current) fileInputRef.current.value = ""
   }
 
+  // Função Nuke: Apaga todo o localStorage e recarrega a página
+  const handleClearData = () => {
+    if (window.confirm("ATENÇÃO: Você tem certeza que deseja apagar todos os dados?\n\nIsso limpará todo o histórico de operações do GBO e os registros do PCP permanentemente.")) {
+      localStorage.clear()
+      setOperations([])
+      setWorkShiftTime("")
+      setDailyDemand("")
+      toast({ title: "🧹 Sistema Limpo", description: "Todos os dados foram resetados." })
+      
+      // Força um reload após 500ms para garantir que a aba PCP perca a memória em cache também
+      setTimeout(() => {
+        window.location.reload()
+      }, 500)
+    }
+  }
+
   return (
     <>
       <style dangerouslySetInnerHTML={{__html: `
@@ -266,13 +283,26 @@ export default function GBOAnalysis() {
             <div className="flex items-center gap-4">
               <div className="flex flex-col">
                 <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground">
-                  Cadastro de Produto
+                  Gráfico de Balanceamento de Operações (GBO)
                 </h1>
               </div>
             </div>
             
             <div className="flex items-center gap-4">
+              {/* Botão de Limpar Dados Injetado Aqui */}
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={handleClearData} 
+                className="text-destructive border-destructive/30 hover:bg-destructive/10 transition-colors"
+                title="Apagar todo o histórico do sistema"
+              >
+                <Trash2 className="h-4 w-4 mr-2" />
+                Limpar Dados
+              </Button>
+
               <ThemeToggle />
+              
               <Dialog>
                 <DialogTrigger asChild>
                   <Button variant="ghost" size="icon" className="h-9 w-9 rounded-full text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors">
@@ -304,11 +334,11 @@ export default function GBOAnalysis() {
               <TabsList className="bg-muted p-1 rounded-xl shadow-sm h-auto border border-border">
                 <TabsTrigger value="gbo" className="px-6 py-2.5 text-xs font-bold uppercase tracking-wider rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all flex items-center gap-2">
                   <BarChart className="w-4 h-4" />
-                  Cadastrar Produto
+                  Balanceamento GBO
                 </TabsTrigger>
                 <TabsTrigger value="pcp" className="px-6 py-2.5 text-xs font-bold uppercase tracking-wider rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all flex items-center gap-2">
                   <Settings className="w-4 h-4" />
-                  Programação Fabril
+                  Programação PCP / Heijunka
                 </TabsTrigger>
               </TabsList>
             </div>
