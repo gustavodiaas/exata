@@ -33,6 +33,10 @@ import {
 } from "@/components/ui/dialog"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 
+// Importações das Abas e da nova tela de PCP
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { PCPTab } from "@/components/pcp-tab"
+
 interface Operation {
   id: string
   name: string
@@ -301,210 +305,228 @@ export default function GBOAnalysis() {
         </div>
 
         <div className="container mx-auto px-4 pb-12 print:p-12 print:max-w-none print:w-[100vw] print:break-inside-avoid">
-          <div className="grid gap-6 lg:gap-8 xl:grid-cols-3 print:flex print:w-full">
-            
-            <div className="xl:col-span-1 print:hidden">
-              <Card className="tech-card tech-glow">
-                <CardHeader className="pb-4">
-                  <CardTitle className="text-xl flex items-center gap-2">
-                    <div className="w-2 h-2 rounded-full bg-accent animate-pulse"></div>
-                    Inserir Operações
-                  </CardTitle>
-                  <CardDescription>Adicione operações para gerar o gráfico GBO</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-6">
-                  <div className="space-y-4 p-4 bg-gradient-to-br from-muted/30 to-accent/5 rounded-xl border border-accent/20 tech-glow">
-                    <Label className="text-sm font-semibold flex items-center gap-2">
-                      <div className="w-1.5 h-1.5 rounded-full bg-accent"></div>
-                      Cálculo do Takt Time
-                    </Label>
-                    <div className="space-y-3">
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          <Tabs defaultValue="gbo" className="w-full space-y-6">
+            <div className="flex justify-center print:hidden">
+              <TabsList className="glass-panel border-primary/20 bg-background/50 p-1 rounded-xl shadow-md h-auto">
+                <TabsTrigger value="gbo" className="px-6 py-2.5 text-xs font-bold uppercase tracking-wider rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all">
+                  📊 Balanceamento GBO
+                </TabsTrigger>
+                <TabsTrigger value="pcp" className="px-6 py-2.5 text-xs font-bold uppercase tracking-wider rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all">
+                  ⚙️ Programação PCP / Heijunka
+                </TabsTrigger>
+              </TabsList>
+            </div>
+
+            <TabsContent value="gbo" className="outline-none space-y-6">
+              <div className="grid gap-6 lg:gap-8 xl:grid-cols-3 print:flex print:w-full">
+                <div className="xl:col-span-1 print:hidden">
+                  <Card className="tech-card tech-glow">
+                    <CardHeader className="pb-4">
+                      <CardTitle className="text-xl flex items-center gap-2">
+                        <div className="w-2 h-2 rounded-full bg-accent animate-pulse"></div>
+                        Inserir Operações
+                      </CardTitle>
+                      <CardDescription>Adicione operações para gerar o gráfico GBO</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-6">
+                      <div className="space-y-4 p-4 bg-gradient-to-br from-muted/30 to-accent/5 rounded-xl border border-accent/20 tech-glow">
+                        <Label className="text-sm font-semibold flex items-center gap-2">
+                          <div className="w-1.5 h-1.5 rounded-full bg-accent"></div>
+                          Cálculo do Takt Time
+                        </Label>
+                        <div className="space-y-3">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                            <div className="space-y-2">
+                              <Label className="text-xs">Tempo do Turno</Label>
+                              <Input
+                                type="number"
+                                step="0.1"
+                                min="0"
+                                placeholder="8.0"
+                                value={workShiftTime}
+                                onChange={(e) => { setWorkShiftTime(e.target.value); validateTaktFields(); }}
+                                onBlur={validateTaktFields}
+                                className={errors.workShiftTime ? "border-red-500 focus:border-red-500" : ""}
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label className="text-xs">Unidade</Label>
+                              <Select value={timeUnitTakt} onValueChange={(v: any) => setTimeUnitTakt(v)}>
+                                <SelectTrigger><SelectValue /></SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="minutes">Min</SelectItem>
+                                  <SelectItem value="hours">Horas</SelectItem>
+                                  <SelectItem value="seconds">Seg</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          </div>
+                          <div className="space-y-2">
+                            <Label className="text-xs">Demanda Diária ({demandUnit}/dia)</Label>
+                            <div className="grid grid-cols-2 gap-2">
+                              <Input
+                                type="number"
+                                step="1"
+                                min="0"
+                                placeholder="100"
+                                value={dailyDemand}
+                                onChange={(e) => { setDailyDemand(e.target.value); validateTaktFields(); }}
+                                onBlur={validateTaktFields}
+                                className={errors.dailyDemand ? "border-red-500 focus:border-red-500" : ""}
+                              />
+                              <Select value={demandUnit} onValueChange={setDemandUnit}>
+                                <SelectTrigger><SelectValue /></SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="peças">Peças</SelectItem>
+                                  <SelectItem value="m²">m²</SelectItem>
+                                  <SelectItem value="m³">m³</SelectItem>
+                                  <SelectItem value="kg">kg</SelectItem>
+                                  <SelectItem value="litros">Litros</SelectItem>
+                                  <SelectItem value="unidades">Unidades</SelectItem>
+                                  <SelectItem value="metros">Metros</SelectItem>
+                                  <SelectItem value="toneladas">Toneladas</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          </div>
+                          {calculateTaktTime() && (
+                            <Alert className="bg-primary/10 border-primary/20">
+                              <CheckCircle2 className="h-4 w-4 text-primary" />
+                              <AlertDescription>
+                                <strong>Takt Time: </strong>
+                                {timeUnitTakt === "hours" ? (calculateTaktTime()! / 3600).toFixed(2)
+                                  : timeUnitTakt === "minutes" ? (calculateTaktTime()! / 60).toFixed(2)
+                                  : calculateTaktTime()!.toFixed(2)} {timeUnitTakt}/{demandUnit.toLowerCase()}
+                              </AlertDescription>
+                            </Alert>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label className="flex items-center gap-2">
+                          <div className="w-1.5 h-1.5 rounded-full bg-primary"></div>
+                          Unidade de Tempo
+                        </Label>
+                        <Select value={timeUnit} onValueChange={(v: any) => setTimeUnit(v)}>
+                          <SelectTrigger><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="minutes">Minutos</SelectItem>
+                            <SelectItem value="seconds">Segundos</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div className="space-y-4">
                         <div className="space-y-2">
-                          <Label className="text-xs">Tempo do Turno</Label>
+                          <Label className="flex items-center gap-2">
+                            <div className="w-1.5 h-1.5 rounded-full bg-primary"></div>
+                            Nome da Operação
+                          </Label>
+                          <Input
+                            placeholder="Ex: Montagem, Soldagem..."
+                            value={newOperationName}
+                            onChange={(e) => {
+                              setNewOperationName(e.target.value)
+                              if (errors.operationName) setErrors((prev) => ({ ...prev, operationName: undefined }))
+                            }}
+                            onKeyPress={handleKeyPress}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="flex items-center gap-2">
+                            <div className="w-1.5 h-1.5 rounded-full bg-primary"></div>
+                            Tempo ({timeUnit})
+                          </Label>
                           <Input
                             type="number"
                             step="0.1"
                             min="0"
-                            placeholder="8.0"
-                            value={workShiftTime}
-                            onChange={(e) => { setWorkShiftTime(e.target.value); validateTaktFields(); }}
-                            onBlur={validateTaktFields}
-                            className={errors.workShiftTime ? "border-red-500 focus:border-red-500" : ""}
+                            placeholder="0.0"
+                            value={newOperationTime}
+                            onChange={(e) => {
+                              setNewOperationTime(e.target.value)
+                              if (errors.operationTime) setErrors((prev) => ({ ...prev, operationTime: undefined }))
+                            }}
+                            onKeyPress={handleKeyPress}
                           />
                         </div>
-                        <div className="space-y-2">
-                          <Label className="text-xs">Unidade</Label>
-                          <Select value={timeUnitTakt} onValueChange={(v: any) => setTimeUnitTakt(v)}>
-                            <SelectTrigger><SelectValue /></SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="minutes">Min</SelectItem>
-                              <SelectItem value="hours">Horas</SelectItem>
-                              <SelectItem value="seconds">Seg</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      </div>
-                      <div className="space-y-2">
-                        <Label className="text-xs">Demanda Diária ({demandUnit}/dia)</Label>
-                        <div className="grid grid-cols-2 gap-2">
-                          <Input
-                            type="number"
-                            step="1"
-                            min="0"
-                            placeholder="100"
-                            value={dailyDemand}
-                            onChange={(e) => { setDailyDemand(e.target.value); validateTaktFields(); }}
-                            onBlur={validateTaktFields}
-                            className={errors.dailyDemand ? "border-red-500 focus:border-red-500" : ""}
-                          />
-                          <Select value={demandUnit} onValueChange={setDemandUnit}>
-                            <SelectTrigger><SelectValue /></SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="peças">Peças</SelectItem>
-                              <SelectItem value="m²">m²</SelectItem>
-                              <SelectItem value="m³">m³</SelectItem>
-                              <SelectItem value="kg">kg</SelectItem>
-                              <SelectItem value="litros">Litros</SelectItem>
-                              <SelectItem value="unidades">Unidades</SelectItem>
-                              <SelectItem value="metros">Metros</SelectItem>
-                              <SelectItem value="toneladas">Toneladas</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      </div>
-                      {calculateTaktTime() && (
-                        <Alert className="bg-primary/10 border-primary/20">
-                          <CheckCircle2 className="h-4 w-4 text-primary" />
-                          <AlertDescription>
-                            <strong>Takt Time: </strong>
-                            {timeUnitTakt === "hours" ? (calculateTaktTime()! / 3600).toFixed(2)
-                              : timeUnitTakt === "minutes" ? (calculateTaktTime()! / 60).toFixed(2)
-                              : calculateTaktTime()!.toFixed(2)} {timeUnitTakt}/{demandUnit.toLowerCase()}
-                          </AlertDescription>
-                        </Alert>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label className="flex items-center gap-2">
-                      <div className="w-1.5 h-1.5 rounded-full bg-primary"></div>
-                      Unidade de Tempo
-                    </Label>
-                    <Select value={timeUnit} onValueChange={(v: any) => setTimeUnit(v)}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="minutes">Minutos</SelectItem>
-                        <SelectItem value="seconds">Segundos</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="space-y-4">
-                    <div className="space-y-2">
-                      <Label className="flex items-center gap-2">
-                        <div className="w-1.5 h-1.5 rounded-full bg-primary"></div>
-                        Nome da Operação
-                      </Label>
-                      <Input
-                        placeholder="Ex: Montagem, Soldagem..."
-                        value={newOperationName}
-                        onChange={(e) => {
-                          setNewOperationName(e.target.value)
-                          if (errors.operationName) setErrors((prev) => ({ ...prev, operationName: undefined }))
-                        }}
-                        onKeyPress={handleKeyPress}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label className="flex items-center gap-2">
-                        <div className="w-1.5 h-1.5 rounded-full bg-primary"></div>
-                        Tempo ({timeUnit})
-                      </Label>
-                      <Input
-                        type="number"
-                        step="0.1"
-                        min="0"
-                        placeholder="0.0"
-                        value={newOperationTime}
-                        onChange={(e) => {
-                          setNewOperationTime(e.target.value)
-                          if (errors.operationTime) setErrors((prev) => ({ ...prev, operationTime: undefined }))
-                        }}
-                        onKeyPress={handleKeyPress}
-                      />
-                    </div>
-                    <Button
-                      onClick={addOperation}
-                      className="w-full tech-glow"
-                      disabled={!newOperationName.trim() || !newOperationTime.trim() || isLoading}
-                    >
-                      <Plus className="h-4 w-4 mr-2" /> Adicionar Operação
-                    </Button>
-                  </div>
-
-                  <div className="flex flex-col sm:flex-row gap-2">
-                    <Button variant="outline" size="sm" className="flex-1 tech-glow" onClick={handleImportExcel} disabled={isLoading}>
-                      <Upload className="h-4 w-4 mr-2" /> Importar
-                    </Button>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="outline" size="sm" className="flex-1 tech-glow" disabled={isLoading}>
-                          <Download className="h-4 w-4 mr-2" /> Exportar
+                        <Button
+                          onClick={addOperation}
+                          className="w-full tech-glow"
+                          disabled={!newOperationName.trim() || !newOperationTime.trim() || isLoading}
+                        >
+                          <Plus className="h-4 w-4 mr-2" /> Adicionar Operação
                         </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent>
-                        <DropdownMenuItem onClick={downloadTemplate}>
-                          <FileSpreadsheet className="h-4 w-4 mr-2 text-primary" /> Baixar Modelo (Excel)
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={handleExportChartPDF} disabled={operations.length === 0}>
-                          <FileImage className="h-4 w-4 mr-2" /> Exportar Gráfico (PDF)
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={handleExportExcel} disabled={operations.length === 0}>
-                          <FileSpreadsheet className="h-4 w-4 mr-2" /> Exportar Dados (Excel)
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </div>
+                      </div>
 
-                  <DraggableOperationsList 
-                    operations={operations} 
-                    timeUnit={timeUnit} 
-                    onReorder={reorderOperations} 
-                    onRemove={removeOperation} 
-                    onEdit={editOperation}
-                  />
-                </CardContent>
-              </Card>
-            </div>
+                      <div className="flex flex-col sm:flex-row gap-2">
+                        <Button variant="outline" size="sm" className="flex-1 tech-glow" onClick={handleImportExcel} disabled={isLoading}>
+                          <Upload className="h-4 w-4 mr-2" /> Importar
+                        </Button>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="outline" size="sm" className="flex-1 tech-glow" disabled={isLoading}>
+                              <Download className="h-4 w-4 mr-2" /> Exportar
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent>
+                            <DropdownMenuItem onClick={downloadTemplate}>
+                              <FileSpreadsheet className="h-4 w-4 mr-2 text-primary" /> Baixar Modelo (Excel)
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={handleExportChartPDF} disabled={operations.length === 0}>
+                              <FileImage className="h-4 w-4 mr-2" /> Exportar Gráfico (PDF)
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={handleExportExcel} disabled={operations.length === 0}>
+                              <FileSpreadsheet className="h-4 w-4 mr-2" /> Exportar Dados (Excel)
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
 
-            <div className="xl:col-span-2 space-y-6 lg:space-y-8 print:w-full print:space-y-0">
-              {operations.length > 0 ? (
-                <>
-                  <div className="tech-card tech-glow print:hidden">
-                    <CalculationsDashboard operations={operations} timeUnit={timeUnit} taktTime={calculateTaktTime()} taktTimeUnit={timeUnitTakt} demandUnit={demandUnit} />
-                  </div>
-                  <div className="tech-card tech-glow p-4 rounded-lg bg-card print-chart print:p-8 print:border-none print:shadow-none print:bg-transparent">
-                    <GBOChart operations={operations} timeUnit={timeUnit} taktTime={calculateTaktTime()} taktTimeUnit={timeUnitTakt} demandUnit={demandUnit} />
-                  </div>
-                </>
-              ) : (
-                <Card className="tech-card tech-glow print:hidden">
-                  <CardContent className="flex flex-col items-center justify-center py-16">
-                    <div className="p-4 rounded-full bg-muted/30 mb-4">
-                      <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" className="text-muted-foreground opacity-20">
-                        <path d="M3 3v18h18" />
-                        <path d="M18 9l-5 5-4-4-5 5" />
-                        <circle cx="18" cy="9" r="2.5" fill="currentColor" />
-                      </svg>
-                    </div>
-                    <h3 className="text-lg font-semibold text-muted-foreground mb-2">Nenhuma operação adicionada</h3>
-                  </CardContent>
-                </Card>
-              )}
-            </div>
-          </div>
+                      <DraggableOperationsList 
+                        operations={operations} 
+                        timeUnit={timeUnit} 
+                        onReorder={reorderOperations} 
+                        onRemove={removeOperation} 
+                        onEdit={editOperation}
+                      />
+                    </CardContent>
+                  </Card>
+                </div>
+
+                <div className="xl:col-span-2 space-y-6 lg:space-y-8 print:w-full print:space-y-0">
+                  {operations.length > 0 ? (
+                    <>
+                      <div className="tech-card tech-glow print:hidden">
+                        <CalculationsDashboard operations={operations} timeUnit={timeUnit} taktTime={calculateTaktTime()} taktTimeUnit={timeUnitTakt} demandUnit={demandUnit} />
+                      </div>
+                      <div className="tech-card tech-glow p-4 rounded-lg bg-card print-chart print:p-8 print:border-none print:shadow-none print:bg-transparent">
+                        <GBOChart operations={operations} timeUnit={timeUnit} taktTime={calculateTaktTime()} taktTimeUnit={timeUnitTakt} demandUnit={demandUnit} />
+                      </div>
+                    </>
+                  ) : (
+                    <Card className="tech-card tech-glow print:hidden">
+                      <CardContent className="flex flex-col items-center justify-center py-16">
+                        <div className="p-4 rounded-full bg-muted/30 mb-4">
+                          <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" className="text-muted-foreground opacity-20">
+                            <path d="M3 3v18h18" />
+                            <path d="M18 9l-5 5-4-4-5 5" />
+                            <circle cx="18" cy="9" r="2.5" fill="currentColor" />
+                          </svg>
+                        </div>
+                        <h3 className="text-lg font-semibold text-muted-foreground mb-2">Nenhuma operação adicionada</h3>
+                      </CardContent>
+                    </Card>
+                  )}
+                </div>
+              </div>
+            </TabsContent>
+
+            <TabsContent value="pcp" className="outline-none">
+              <PCPTab />
+            </TabsContent>
+          </Tabs>
         </div>
       </div>
     </>
