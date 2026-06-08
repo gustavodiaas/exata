@@ -18,8 +18,7 @@ import {
   FileImage,
   ChevronDown,
   BarChart,
-  Settings,
-  Trash2
+  Settings
 } from "lucide-react"
 import { GBOChart } from "@/components/gbo-chart"
 import { CalculationsDashboard } from "@/components/calculations-dashboard"
@@ -65,7 +64,7 @@ export default function GBOAnalysis() {
   const [operations, setOperations] = useState<Operation[]>([])
   const [timeUnit, setTimeUnit] = useState<"minutes" | "seconds">("minutes")
   
-  // Novos estados para a Identificação do Produto
+  // Estados para a Identificação do Produto
   const [productCode, setProductCode] = useState("")
   const [productName, setProductName] = useState("")
   const [calcType, setCalcType] = useState("takt")
@@ -126,7 +125,7 @@ export default function GBOAnalysis() {
     toast({ title: "✅ Atualizado", description: `Operação "${newName}" atualizada.` })
   }
 
-  const reorderOperations = (newOperations: Operation[]) => {
+  const borderOperations = (newOperations: Operation[]) => {
     setOperations(newOperations)
     toast({ title: "✅ Ordem atualizada", description: "A ordem das operações foi reorganizada." })
   }
@@ -180,21 +179,6 @@ export default function GBOAnalysis() {
     if (fileInputRef.current) fileInputRef.current.value = ""
   }
 
-  const handleClearData = () => {
-    if (window.confirm("ATENÇÃO: Você tem certeza que deseja apagar todos os dados?\n\nIsso limpará todo o histórico de operações do GBO e os registros do PCP permanentemente.")) {
-      localStorage.clear()
-      setOperations([])
-      setProductCode("")
-      setProductName("")
-      setCalcType("takt")
-      toast({ title: "🧹 Sistema Limpo", description: "Todos os dados foram resetados." })
-      
-      setTimeout(() => {
-        window.location.reload()
-      }, 500)
-    }
-  }
-
   return (
     <>
       <style dangerouslySetInnerHTML={{__html: `
@@ -231,17 +215,7 @@ export default function GBOAnalysis() {
             </div>
             
             <div className="flex items-center gap-4">
-              <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={handleClearData} 
-                className="text-destructive border-destructive/30 hover:bg-destructive/10 transition-colors"
-                title="Apagar todo o histórico do sistema"
-              >
-                <Trash2 className="h-4 w-4 mr-2" />
-                Limpar Dados
-              </Button>
-
+              {/* BOTÃO DE LIMPAR DADOS REMOVIDO DAQUI CONFORME O FEEDBACK */}
               <ThemeToggle />
               
               <Dialog>
@@ -413,7 +387,7 @@ export default function GBOAnalysis() {
                   </button>
 
                   <div className="bg-card border border-border rounded-2xl shadow-sm p-6">
-                    <DraggableOperationsList operations={operations} timeUnit={timeUnit} onReorder={reorderOperations} onRemove={removeOperation} onEdit={editOperation} />
+                    <DraggableOperationsList operations={operations} timeUnit={timeUnit} onReorder={borderOperations} onRemove={removeOperation} onEdit={editOperation} />
                   </div>
                 </div>
 
