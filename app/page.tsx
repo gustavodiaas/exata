@@ -18,7 +18,8 @@ import {
   FileImage,
   ChevronDown,
   BarChart,
-  Settings
+  Settings,
+  Save
 } from "lucide-react"
 import { GBOChart } from "@/components/gbo-chart"
 import { CalculationsDashboard } from "@/components/calculations-dashboard"
@@ -35,7 +36,6 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 
-// Importações das Abas e da nova tela de PCP
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { PCPTab } from "@/components/pcp-tab"
 
@@ -64,7 +64,6 @@ export default function GBOAnalysis() {
   const [operations, setOperations] = useState<Operation[]>([])
   const [timeUnit, setTimeUnit] = useState<"minutes" | "seconds">("minutes")
   
-  // Estados para a Identificação do Produto
   const [productCode, setProductCode] = useState("")
   const [productName, setProductName] = useState("")
   const [calcType, setCalcType] = useState("takt")
@@ -80,7 +79,6 @@ export default function GBOAnalysis() {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const { toast } = useToast()
 
-  // Cálculo automático do Tempo de Ciclo Real
   const totalCycleTime = operations.reduce((sum, op) => sum + op.time, 0)
 
   const addOperation = () => {
@@ -125,13 +123,52 @@ export default function GBOAnalysis() {
     toast({ title: "✅ Atualizado", description: `Operação "${newName}" atualizada.` })
   }
 
-  const borderOperations = (newOperations: Operation[]) => {
+  const reorderOperations = (newOperations: Operation[]) => {
     setOperations(newOperations)
     toast({ title: "✅ Ordem atualizada", description: "A ordem das operações foi reorganizada." })
   }
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === "Enter") addOperation()
+  }
+
+  // Ponte de Sincronização em Tempo Real
+  const handleSaveProduct = () => {
+    if (!productCode.trim() || !productName.trim()) {
+      toast({ title: "Erro de Cadastro", description: "O Código e o Nome do Produto são obrigatórios.", variant: "destructive" })
+      return
+    }
+    if (operations.length === 0) {
+      toast({ title: "Roteiro Vazio", description: "Adicione ao menos uma operação antes de salvar.", variant: "destructive" })
+      return
+    }
+
+    const newProduct = {
+      code: productCode.trim(),
+      description: productName.trim(),
+      steps: operations.map(op => ({
+        name: op.name,
+        cycleTime: timeUnit === "minutes" ? op.time * 60 : op.time, // PCP lê em segundos
+        setupTime: 0
+      }))
+    }
+
+    const existingData = localStorage.getItem("gbo_products")
+    let productsArray = existingData ? JSON.parse(existingData) : []
+    
+    const existingIndex = productsArray.findIndex((p: any) => p.code === newProduct.code)
+    if (existingIndex >= 0) {
+      productsArray[existingIndex] = newProduct
+    } else {
+      productsArray.push(newProduct)
+    }
+
+    localStorage.setItem("gbo_products", JSON.stringify(productsArray))
+    
+    // Dispara o gatilho para a aba do PCP se atualizar sozinha
+    window.dispatchEvent(new Event("sync_gbo_products"))
+    
+    toast({ title: "✅ Produto Salvo", description: "O roteiro foi sincronizado com o PCP Heijunka." })
   }
 
   const handleExportExcel = async () => {
@@ -215,14 +252,12 @@ export default function GBOAnalysis() {
             </div>
             
             <div className="flex items-center gap-4">
-              {/* BOTÃO DE LIMPAR DADOS REMOVIDO DAQUI CONFORME O FEEDBACK */}
               <ThemeToggle />
               
               <Dialog>
                 <DialogTrigger asChild>
                   <Button variant="ghost" size="icon" className="h-9 w-9 rounded-full text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors">
                     <HelpCircle className="h-5 w-5" />
-                    <span className="sr-only">Ajuda</span>
                   </Button>
                 </DialogTrigger>
                 <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto bg-card border-border rounded-2xl shadow-xl">
@@ -234,8 +269,7 @@ export default function GBOAnalysis() {
                     <DialogDescription className="text-muted-foreground">Protocolo Analítico de Balanceamento</DialogDescription>
                   </DialogHeader>
                   <div className="space-y-4 text-sm mt-4 leading-relaxed text-justify text-foreground">
-                    <p>O <strong>GBO (Gráfico de Balanceamento de Operações)</strong> é uma ferramenta analítica de fluxo. Ele plota os tempos de ciclo individuais de cada operação em relação ao Takt Time estabelecido.</p>
-                    <p><strong>Objetivo:</strong> Identificar restrições sistêmicas (gargalos) e fornecer uma base de dados limpa para o nivelamento da capacidade produtiva, reduzindo ociosidade e superprodução.</p>
+                    <p>O <strong>GBO (Gráfico de Balanceamento de Operações)</strong> é uma ferramenta analítica de fluxo.</p>
                   </div>
                 </DialogContent>
               </Dialog>
@@ -387,7 +421,7 @@ export default function GBOAnalysis() {
                   </button>
 
                   <div className="bg-card border border-border rounded-2xl shadow-sm p-6">
-                    <DraggableOperationsList operations={operations} timeUnit={timeUnit} onReorder={borderOperations} onRemove={removeOperation} onEdit={editOperation} />
+                    <DraggableOperationsList operations={operations} timeUnit={timeUnit} onReorder={reorderOperations} onRemove={removeOperation} onEdit={editOperation} />
                   </div>
                 </div>
 
@@ -401,6 +435,17 @@ export default function GBOAnalysis() {
                       
                       <div id="gbo-chart-container" className="bg-card rounded-3xl shadow-sm border border-border p-6 print:border-none print:shadow-none print:p-0">
                         <GBOChart operations={operations} timeUnit={timeUnit} taktTime={undefined} taktTimeUnit={undefined} demandUnit="un" />
+                      </div>
+
+                      {/* Botão de Salvar Produto e Sincronizar Injetado Aqui */}
+                      <div className="flex justify-end mt-2 print:hidden">
+                        <Button 
+                          onClick={handleSaveProduct} 
+                          className="bg-primary hover:opacity-90 text-primary-foreground font-bold uppercase tracking-widest h-12 px-8 rounded-xl shadow-md transition-all"
+                        >
+                          <Save className="h-5 w-5 mr-2" />
+                          Salvar Produto e Sincronizar PCP
+                        </Button>
                       </div>
                     </>
                   ) : (
