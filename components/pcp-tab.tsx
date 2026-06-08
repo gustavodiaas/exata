@@ -43,10 +43,8 @@ export function PCPTab() {
   const [orders, setOrders] = useState<ProductionOrder[]>([])
   const [capacities, setCapacities] = useState<DailyCapacity[]>([])
 
-  // Visões do Heijunka
   const [viewMode, setViewMode] = useState<"grafico" | "calendario" | "lista">("grafico")
 
-  // Estados dos formulários de OP
   const [opNumber, setOpNumber] = useState("")
   const [opDate, setOpDate] = useState("")
   const [opProductCode, setOpProductCode] = useState("")
@@ -54,7 +52,6 @@ export function PCPTab() {
   const [opRule, setOpRule] = useState<"soma" | "media" | "gargalo">("soma")
   const [opGroupSetup, setOpGroupSetup] = useState(false)
 
-  // Estados para Exceções/Paradas
   const [selectedDate, setSelectedDate] = useState("")
   const [capacityValue, setCapacityValue] = useState("")
   const [capacityUnit, setCapacityUnit] = useState<"hours" | "minutes">("hours")
@@ -62,14 +59,23 @@ export function PCPTab() {
 
   const { toast } = useToast()
 
-  useEffect(() => {
+  // Função isolada para recarregar produtos do Storage
+  const loadGBOProducts = () => {
     const savedProducts = localStorage.getItem("gbo_products")
+    if (savedProducts) setProducts(JSON.parse(savedProducts))
+  }
+
+  useEffect(() => {
+    loadGBOProducts()
     const savedOrders = localStorage.getItem("pcp_orders")
     const savedCapacities = localStorage.getItem("pcp_capacities")
 
-    if (savedProducts) setProducts(JSON.parse(savedProducts))
     if (savedOrders) setOrders(JSON.parse(savedOrders))
     if (savedCapacities) setCapacities(JSON.parse(savedCapacities))
+
+    // Listener para pegar atualização da Tab 1 em tempo real
+    window.addEventListener("sync_gbo_products", loadGBOProducts)
+    return () => window.removeEventListener("sync_gbo_products", loadGBOProducts)
   }, [])
 
   const saveAndSync = (newOrders: ProductionOrder[], newCapacities: DailyCapacity[]) => {
@@ -98,7 +104,6 @@ export function PCPTab() {
     return op.quantity * baseTime + totalSetup
   }
 
-  // O Coração do Heijunka: Cálculo em Cascata de Carga Diária
   const getHeijunkaData = () => {
     const allDates = Array.from(
       new Set([...orders.map((o) => o.date), ...capacities.map((c) => c.date)])
@@ -177,14 +182,12 @@ export function PCPTab() {
     const currentCapConfig = capacities.find((c) => c.date === selectedDate)
     const updatedCapacities = capacities.filter((c) => c.date !== selectedDate)
 
-    // Converte a capacidade informada para segundos (ou mantém o padrão)
     let capInSeconds = currentCapConfig?.globalCapacity ?? 29880
     if (capacityValue) {
       const val = parseFloat(capacityValue)
       capInSeconds = capacityUnit === "hours" ? val * 3600 : val * 60
     }
 
-    // Converte a parada informada de minutos para segundos
     let downInSeconds = currentCapConfig?.downtime ?? 0
     if (downtimeValue) {
       downInSeconds = parseFloat(downtimeValue) * 60 
@@ -204,10 +207,8 @@ export function PCPTab() {
 
   return (
     <div className="space-y-6">
-      {/* 1. Dashboard de Capacidade Diária (Visão de Carga) */}
       <div className="grid gap-4 md:grid-cols-3">
         
-        {/* Painel Gerenciamento de Exceções Atualizado */}
         <Card className="bg-card border-border shadow-sm">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-semibold uppercase tracking-wider text-muted-foreground flex items-center justify-between">
@@ -246,14 +247,12 @@ export function PCPTab() {
           </CardContent>
         </Card>
 
-        {/* Painel do Heijunka Diário com Alternância de Visão */}
         <Card className="bg-card border-border shadow-sm md:col-span-2 flex flex-col">
           <CardHeader className="pb-4 border-b border-border flex flex-row items-center justify-between">
             <CardTitle className="text-sm font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
               <TrendingUp className="h-4 w-4 text-primary" /> Visão de Carga Global Nivelada
             </CardTitle>
             
-            {/* Seletor de Visão de UX */}
             <div className="flex bg-input border border-border p-1 rounded-lg">
               <button 
                 onClick={() => setViewMode("grafico")} 
@@ -286,7 +285,6 @@ export function PCPTab() {
               </div>
             ) : (
               <>
-                {/* 1. MODO GRÁFICO (Cards Horizontais) */}
                 {viewMode === "grafico" && (
                   <div className="flex gap-4 overflow-x-auto pb-2 custom-scrollbar">
                     {dashboardArray.map((day: any) => (
@@ -304,7 +302,6 @@ export function PCPTab() {
                   </div>
                 )}
 
-                {/* 2. MODO CALENDÁRIO (Grade) */}
                 {viewMode === "calendario" && (
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
                     {dashboardArray.map((day: any) => (
@@ -330,7 +327,6 @@ export function PCPTab() {
                   </div>
                 )}
 
-                {/* 3. MODO LISTA (Tabela Analítica) */}
                 {viewMode === "lista" && (
                   <div className="w-full border border-border rounded-xl overflow-hidden">
                     <table className="w-full text-left text-xs">
@@ -369,7 +365,6 @@ export function PCPTab() {
         </Card>
       </div>
 
-      {/* 2. Entrada de Ordens de Produção e Fila */}
       <div className="grid gap-6 md:grid-cols-3">
         <Card className="bg-card border-border shadow-sm col-span-1">
           <CardHeader>
@@ -427,7 +422,6 @@ export function PCPTab() {
           </CardContent>
         </Card>
 
-        {/* Listagem das OPs Programadas */}
         <Card className="bg-card border-border shadow-sm md:col-span-2">
           <CardHeader>
             <CardTitle className="text-lg">Fila de Ordens de Produção Ativas</CardTitle>
