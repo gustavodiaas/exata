@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
-import { Plus, Trash2, Calendar, ShieldAlert, TrendingUp } from "lucide-react"
+import { Plus, Trash2, Calendar, ShieldAlert, TrendingUp, LayoutGrid, CalendarDays, ListOrdered } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 
 interface RoutingStep {
@@ -34,8 +34,8 @@ interface ProductionOrder {
 
 interface DailyCapacity {
   date: string
-  globalCapacity: number // Padrão 29880s
-  downtime: number
+  globalCapacity: number // Em segundos
+  downtime: number // Em segundos
 }
 
 export function PCPTab() {
@@ -43,7 +43,10 @@ export function PCPTab() {
   const [orders, setOrders] = useState<ProductionOrder[]>([])
   const [capacities, setCapacities] = useState<DailyCapacity[]>([])
 
-  // Estados dos formulários
+  // Visões do Heijunka
+  const [viewMode, setViewMode] = useState<"grafico" | "calendario" | "lista">("grafico")
+
+  // Estados dos formulários de OP
   const [opNumber, setOpNumber] = useState("")
   const [opDate, setOpDate] = useState("")
   const [opProductCode, setOpProductCode] = useState("")
@@ -51,25 +54,24 @@ export function PCPTab() {
   const [opRule, setOpRule] = useState<"soma" | "media" | "gargalo">("soma")
   const [opGroupSetup, setOpGroupSetup] = useState(false)
 
-  // Estado para paradas diárias
+  // Estados para Exceções/Paradas
   const [selectedDate, setSelectedDate] = useState("")
+  const [capacityValue, setCapacityValue] = useState("")
+  const [capacityUnit, setCapacityUnit] = useState<"hours" | "minutes">("hours")
   const [downtimeValue, setDowntimeValue] = useState("")
 
   const { toast } = useToast()
 
-  // Carrega dados do localStorage
   useEffect(() => {
     const savedProducts = localStorage.getItem("gbo_products")
     const savedOrders = localStorage.getItem("pcp_orders")
     const savedCapacities = localStorage.getItem("pcp_capacities")
 
-    // Puxa do GBO se houver roteiros mockados ou salvos lá
     if (savedProducts) setProducts(JSON.parse(savedProducts))
     if (savedOrders) setOrders(JSON.parse(savedOrders))
     if (savedCapacities) setCapacities(JSON.parse(savedCapacities))
   }, [])
 
-  // Salva alterações no localStorage
   const saveAndSync = (newOrders: ProductionOrder[], newCapacities: DailyCapacity[]) => {
     setOrders(newOrders)
     setCapacities(newCapacities)
@@ -77,7 +79,6 @@ export function PCPTab() {
     localStorage.setItem("pcp_capacities", JSON.stringify(newCapacities))
   }
 
-  // Lógica de cálculo do tempo de uma OP com regras Lean
   const calculateOPTime = (op: ProductionOrder): number => {
     const product = products.find((p) => p.code === op.productCode)
     if (!product || product.steps.length === 0) return 0
@@ -99,7 +100,6 @@ export function PCPTab() {
 
   // O Coração do Heijunka: Cálculo em Cascata de Carga Diária
   const getHeijunkaData = () => {
-    // Agrupa todas as datas únicas e ordena cronologicamente
     const allDates = Array.from(
       new Set([...orders.map((o) => o.date), ...capacities.map((c) => c.date)])
     ).sort()
@@ -130,7 +130,6 @@ export function PCPTab() {
         occupation,
       }
 
-      // O excedente acumula para a data seguinte da iteração
       accumulatedBacklog = overflow
     })
 
@@ -138,6 +137,7 @@ export function PCPTab() {
   }
 
   const heijunkaDashboard = getHeijunkaData()
+  const dashboardArray = Object.values(heijunkaDashboard)
 
   const handleAddOP = () => {
     if (!opNumber || !opDate || !opProductCode || !opQuantity) {
@@ -169,27 +169,46 @@ export function PCPTab() {
   }
 
   const handleSaveDowntime = () => {
-    if (!selectedDate || !downtimeValue) return
+    if (!selectedDate) {
+      toast({ title: "Erro", description: "Selecione uma data para registrar a exceção.", variant: "destructive" })
+      return
+    }
 
     const currentCapConfig = capacities.find((c) => c.date === selectedDate)
     const updatedCapacities = capacities.filter((c) => c.date !== selectedDate)
 
+    // Converte a capacidade informada para segundos (ou mantém o padrão)
+    let capInSeconds = currentCapConfig?.globalCapacity ?? 29880
+    if (capacityValue) {
+      const val = parseFloat(capacityValue)
+      capInSeconds = capacityUnit === "hours" ? val * 3600 : val * 60
+    }
+
+    // Converte a parada informada de minutos para segundos
+    let downInSeconds = currentCapConfig?.downtime ?? 0
+    if (downtimeValue) {
+      downInSeconds = parseFloat(downtimeValue) * 60 
+    }
+
     updatedCapacities.push({
       date: selectedDate,
-      globalCapacity: currentCapConfig?.globalCapacity ?? 29880,
-      downtime: parseFloat(downtimeValue),
+      globalCapacity: capInSeconds,
+      downtime: downInSeconds,
     })
 
     saveAndSync(orders, updatedCapacities)
+    setCapacityValue("")
     setDowntimeValue("")
-    toast({ title: "✅ Evento Registrado", description: "Capacidade real atualizada." })
+    toast({ title: "✅ Capacidade Atualizada", description: "O fluxo diário foi recalculado." })
   }
 
   return (
     <div className="space-y-6">
       {/* 1. Dashboard de Capacidade Diária (Visão de Carga) */}
       <div className="grid gap-4 md:grid-cols-3">
-        <Card className="glass-panel border-primary/20">
+        
+        {/* Painel Gerenciamento de Exceções Atualizado */}
+        <Card className="bg-card border-border shadow-sm">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-semibold uppercase tracking-wider text-muted-foreground flex items-center justify-between">
               Gerenciamento de Exceções
@@ -197,36 +216,154 @@ export function PCPTab() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            <div className="grid grid-cols-2 gap-2">
-              <Input type="date" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} className="h-8 text-xs bg-background" />
-              <Input type="number" placeholder="Parada (segundos)" value={downtimeValue} onChange={(e) => setDowntimeValue(e.target.value)} className="h-8 text-xs bg-background" />
+            <div className="space-y-1">
+              <Label className="text-[10px] uppercase font-bold text-muted-foreground">Data da Exceção</Label>
+              <Input type="date" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} className="h-9 text-xs bg-input border-border" />
             </div>
-            <Button size="sm" className="w-full h-8 text-xs tech-glow" onClick={handleSaveDowntime} disabled={!selectedDate}>
-              Aplicar Restrição
+            
+            <div className="space-y-1">
+              <Label className="text-[10px] uppercase font-bold text-muted-foreground">Tempo Disponível</Label>
+              <div className="grid grid-cols-2 gap-2">
+                <Input type="number" placeholder="Ex: 8.0" value={capacityValue} onChange={(e) => setCapacityValue(e.target.value)} className="h-9 text-xs bg-input border-border" />
+                <Select value={capacityUnit} onValueChange={(v: any) => setCapacityUnit(v)}>
+                  <SelectTrigger className="h-9 text-xs border-border bg-input"><SelectValue /></SelectTrigger>
+                  <SelectContent className="bg-card border-border">
+                    <SelectItem value="hours">Horas</SelectItem>
+                    <SelectItem value="minutes">Minutos</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-[10px] uppercase font-bold text-muted-foreground">Paradas Planejadas (Minutos)</Label>
+              <Input type="number" placeholder="Ex: 45 (Refeição/Manutenção)" value={downtimeValue} onChange={(e) => setDowntimeValue(e.target.value)} className="h-9 text-xs bg-input border-border" />
+            </div>
+
+            <Button size="sm" className="w-full h-9 text-xs font-bold uppercase tracking-wider bg-primary hover:opacity-90 text-primary-foreground" onClick={handleSaveDowntime} disabled={!selectedDate}>
+              Aplicar Nova Restrição
             </Button>
           </CardContent>
         </Card>
 
-        {/* Painel do Heijunka Diário Simplificado */}
-        <Card className="glass-panel border-primary/20 md:col-span-2">
-          <CardHeader className="pb-2">
+        {/* Painel do Heijunka Diário com Alternância de Visão */}
+        <Card className="bg-card border-border shadow-sm md:col-span-2 flex flex-col">
+          <CardHeader className="pb-4 border-b border-border flex flex-row items-center justify-between">
             <CardTitle className="text-sm font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
-              <TrendingUp className="h-4 w-4 text-primary" /> Visão de Carga Global Nivelada (Heijunka)
+              <TrendingUp className="h-4 w-4 text-primary" /> Visão de Carga Global Nivelada
             </CardTitle>
+            
+            {/* Seletor de Visão de UX */}
+            <div className="flex bg-input border border-border p-1 rounded-lg">
+              <button 
+                onClick={() => setViewMode("grafico")} 
+                className={`p-1.5 rounded-md transition-colors ${viewMode === "grafico" ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+                title="Visão Gráfica"
+              >
+                <LayoutGrid className="w-4 h-4" />
+              </button>
+              <button 
+                onClick={() => setViewMode("calendario")} 
+                className={`p-1.5 rounded-md transition-colors ${viewMode === "calendario" ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+                title="Visão Calendário"
+              >
+                <CalendarDays className="w-4 h-4" />
+              </button>
+              <button 
+                onClick={() => setViewMode("lista")} 
+                className={`p-1.5 rounded-md transition-colors ${viewMode === "lista" ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+                title="Visão em Lista"
+              >
+                <ListOrdered className="w-4 h-4" />
+              </button>
+            </div>
           </CardHeader>
-          <CardContent className="max-h-[120px] overflow-x-auto flex gap-4 pb-2">
-            {Object.values(heijunkaDashboard).map((day: any) => (
-              <div key={day.date} className="min-w-[140px] p-2.5 bg-muted/20 border border-border/50 rounded-xl flex flex-col justify-between">
-                <span className="text-xs font-bold text-foreground flex items-center gap-1"><Calendar className="h-3 w-3 text-primary" /> {day.date.split("-").reverse().slice(0, 2).join("/")}</span>
-                <div className="my-1.5 w-full bg-secondary h-2 rounded-full overflow-hidden">
-                  <div className={`h-full ${day.overflow > 0 ? "bg-destructive" : "bg-primary"}`} style={{ width: `${day.occupation}%` }}></div>
-                </div>
-                <span className="text-[10px] text-muted-foreground font-medium">Ocupação: <strong className="text-foreground">{day.occupation.toFixed(0)}%</strong></span>
-                {day.overflow > 0 && <span className="text-[9px] text-destructive font-bold">Transbordo: {day.overflow.toFixed(0)}s</span>}
+          
+          <CardContent className="flex-1 p-4 overflow-auto">
+            {dashboardArray.length === 0 ? (
+              <div className="h-full flex items-center justify-center text-sm text-muted-foreground py-8">
+                Nenhuma ordem ou capacidade registrada para gerar o fluxo.
               </div>
-            ))}
-            {Object.keys(heijunkaDashboard).length === 0 && (
-              <div className="text-xs text-muted-foreground m-auto py-4">Nenhuma ordem ou capacidade registrada para gerar o fluxo.</div>
+            ) : (
+              <>
+                {/* 1. MODO GRÁFICO (Cards Horizontais) */}
+                {viewMode === "grafico" && (
+                  <div className="flex gap-4 overflow-x-auto pb-2 custom-scrollbar">
+                    {dashboardArray.map((day: any) => (
+                      <div key={day.date} className="min-w-[150px] p-3 bg-muted/20 border border-border rounded-xl flex flex-col justify-between">
+                        <span className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                          <Calendar className="h-3 w-3 text-primary" /> {day.date.split("-").reverse().slice(0, 2).join("/")}
+                        </span>
+                        <div className="my-2.5 w-full bg-input h-2.5 rounded-full overflow-hidden">
+                          <div className={`h-full transition-all ${day.overflow > 0 ? "bg-destructive" : "bg-primary"}`} style={{ width: `${day.occupation}%` }}></div>
+                        </div>
+                        <span className="text-[11px] text-muted-foreground font-medium">Ocupação: <strong className="text-foreground">{day.occupation.toFixed(0)}%</strong></span>
+                        {day.overflow > 0 && <span className="text-[10px] text-destructive font-bold mt-1">Transbordo: {(day.overflow / 60).toFixed(0)} min</span>}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* 2. MODO CALENDÁRIO (Grade) */}
+                {viewMode === "calendario" && (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+                    {dashboardArray.map((day: any) => (
+                      <div key={day.date} className={`p-3 border rounded-xl flex flex-col gap-1 ${day.overflow > 0 ? "bg-destructive/5 border-destructive/30" : "bg-card border-border"}`}>
+                        <div className="flex justify-between items-start mb-1">
+                          <span className="text-xs font-bold">{day.date.split("-")[2]}</span>
+                          <span className="text-[9px] uppercase tracking-wider text-muted-foreground">{day.date.split("-")[1]}</span>
+                        </div>
+                        <div className="flex justify-between items-center text-[10px]">
+                          <span className="text-muted-foreground">Ocupado</span>
+                          <span className={`font-bold ${day.overflow > 0 ? "text-destructive" : "text-primary"}`}>{day.occupation.toFixed(0)}%</span>
+                        </div>
+                        <div className="flex justify-between items-center text-[10px]">
+                          <span className="text-muted-foreground">Carga</span>
+                          <span className="font-bold text-foreground">{(day.directLoad / 3600).toFixed(1)}h</span>
+                        </div>
+                        <div className="flex justify-between items-center text-[10px]">
+                          <span className="text-muted-foreground">Backlog</span>
+                          <span className="font-bold text-foreground">{(day.backlog / 3600).toFixed(1)}h</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* 3. MODO LISTA (Tabela Analítica) */}
+                {viewMode === "lista" && (
+                  <div className="w-full border border-border rounded-xl overflow-hidden">
+                    <table className="w-full text-left text-xs">
+                      <thead className="bg-muted text-muted-foreground uppercase tracking-wider">
+                        <tr>
+                          <th className="px-4 py-3 font-semibold">Data</th>
+                          <th className="px-4 py-3 font-semibold">Capacidade Líquida</th>
+                          <th className="px-4 py-3 font-semibold">Carga Programada</th>
+                          <th className="px-4 py-3 font-semibold">Ocupação</th>
+                          <th className="px-4 py-3 font-semibold text-right">Transbordo</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-border">
+                        {dashboardArray.map((day: any) => (
+                          <tr key={day.date} className="hover:bg-muted/30 transition-colors">
+                            <td className="px-4 py-3 font-medium text-foreground">{day.date.split("-").reverse().join("/")}</td>
+                            <td className="px-4 py-3 text-muted-foreground">{(day.realCapacity / 3600).toFixed(1)}h</td>
+                            <td className="px-4 py-3 text-foreground">{(day.directLoad / 3600).toFixed(1)}h</td>
+                            <td className="px-4 py-3">
+                              <span className={`px-2 py-0.5 rounded-full font-bold ${day.overflow > 0 ? "bg-destructive/10 text-destructive" : "bg-primary/10 text-primary"}`}>
+                                {day.occupation.toFixed(0)}%
+                              </span>
+                            </td>
+                            <td className={`px-4 py-3 text-right font-bold ${day.overflow > 0 ? "text-destructive" : "text-muted-foreground"}`}>
+                              {day.overflow > 0 ? `+${(day.overflow / 3600).toFixed(1)}h` : "-"}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </>
             )}
           </CardContent>
         </Card>
@@ -234,25 +371,25 @@ export function PCPTab() {
 
       {/* 2. Entrada de Ordens de Produção e Fila */}
       <div className="grid gap-6 md:grid-cols-3">
-        <Card className="glass-panel border-primary/20 col-span-1">
+        <Card className="bg-card border-border shadow-sm col-span-1">
           <CardHeader>
             <CardTitle className="text-lg">Programar Demanda Diária</CardTitle>
             <CardDescription>Insira ordens de produção na fila de nivelamento</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-1.5">
-              <Label className="text-xs">Número da OP</Label>
-              <Input placeholder="Ex: OP-2026-001" value={opNumber} onChange={(e) => setOpNumber(e.target.value)} />
+              <Label className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Número da OP</Label>
+              <Input placeholder="Ex: OP-2026-001" value={opNumber} onChange={(e) => setOpNumber(e.target.value)} className="bg-input border-border h-10" />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs">Data de Programação</Label>
-              <Input type="date" value={opDate} onChange={(e) => setOpDate(e.target.value)} />
+              <Label className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Data de Programação</Label>
+              <Input type="date" value={opDate} onChange={(e) => setOpDate(e.target.value)} className="bg-input border-border h-10" />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs">Produto / Roteiro</Label>
+              <Label className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Produto / Roteiro</Label>
               <Select value={opProductCode} onValueChange={setOpProductCode}>
-                <SelectTrigger><SelectValue placeholder="Selecione o Roteiro" /></SelectTrigger>
-                <SelectContent>
+                <SelectTrigger className="bg-input border-border h-10"><SelectValue placeholder="Selecione o Roteiro" /></SelectTrigger>
+                <SelectContent className="bg-card border-border">
                   {products.map((p) => (
                     <SelectItem key={p.code} value={p.code}>{p.code} - {p.description}</SelectItem>
                   ))}
@@ -263,55 +400,57 @@ export function PCPTab() {
               </Select>
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs">Quantidade Solicitada</Label>
-              <Input type="number" placeholder="Ex: 150" value={opQuantity} onChange={(e) => setOpQuantity(e.target.value)} />
+              <Label className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Quantidade Solicitada</Label>
+              <Input type="number" placeholder="Ex: 150" value={opQuantity} onChange={(e) => setOpQuantity(e.target.value)} className="bg-input border-border h-10" />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs">Regra de Tempo Base</Label>
+              <Label className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Regra de Tempo Base</Label>
               <Select value={opRule} onValueChange={(v: any) => setOpRule(v)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
+                <SelectTrigger className="bg-input border-border h-10"><SelectValue /></SelectTrigger>
+                <SelectContent className="bg-card border-border">
                   <SelectItem value="soma">Soma dos Tempos do Roteiro</SelectItem>
                   <SelectItem value="media">Média dos Tempos</SelectItem>
                   <SelectItem value="gargalo">Tempo da Operação Gargalo</SelectItem>
                 </SelectContent>
               </Select>
             </div>
-            <div className="flex items-center justify-between p-2.5 bg-muted/30 border border-border/50 rounded-lg">
+            <div className="flex items-center justify-between p-3 bg-muted/30 border border-border rounded-lg">
               <div className="flex flex-col gap-0.5">
-                <Label className="text-xs">Agrupar Setup?</Label>
+                <Label className="text-xs font-bold">Agrupar Setup?</Label>
                 <span className="text-[10px] text-muted-foreground">Zera setup desta OP (Aproveitamento)</span>
               </div>
               <Switch checked={opGroupSetup} onCheckedChange={setOpGroupSetup} />
             </div>
-            <Button className="w-full tech-glow" onClick={handleAddOP}><Plus className="h-4 w-4 mr-2" /> Inserir Ordem</Button>
+            <Button className="w-full h-10 font-bold uppercase tracking-wider bg-primary hover:opacity-90 text-primary-foreground" onClick={handleAddOP}>
+              <Plus className="h-4 w-4 mr-2" /> Inserir Ordem
+            </Button>
           </CardContent>
         </Card>
 
         {/* Listagem das OPs Programadas */}
-        <Card className="glass-panel border-primary/20 md:col-span-2">
+        <Card className="bg-card border-border shadow-sm md:col-span-2">
           <CardHeader>
             <CardTitle className="text-lg">Fila de Ordens de Produção Ativas</CardTitle>
             <CardDescription>Acompanhe e configure as regras analíticas de carga dinamicamente</CardDescription>
           </CardHeader>
-          <CardContent className="overflow-y-auto max-h-[460px] pr-2 custom-scrollbar space-y-2">
+          <CardContent className="overflow-y-auto max-h-[500px] pr-2 custom-scrollbar space-y-2">
             {orders.map((op) => {
               const opTime = calculateOPTime(op)
               return (
-                <div key={op.id} className="p-3 bg-muted/10 border border-border/50 hover:border-primary/30 rounded-xl flex items-center justify-between transition-all">
+                <div key={op.id} className="p-3 bg-muted/10 border border-border hover:border-primary/50 rounded-xl flex items-center justify-between transition-all">
                   <div className="flex flex-col gap-1 min-w-0">
                     <div className="flex items-center gap-2">
                       <span className="text-sm font-bold text-foreground">{op.opNumber}</span>
                       <span className="text-[10px] uppercase font-bold px-2 py-0.5 bg-primary/10 text-primary rounded-full">{op.productCode}</span>
                     </div>
-                    <span className="text-xs text-muted-foreground">Data: {op.date.split("-").reverse().join("/")} | Qtd: <strong>{op.quantity}</strong></span>
+                    <span className="text-xs text-muted-foreground">Data: {op.date.split("-").reverse().join("/")} | Qtd: <strong className="text-foreground">{op.quantity}</strong></span>
                     <div className="flex gap-2 mt-1">
                       <span className="text-[9px] uppercase tracking-wider font-medium text-muted-foreground bg-muted/50 px-1.5 py-0.5 rounded">Regra: {op.calculationRule}</span>
                       {op.groupSetup && <span className="text-[9px] uppercase tracking-wider font-bold text-green-500 bg-green-500/10 px-1.5 py-0.5 rounded">Setup Reaproveitado</span>}
                     </div>
                   </div>
                   <div className="flex items-center gap-3">
-                    <span className="text-sm font-mono font-bold text-foreground">{opTime.toFixed(0)}s</span>
+                    <span className="text-sm font-mono font-bold text-foreground">{(opTime / 60).toFixed(0)} min</span>
                     <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10" onClick={() => handleRemoveOP(op.id)}>
                       <Trash2 className="h-4 w-4" />
                     </Button>
