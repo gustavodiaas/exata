@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { useState, useRef, useEffect } from "react"
+import { useState, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -35,7 +35,6 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
-import { Alert, AlertDescription } from "@/components/ui/alert"
 
 // Importações das Abas e da nova tela de PCP
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -65,67 +64,25 @@ const validateText = (value: string): { isValid: boolean; error?: string } => {
 export default function GBOAnalysis() {
   const [operations, setOperations] = useState<Operation[]>([])
   const [timeUnit, setTimeUnit] = useState<"minutes" | "seconds">("minutes")
+  
+  // Novos estados para a Identificação do Produto
+  const [productCode, setProductCode] = useState("")
+  const [productName, setProductName] = useState("")
+  const [calcType, setCalcType] = useState("takt")
+
   const [newOperationName, setNewOperationName] = useState("")
   const [newOperationTime, setNewOperationTime] = useState("")
-  const [workShiftTime, setWorkShiftTime] = useState("")
-  const [dailyDemand, setDailyDemand] = useState("")
-  const [demandUnit, setDemandUnit] = useState("peças")
-  const [demandPeriod, setDemandPeriod] = useState<"dia" | "mes">("dia")
-  const [timeUnitTakt, setTimeUnitTakt] = useState<"minutes" | "seconds" | "hours">("minutes")
-  const [previousTimeUnitTakt, setPreviousTimeUnitTakt] = useState<"minutes" | "seconds" | "hours">("minutes")
   const [errors, setErrors] = useState<{
     operationName?: string
     operationTime?: string
-    workShiftTime?: string
-    dailyDemand?: string
   }>({})
   const [isLoading, setIsLoading] = useState(false)
 
   const fileInputRef = useRef<HTMLInputElement>(null)
   const { toast } = useToast()
 
-  useEffect(() => {
-    if (workShiftTime && previousTimeUnitTakt !== timeUnitTakt) {
-      const currentValue = Number.parseFloat(workShiftTime)
-      if (!isNaN(currentValue)) {
-        let convertedValue = currentValue
-
-        if (previousTimeUnitTakt === "hours") {
-          convertedValue = currentValue * 60
-        } else if (previousTimeUnitTakt === "seconds") {
-          convertedValue = currentValue / 60
-        }
-
-        if (timeUnitTakt === "hours") {
-          convertedValue = convertedValue / 60
-        } else if (timeUnitTakt === "seconds") {
-          convertedValue = convertedValue * 60
-        }
-
-        setWorkShiftTime(convertedValue.toFixed(2))
-      }
-      setPreviousTimeUnitTakt(timeUnitTakt)
-    }
-  }, [timeUnitTakt, workShiftTime, previousTimeUnitTakt])
-
-  const calculateTaktTime = (): number | undefined => {
-    if (!workShiftTime || !dailyDemand) return undefined
-    const shiftTime = Number.parseFloat(workShiftTime)
-    const rawDemand = Number.parseFloat(dailyDemand)
-
-    if (shiftTime <= 0 || rawDemand <= 0) return undefined
-
-    const demand = demandPeriod === "mes" ? rawDemand / 21 : rawDemand
-
-    let shiftTimeInSeconds = shiftTime
-    if (timeUnitTakt === "minutes") {
-      shiftTimeInSeconds = shiftTime * 60
-    } else if (timeUnitTakt === "hours") {
-      shiftTimeInSeconds = shiftTime * 3600
-    }
-
-    return shiftTimeInSeconds / demand
-  }
+  // Cálculo automático do Tempo de Ciclo Real
+  const totalCycleTime = operations.reduce((sum, op) => sum + op.time, 0)
 
   const addOperation = () => {
     const nameValidation = validateText(newOperationName)
@@ -172,20 +129,6 @@ export default function GBOAnalysis() {
   const reorderOperations = (newOperations: Operation[]) => {
     setOperations(newOperations)
     toast({ title: "✅ Ordem atualizada", description: "A ordem das operações foi reorganizada." })
-  }
-
-  const validateTaktFields = () => {
-    const shiftValidation = validateNumber(workShiftTime)
-    const demandValidation = validateNumber(dailyDemand)
-
-    const newErrors: typeof errors = { ...errors }
-    if (!shiftValidation.isValid) newErrors.workShiftTime = shiftValidation.error
-    else delete newErrors.workShiftTime
-
-    if (!demandValidation.isValid) newErrors.dailyDemand = demandValidation.error
-    else delete newErrors.dailyDemand
-
-    setErrors(newErrors)
   }
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -237,16 +180,15 @@ export default function GBOAnalysis() {
     if (fileInputRef.current) fileInputRef.current.value = ""
   }
 
-  // Função Nuke: Apaga todo o localStorage e recarrega a página
   const handleClearData = () => {
     if (window.confirm("ATENÇÃO: Você tem certeza que deseja apagar todos os dados?\n\nIsso limpará todo o histórico de operações do GBO e os registros do PCP permanentemente.")) {
       localStorage.clear()
       setOperations([])
-      setWorkShiftTime("")
-      setDailyDemand("")
+      setProductCode("")
+      setProductName("")
+      setCalcType("takt")
       toast({ title: "🧹 Sistema Limpo", description: "Todos os dados foram resetados." })
       
-      // Força um reload após 500ms para garantir que a aba PCP perca a memória em cache também
       setTimeout(() => {
         window.location.reload()
       }, 500)
@@ -289,7 +231,6 @@ export default function GBOAnalysis() {
             </div>
             
             <div className="flex items-center gap-4">
-              {/* Botão de Limpar Dados Injetado Aqui */}
               <Button 
                 variant="outline" 
                 size="sm" 
@@ -346,83 +287,66 @@ export default function GBOAnalysis() {
             <TabsContent value="gbo" className="outline-none space-y-6">
               <div className="flex flex-col xl:flex-row gap-8 pb-12 print:p-0">
                 
-                {/* COLUNA ESQUERDA: FOMULÁRIOS (30% ou 40% fluído) */}
+                {/* COLUNA ESQUERDA: FOMULÁRIOS */}
                 <div className="xl:w-[35%] flex flex-col gap-6 print:hidden">
                   
                   <div className="bg-card p-6 rounded-2xl shadow-sm border border-border space-y-4">
                     <h3 className="font-bold text-foreground border-b border-border pb-2 flex items-center gap-2">
                       <div className="w-2 h-2 rounded-full bg-primary animate-pulse"></div>
-                      Cálculo do Takt Time
-                      <div className="ml-auto flex items-center gap-1.5">
-                        <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Demanda</span>
-                        <div className="flex rounded-lg overflow-hidden border border-border">
-                          <button
-                            onClick={() => setDemandPeriod("dia")}
-                            className={`px-3 py-1 text-[10px] font-bold uppercase tracking-widest transition-all ${demandPeriod === "dia" ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-muted/80"}`}
-                          >
-                            Dia
-                          </button>
-                          <button
-                            onClick={() => setDemandPeriod("mes")}
-                            className={`px-3 py-1 text-[10px] font-bold uppercase tracking-widest transition-all ${demandPeriod === "mes" ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-muted/80"}`}
-                          >
-                            Mês
-                          </button>
-                        </div>
-                      </div>
+                      Identificação do Produto
                     </h3>
                     
                     <div className="space-y-3">
                       <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-1">
-                          <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest pl-1">Tempo do Turno</label>
-                          <input type="number" step="0.1" min="0" placeholder="8.0" value={workShiftTime}
-                            onChange={(e) => { setWorkShiftTime(e.target.value); validateTaktFields(); }} onBlur={validateTaktFields}
-                            className={`w-full h-12 px-4 rounded-xl border border-border bg-input text-foreground text-sm outline-none focus:ring-2 focus:ring-primary transition-all ${errors.workShiftTime ? "ring-2 ring-destructive" : ""}`}
+                          <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest pl-1">Código do Produto</label>
+                          <input type="text" placeholder="Ex: PRD-001" value={productCode}
+                            onChange={(e) => setProductCode(e.target.value)}
+                            className="w-full h-12 px-4 rounded-xl border border-border bg-input text-foreground text-sm outline-none focus:ring-2 focus:ring-primary transition-all"
                           />
                         </div>
                         <div className="space-y-1">
-                          <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest pl-1">Unidade</label>
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <button className="w-full h-12 px-4 rounded-xl bg-input border border-border text-sm font-medium text-foreground flex items-center justify-between outline-none hover:bg-muted transition-all focus:ring-2 focus:ring-primary">
-                                {timeUnitTakt === "minutes" ? "Minutos" : timeUnitTakt === "hours" ? "Horas" : "Segundos"}
-                                <ChevronDown className="w-4 h-4 text-muted-foreground" />
-                              </button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent className="w-[var(--radix-dropdown-menu-trigger-width)] bg-card border border-border p-2 rounded-2xl shadow-xl z-[150]">
-                              <DropdownMenuItem onClick={() => setTimeUnitTakt("minutes")} className={`w-full text-left text-sm font-bold py-2.5 px-3 rounded-xl cursor-pointer transition-all ${timeUnitTakt === "minutes" ? "bg-primary text-primary-foreground" : "text-foreground hover:bg-muted"}`}>Minutos</DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => setTimeUnitTakt("hours")} className={`w-full text-left text-sm font-bold py-2.5 px-3 rounded-xl cursor-pointer transition-all ${timeUnitTakt === "hours" ? "bg-primary text-primary-foreground" : "text-foreground hover:bg-muted"}`}>Horas</DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => setTimeUnitTakt("seconds")} className={`w-full text-left text-sm font-bold py-2.5 px-3 rounded-xl cursor-pointer transition-all ${timeUnitTakt === "seconds" ? "bg-primary text-primary-foreground" : "text-foreground hover:bg-muted"}`}>Segundos</DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </div>
-                      </div>
-                      
-                      <div className="space-y-1">
-                        <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest pl-1">Demanda ({demandUnit}/{demandPeriod === "mes" ? "mês" : "dia"})</label>
-                        <div className="grid grid-cols-2 gap-4">
-                          <input type="number" step="1" min="0" placeholder="100" value={dailyDemand}
-                            onChange={(e) => { setDailyDemand(e.target.value); validateTaktFields(); }} onBlur={validateTaktFields}
-                            className={`w-full h-12 px-4 rounded-xl border border-border bg-input text-foreground text-sm outline-none focus:ring-2 focus:ring-primary transition-all ${errors.dailyDemand ? "ring-2 ring-destructive" : ""}`}
-                          />
-                          <input 
-                            type="text" 
-                            placeholder="Ex: caixas" 
-                            value={demandUnit} 
-                            onChange={(e) => setDemandUnit(e.target.value)} 
+                          <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest pl-1">Nome do Produto</label>
+                          <input type="text" placeholder="Ex: Válvula de Retenção" value={productName}
+                            onChange={(e) => setProductName(e.target.value)}
                             className="w-full h-12 px-4 rounded-xl border border-border bg-input text-foreground text-sm outline-none focus:ring-2 focus:ring-primary transition-all"
                           />
                         </div>
                       </div>
+                      
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest pl-1">Tipo de Cálculo</label>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <button className="w-full h-12 px-4 rounded-xl bg-input border border-border text-sm font-medium text-foreground flex items-center justify-between outline-none hover:bg-muted transition-all focus:ring-2 focus:ring-primary">
+                                {calcType === "takt" ? "Takt" : calcType === "media" ? "Média" : "Soma"}
+                                <ChevronDown className="w-4 h-4 text-muted-foreground" />
+                              </button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent className="w-[var(--radix-dropdown-menu-trigger-width)] bg-card border border-border p-2 rounded-2xl shadow-xl z-[150]">
+                              <DropdownMenuItem onClick={() => setCalcType("takt")} className={`w-full text-left text-sm font-bold py-2.5 px-3 rounded-xl cursor-pointer transition-all ${calcType === "takt" ? "bg-primary text-primary-foreground" : "text-foreground hover:bg-muted"}`}>Takt</DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => setCalcType("media")} className={`w-full text-left text-sm font-bold py-2.5 px-3 rounded-xl cursor-pointer transition-all ${calcType === "media" ? "bg-primary text-primary-foreground" : "text-foreground hover:bg-muted"}`}>Média</DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => setCalcType("soma")} className={`w-full text-left text-sm font-bold py-2.5 px-3 rounded-xl cursor-pointer transition-all ${calcType === "soma" ? "bg-primary text-primary-foreground" : "text-foreground hover:bg-muted"}`}>Soma</DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest pl-1">Tempo de Ciclo</label>
+                          <input 
+                            type="text" 
+                            readOnly
+                            value={`${totalCycleTime.toFixed(2)} ${timeUnit === "minutes" ? "min" : "seg"}`}
+                            className="w-full h-12 px-4 rounded-xl border border-border bg-muted/50 text-muted-foreground text-sm outline-none cursor-not-allowed font-semibold"
+                          />
+                        </div>
+                      </div>
 
-                      {calculateTaktTime() && (
+                      {operations.length > 0 && (
                         <div className="bg-primary/5 border border-primary/20 p-4 rounded-xl flex items-center gap-3 mt-4">
                           <CheckCircle2 className="h-5 w-5 text-primary" />
                           <p className="text-sm font-semibold text-primary">
-                            Takt Time: {timeUnitTakt === "hours" ? (calculateTaktTime()! / 3600).toFixed(2)
-                              : timeUnitTakt === "minutes" ? (calculateTaktTime()! / 60).toFixed(2)
-                              : calculateTaktTime()!.toFixed(2)} {timeUnitTakt === "hours" ? "h" : timeUnitTakt === "minutes" ? "min" : "seg"}/{demandUnit}
+                            Tempo de Ciclo Total: {totalCycleTime.toFixed(2)} {timeUnit === "minutes" ? "min" : "seg"}
                           </p>
                         </div>
                       )}
@@ -493,16 +417,16 @@ export default function GBOAnalysis() {
                   </div>
                 </div>
 
-                {/* COLUNA DIREITA: GRÁFICOS (65% ou 60% fluído) */}
+                {/* COLUNA DIREITA: GRÁFICOS */}
                 <div className="xl:w-[65%] flex flex-col gap-6 print:w-full">
                   {operations.length > 0 ? (
                     <>
                       <div className="print:hidden">
-                        <CalculationsDashboard operations={operations} timeUnit={timeUnit} taktTime={calculateTaktTime()} taktTimeUnit={timeUnitTakt} demandUnit={demandUnit} />
+                        <CalculationsDashboard operations={operations} timeUnit={timeUnit} taktTime={undefined} taktTimeUnit={undefined} demandUnit="un" />
                       </div>
                       
                       <div id="gbo-chart-container" className="bg-card rounded-3xl shadow-sm border border-border p-6 print:border-none print:shadow-none print:p-0">
-                        <GBOChart operations={operations} timeUnit={timeUnit} taktTime={calculateTaktTime()} taktTimeUnit={timeUnitTakt} demandUnit={demandUnit} />
+                        <GBOChart operations={operations} timeUnit={timeUnit} taktTime={undefined} taktTimeUnit={undefined} demandUnit="un" />
                       </div>
                     </>
                   ) : (
