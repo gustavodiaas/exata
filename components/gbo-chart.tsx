@@ -4,7 +4,6 @@ import { useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, Cell } from "recharts"
 import { Input } from "@/components/ui/input"
-import { Button } from "@/components/ui/button" // IMPORTAÇÃO ADICIONADA AQUI PARA NÃO QUEBRAR A VERCEL
 import { Pencil } from "lucide-react"
 
 interface Operation {
@@ -188,42 +187,7 @@ export function GBOChart({ operations, timeUnit, taktTime, taktTimeUnit, demandU
         </ResponsiveContainer>
       </div>
 
-      {/* Botão de injeção direta na biblioteca de produtos do PCP adicionado aqui */}
-      <div className="mt-4 mb-2 print:hidden">
-        <Button 
-          size="sm" 
-          variant="outline" 
-          className="w-full border-primary/30 text-primary bg-primary/5 hover:bg-primary/10 tech-glow text-xs font-bold uppercase tracking-wider"
-          onClick={() => {
-            if (operations.length === 0) return
-            const productCode = prompt("Insira o Código do Produto para salvar este Roteiro (ex: PROD-001):")
-            if (!productCode) return
-            const description = prompt("Insira a Descrição/Linha do Produto:") || "Linha GBO"
-            
-            const currentProducts = JSON.parse(localStorage.getItem("gbo_products") || "[]")
-            const newProduct = {
-              code: productCode.trim().toUpperCase(),
-              description: description.trim(),
-              steps: operations.map(op => ({
-                name: op.name,
-                cycleTime: op.unit === "minutes" ? op.time * 60 : op.time,
-                setupTime: 30 // Valor de setup padrão para simulação
-              }))
-            }
-            
-            // Substitui se já existia, ou adiciona um novo
-            const filtered = currentProducts.filter((p: any) => p.code !== newProduct.code)
-            filtered.push(newProduct)
-            localStorage.setItem("gbo_products", JSON.stringify(filtered))
-            
-            alert(`✅ Roteiro "${newProduct.code}" adicionado à biblioteca do PCP com sucesso!`)
-          }}
-        >
-          📁 Salvar Layout Atual como Roteiro PCP
-        </Button>
-      </div>
-
-      <div className="flex items-center justify-center gap-6 mt-2 text-xs flex-wrap font-medium text-muted-foreground">
+      <div className="flex items-center justify-center gap-6 mt-4 text-xs flex-wrap font-medium text-muted-foreground">
         <div className="flex items-center gap-2">
           <div className="w-3 h-3 rounded-sm bg-primary"></div>
           <span>Operação Normal</span>
