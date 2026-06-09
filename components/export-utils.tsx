@@ -21,15 +21,13 @@ export const exportToExcel = async (operations: Operation[], timeUnit: string) =
 }
 
 export const downloadTemplate = () => {
-  const data = [
-    { "Nome da Operação": "Corte de material", "Tempo": 2.5, "Unidade": "minutes" },
-    { "Nome da Operação": "Dobra e preparo", "Tempo": 45, "Unidade": "seconds" },
-    { "Nome da Operação": "Montagem final", "Tempo": 1.2, "Unidade": "minutes" }
-  ]
-  const ws = XLSX.utils.json_to_sheet(data)
-  const wb = XLSX.utils.book_new()
-  XLSX.utils.book_append_sheet(wb, ws, "Modelo")
-  XLSX.writeFile(wb, "modelo-importacao-gbo.xlsx")
+  // Aponta direto para o arquivo físico que você colocou na pasta 'public'
+  const link = document.createElement("a")
+  link.href = "/modelo-padrao.xlsx"
+  link.download = "modelo-padrao-gbo.xlsx"
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
 }
 
 export const importFromExcel = async (file: File): Promise<Operation[]> => {
