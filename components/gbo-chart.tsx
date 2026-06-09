@@ -22,7 +22,7 @@ interface GBOChartProps {
 }
 
 export function GBOChart({ operations, timeUnit, taktTime, taktTimeUnit, demandUnit = "un" }: GBOChartProps) {
-  const [chartTitle, setChartTitle] = useState("Gráfico de Balanceamento de Operações (GBO)")
+  const [chartTitle, setChartTitle] = useState("Gráfico de Balanceamento de Operações")
   const [isEditingTitle, setIsEditingTitle] = useState(false)
 
   const convertToSeconds = (time: number, unit: "minutes" | "seconds"): number => {
