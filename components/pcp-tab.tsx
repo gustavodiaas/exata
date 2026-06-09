@@ -343,3 +343,204 @@ export function PCPTab() {
                               {day.overflow > 0 && <span className="text-[10px] text-destructive font-bold">+{ (day.overflow / 60).toFixed(0) } min</span>}
                             </div>
                           </div>
+                          
+                          {/* Área de Drop dos Cards */}
+                          <div className="p-2 flex flex-col gap-2 flex-1 min-h-[100px] max-h-[400px] overflow-y-auto custom-scrollbar">
+                            {dayOrders.map(op => {
+                              const opTime = calculateOPTime(op)
+                              return (
+                                <div 
+                                  key={op.id}
+                                  draggable
+                                  onDragStart={(e) => handleDragStart(e, op.id)}
+                                  onDragEnd={handleDragEnd}
+                                  className="p-2.5 bg-card border border-border hover:border-primary/50 shadow-sm rounded-lg cursor-grab active:cursor-grabbing flex flex-col gap-1.5 transition-colors group relative"
+                                >
+                                  <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-primary/20 rounded-l-lg group-hover:bg-primary transition-colors"></div>
+                                  <div className="flex justify-between items-start pl-2">
+                                    <div className="flex items-center gap-1.5">
+                                      <GripVertical className="h-3 w-3 text-muted-foreground/50" />
+                                      <span className="text-xs font-bold text-foreground">{op.opNumber}</span>
+                                    </div>
+                                    <span className="text-[9px] bg-primary/10 text-primary font-bold px-1.5 py-0.5 rounded">{op.productCode}</span>
+                                  </div>
+                                  <div className="flex justify-between items-end mt-1 pl-2">
+                                    <span className="text-[10px] font-medium text-muted-foreground">Qtd: {op.quantity}</span>
+                                    <span className="text-[10px] font-mono font-bold text-foreground">{(opTime / 60).toFixed(0)} min</span>
+                                  </div>
+                                </div>
+                              )
+                            })}
+                            {dayOrders.length === 0 && (
+                              <div className="text-[10px] text-muted-foreground text-center py-6 border-2 border-dashed border-border/50 rounded-lg m-1">
+                                Arraste OPs para cá
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+
+                {/* 2. MODO CALENDÁRIO (Grade) */}
+                {viewMode === "calendario" && (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+                    {dashboardArray.map((day: any) => (
+                      <div key={day.date} className={`p-3 border rounded-xl flex flex-col gap-1 ${day.overflow > 0 ? "bg-destructive/5 border-destructive/30" : "bg-card border-border"}`}>
+                        <div className="flex justify-between items-start mb-1">
+                          <span className="text-xs font-bold">{day.date.split("-")[2]}</span>
+                          <span className="text-[9px] uppercase tracking-wider text-muted-foreground">{day.date.split("-")[1]}</span>
+                        </div>
+                        <div className="flex justify-between items-center text-[10px]">
+                          <span className="text-muted-foreground">Ocupado</span>
+                          <span className={`font-bold ${day.overflow > 0 ? "text-destructive" : "text-primary"}`}>{day.occupation.toFixed(0)}%</span>
+                        </div>
+                        <div className="flex justify-between items-center text-[10px]">
+                          <span className="text-muted-foreground">Carga</span>
+                          <span className="font-bold text-foreground">{(day.directLoad / 3600).toFixed(1)}h</span>
+                        </div>
+                        <div className="flex justify-between items-center text-[10px]">
+                          <span className="text-muted-foreground">Backlog</span>
+                          <span className="font-bold text-foreground">{(day.backlog / 3600).toFixed(1)}h</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* 3. MODO LISTA (Tabela Analítica) */}
+                {viewMode === "lista" && (
+                  <div className="w-full border border-border rounded-xl overflow-hidden">
+                    <table className="w-full text-left text-xs">
+                      <thead className="bg-muted text-muted-foreground uppercase tracking-wider">
+                        <tr>
+                          <th className="px-4 py-3 font-semibold">Data</th>
+                          <th className="px-4 py-3 font-semibold">Capacidade Líquida</th>
+                          <th className="px-4 py-3 font-semibold">Carga Programada</th>
+                          <th className="px-4 py-3 font-semibold">Ocupação</th>
+                          <th className="px-4 py-3 font-semibold text-right">Transbordo</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-border">
+                        {dashboardArray.map((day: any) => (
+                          <tr key={day.date} className="hover:bg-muted/30 transition-colors">
+                            <td className="px-4 py-3 font-medium text-foreground">{day.date.split("-").reverse().join("/")}</td>
+                            <td className="px-4 py-3 text-muted-foreground">{(day.realCapacity / 3600).toFixed(1)}h</td>
+                            <td className="px-4 py-3 text-foreground">{(day.directLoad / 3600).toFixed(1)}h</td>
+                            <td className="px-4 py-3">
+                              <span className={`px-2 py-0.5 rounded-full font-bold ${day.overflow > 0 ? "bg-destructive/10 text-destructive" : "bg-primary/10 text-primary"}`}>
+                                {day.occupation.toFixed(0)}%
+                              </span>
+                            </td>
+                            <td className={`px-4 py-3 text-right font-bold ${day.overflow > 0 ? "text-destructive" : "text-muted-foreground"}`}>
+                              {day.overflow > 0 ? `+${(day.overflow / 3600).toFixed(1)}h` : "-"}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid gap-6 md:grid-cols-3">
+        <Card className="bg-card border-border shadow-sm col-span-1">
+          <CardHeader>
+            <CardTitle className="text-lg">Programar Demanda Diária</CardTitle>
+            <CardDescription>Insira ordens de produção na fila de nivelamento</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Número da OP</Label>
+              <Input placeholder="Ex: OP-2026-001" value={opNumber} onChange={(e) => setOpNumber(e.target.value)} className="bg-input border-border h-10" />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Data de Programação</Label>
+              <Input type="date" value={opDate} onChange={(e) => setOpDate(e.target.value)} className="bg-input border-border h-10" />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Produto / Roteiro</Label>
+              <Select value={opProductCode} onValueChange={setOpProductCode}>
+                <SelectTrigger className="bg-input border-border h-10"><SelectValue placeholder="Selecione o Roteiro" /></SelectTrigger>
+                <SelectContent className="bg-card border-border">
+                  {products.map((p) => (
+                    <SelectItem key={p.code} value={p.code}>{p.code} - {p.description}</SelectItem>
+                  ))}
+                  {products.length === 0 && (
+                    <SelectItem value="none" disabled>Nenhum roteiro salvo no GBO</SelectItem>
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Quantidade Solicitada</Label>
+              <Input type="number" placeholder="Ex: 150" value={opQuantity} onChange={(e) => setOpQuantity(e.target.value)} className="bg-input border-border h-10" />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Regra de Tempo Base</Label>
+              <Select value={opRule} onValueChange={(v: any) => setOpRule(v)}>
+                <SelectTrigger className="bg-input border-border h-10"><SelectValue /></SelectTrigger>
+                <SelectContent className="bg-card border-border">
+                  <SelectItem value="soma">Soma dos Tempos do Roteiro</SelectItem>
+                  <SelectItem value="media">Média dos Tempos</SelectItem>
+                  <SelectItem value="gargalo">Tempo da Operação Gargalo</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-center justify-between p-3 bg-muted/30 border border-border rounded-lg">
+              <div className="flex flex-col gap-0.5">
+                <Label className="text-xs font-bold">Agrupar Setup?</Label>
+                <span className="text-[10px] text-muted-foreground">Zera setup desta OP (Aproveitamento)</span>
+              </div>
+              <Switch checked={opGroupSetup} onCheckedChange={setOpGroupSetup} />
+            </div>
+            <Button className="w-full h-10 font-bold uppercase tracking-wider bg-primary hover:opacity-90 text-primary-foreground" onClick={handleAddOP}>
+              <Plus className="h-4 w-4 mr-2" /> Inserir Ordem
+            </Button>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-card border-border shadow-sm md:col-span-2">
+          <CardHeader>
+            <CardTitle className="text-lg">Fila de Ordens de Produção Ativas</CardTitle>
+            <CardDescription>Acompanhe e configure as regras analíticas de carga dinamicamente</CardDescription>
+          </CardHeader>
+          <CardContent className="overflow-y-auto max-h-[500px] pr-2 custom-scrollbar space-y-2">
+            {orders.map((op) => {
+              const opTime = calculateOPTime(op)
+              return (
+                <div key={op.id} className="p-3 bg-muted/10 border border-border hover:border-primary/50 rounded-xl flex items-center justify-between transition-all">
+                  <div className="flex flex-col gap-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-bold text-foreground">{op.opNumber}</span>
+                      <span className="text-[10px] uppercase font-bold px-2 py-0.5 bg-primary/10 text-primary rounded-full">{op.productCode}</span>
+                    </div>
+                    <span className="text-xs text-muted-foreground">Data: {op.date.split("-").reverse().join("/")} | Qtd: <strong className="text-foreground">{op.quantity}</strong></span>
+                    <div className="flex gap-2 mt-1">
+                      <span className="text-[9px] uppercase tracking-wider font-medium text-muted-foreground bg-muted/50 px-1.5 py-0.5 rounded">Regra: {op.calculationRule}</span>
+                      {op.groupSetup && <span className="text-[9px] uppercase tracking-wider font-bold text-green-500 bg-green-500/10 px-1.5 py-0.5 rounded">Setup Reaproveitado</span>}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <span className="text-sm font-mono font-bold text-foreground">{(opTime / 60).toFixed(0)} min</span>
+                    <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10" onClick={() => handleRemoveOP(op.id)}>
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              )
+            })}
+            {orders.length === 0 && (
+              <div className="text-sm text-muted-foreground text-center py-12">Nenhuma OP inserida na carteira de produção.</div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  )
+}
