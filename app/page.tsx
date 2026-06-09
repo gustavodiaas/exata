@@ -67,6 +67,7 @@ export default function GBOAnalysis() {
   const [productCode, setProductCode] = useState("")
   const [productName, setProductName] = useState("")
   const [calcType, setCalcType] = useState("takt")
+  const [setupTime, setSetupTime] = useState("")
 
   const [newOperationName, setNewOperationName] = useState("")
   const [newOperationTime, setNewOperationTime] = useState("")
@@ -91,6 +92,7 @@ export default function GBOAnalysis() {
         if (parsed.productName) setProductName(parsed.productName)
         if (parsed.calcType) setCalcType(parsed.calcType)
         if (parsed.timeUnit) setTimeUnit(parsed.timeUnit)
+        if (parsed.setupTime) setSetupTime(parsed.setupTime)
       } catch (e) {
         console.error("Erro ao ler sessão ativa")
       }
@@ -106,10 +108,11 @@ export default function GBOAnalysis() {
         productCode,
         productName,
         calcType,
-        timeUnit
+        timeUnit,
+        setupTime
       }))
     }
-  }, [operations, productCode, productName, calcType, timeUnit, isLoaded])
+  }, [operations, productCode, productName, calcType, timeUnit, setupTime, isLoaded])
 
   const totalCycleTime = operations.reduce((sum, op) => sum + op.time, 0)
 
@@ -177,6 +180,7 @@ export default function GBOAnalysis() {
     const newProduct = {
       code: productCode.trim(),
       description: productName.trim(),
+      setupTime: setupTime ? Number.parseFloat(setupTime) : 0,
       steps: operations.map(op => ({
         name: op.name,
         cycleTime: timeUnit === "minutes" ? op.time * 60 : op.time, // PCP lê em segundos
@@ -313,7 +317,7 @@ export default function GBOAnalysis() {
               <TabsList className="bg-muted p-1 rounded-xl shadow-sm h-auto border border-border">
                 <TabsTrigger value="gbo" className="px-6 py-2.5 text-xs font-bold uppercase tracking-wider rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all flex items-center gap-2">
                   <BarChart className="w-4 h-4" />
-                  Gerenciamento Diário
+                  Cadastro de Produto
                 </TabsTrigger>
                 <TabsTrigger value="pcp" className="px-6 py-2.5 text-xs font-bold uppercase tracking-wider rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all flex items-center gap-2">
                   <Settings className="w-4 h-4" />
@@ -377,6 +381,24 @@ export default function GBOAnalysis() {
                             value={`${totalCycleTime.toFixed(2)} ${timeUnit === "minutes" ? "min" : "seg"}`}
                             className="w-full h-12 px-4 rounded-xl border border-border bg-muted/50 text-muted-foreground text-sm outline-none cursor-not-allowed font-semibold"
                           />
+                        </div>
+                        <div className="space-y-1">
+                          <label htmlFor="setupTime" className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest pl-1">Tempo de Setup</label>
+                          <div className="relative">
+                            <input 
+                              id="setupTime"
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              placeholder="0.00"
+                              value={setupTime}
+                              onChange={(e) => setSetupTime(e.target.value)}
+                              className="w-full h-12 px-4 rounded-xl border border-border bg-input text-foreground text-sm outline-none focus:ring-2 focus:ring-primary transition-all pr-14"
+                            />
+                            <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-bold text-muted-foreground pointer-events-none">
+                              {timeUnit === "minutes" ? "min" : "seg"}
+                            </span>
+                          </div>
                         </div>
                       </div>
 
