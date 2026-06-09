@@ -102,12 +102,12 @@ export function PCPTab() {
     return op.quantity * baseTime + totalSetup
   }
 
+  // CÁLCULO INDEPENDENTE: Sem efeito cascata. O dia só mostra a carga que tem dentro dele.
   const getHeijunkaData = () => {
     const allDates = Array.from(
       new Set([...orders.map((o) => o.date), ...capacities.map((c) => c.date)])
     ).sort()
 
-    let accumulatedBacklog = 0
     const dashboardData: Record<string, any> = {}
 
     allDates.forEach((date) => {
@@ -119,21 +119,17 @@ export function PCPTab() {
       const dayOrders = orders.filter((o) => o.date === date)
       const directLoad = dayOrders.reduce((sum, op) => sum + calculateOPTime(op), 0)
 
-      const totalDemanded = directLoad + accumulatedBacklog
-      const overflow = Math.max(0, totalDemanded - realCapacity)
-      const occupation = realCapacity > 0 ? Math.min(100, (totalDemanded / realCapacity) * 100) : 0
+      const overflow = Math.max(0, directLoad - realCapacity)
+      // Permite que a ocupação mostre acima de 100% para visualização do tamanho real do gargalo
+      const occupation = realCapacity > 0 ? (directLoad / realCapacity) * 100 : 0
 
       dashboardData[date] = {
         date,
         realCapacity,
         directLoad,
-        backlog: accumulatedBacklog,
-        totalDemanded,
         overflow,
         occupation,
       }
-
-      accumulatedBacklog = overflow
     })
 
     return dashboardData
@@ -203,10 +199,8 @@ export function PCPTab() {
     toast({ title: "✅ Capacidade Atualizada", description: "O fluxo diário foi recalculado." })
   }
 
-  // Eventos de Drag and Drop para o Kanban
   const handleDragStart = (e: React.DragEvent, opId: string) => {
     e.dataTransfer.setData("text/plain", opId)
-    // Opcional: Adicionar um efeito visual enquanto arrasta
     if (e.currentTarget instanceof HTMLElement) {
       e.currentTarget.style.opacity = "0.5"
     }
@@ -219,7 +213,7 @@ export function PCPTab() {
   }
 
   const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault() // Necessário para permitir o "drop"
+    e.preventDefault()
   }
 
   const handleDrop = (e: React.DragEvent, targetDate: string) => {
@@ -235,7 +229,7 @@ export function PCPTab() {
     })
 
     saveAndSync(updatedOrders, capacities)
-    toast({ title: "🔄 OP Realocada", description: `Ordem movida para ${targetDate.split("-").reverse().join("/")}. Carga recalculada.` })
+    toast({ title: "🔄 OP Realocada", description: `Ordem movida para ${targetDate.split("-").reverse().join("/")}.` })
   }
 
   return (
@@ -318,7 +312,6 @@ export function PCPTab() {
               </div>
             ) : (
               <>
-                {/* 1. MODO KANBAN (Drag and Drop) */}
                 {viewMode === "kanban" && (
                   <div className="flex gap-4 overflow-x-auto pb-2 custom-scrollbar items-start min-h-[300px]">
                     {dashboardArray.map((day: any) => {
@@ -330,7 +323,6 @@ export function PCPTab() {
                           onDragOver={handleDragOver}
                           onDrop={(e) => handleDrop(e, day.date)}
                         >
-                          {/* Cabeçalho da Coluna Kanban */}
                           <div className="p-3 border-b border-border bg-muted/30 rounded-t-xl">
                             <span className="text-xs font-bold text-foreground flex items-center gap-1.5">
                               <Calendar className="h-3 w-3 text-primary" /> {day.date.split("-").reverse().join("/")}
@@ -339,12 +331,11 @@ export function PCPTab() {
                               <div className={`h-full transition-all ${day.overflow > 0 ? "bg-destructive" : "bg-primary"}`} style={{ width: `${Math.min(100, day.occupation)}%` }}></div>
                             </div>
                             <div className="flex justify-between items-center">
-                              <span className="text-[11px] text-muted-foreground font-medium">Ocupação: <strong className="text-foreground">{day.occupation.toFixed(0)}%</strong></span>
+                              <span className="text-[11px] text-muted-foreground font-medium">Ocupação: <strong className={day.overflow > 0 ? "text-destructive" : "text-foreground"}>{day.occupation.toFixed(0)}%</strong></span>
                               {day.overflow > 0 && <span className="text-[10px] text-destructive font-bold">+{ (day.overflow / 60).toFixed(0) } min</span>}
                             </div>
                           </div>
                           
-                          {/* Área de Drop dos Cards */}
                           <div className="p-2 flex flex-col gap-2 flex-1 min-h-[100px] max-h-[400px] overflow-y-auto custom-scrollbar">
                             {dayOrders.map(op => {
                               const opTime = calculateOPTime(op)
@@ -383,7 +374,6 @@ export function PCPTab() {
                   </div>
                 )}
 
-                {/* 2. MODO CALENDÁRIO (Grade) */}
                 {viewMode === "calendario" && (
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
                     {dashboardArray.map((day: any) => (
@@ -400,16 +390,11 @@ export function PCPTab() {
                           <span className="text-muted-foreground">Carga</span>
                           <span className="font-bold text-foreground">{(day.directLoad / 3600).toFixed(1)}h</span>
                         </div>
-                        <div className="flex justify-between items-center text-[10px]">
-                          <span className="text-muted-foreground">Backlog</span>
-                          <span className="font-bold text-foreground">{(day.backlog / 3600).toFixed(1)}h</span>
-                        </div>
                       </div>
                     ))}
                   </div>
                 )}
 
-                {/* 3. MODO LISTA (Tabela Analítica) */}
                 {viewMode === "lista" && (
                   <div className="w-full border border-border rounded-xl overflow-hidden">
                     <table className="w-full text-left text-xs">
