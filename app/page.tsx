@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { useState, useRef } from "react"
+import { useState, useRef, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -75,9 +75,41 @@ export default function GBOAnalysis() {
     operationTime?: string
   }>({})
   const [isLoading, setIsLoading] = useState(false)
+  const [isLoaded, setIsLoaded] = useState(false)
 
   const fileInputRef = useRef<HTMLInputElement>(null)
   const { toast } = useToast()
+
+  // 1. Puxa os dados salvos quando a página carrega
+  useEffect(() => {
+    const savedSession = localStorage.getItem("gbo_active_session")
+    if (savedSession) {
+      try {
+        const parsed = JSON.parse(savedSession)
+        if (parsed.operations) setOperations(parsed.operations)
+        if (parsed.productCode) setProductCode(parsed.productCode)
+        if (parsed.productName) setProductName(parsed.productName)
+        if (parsed.calcType) setCalcType(parsed.calcType)
+        if (parsed.timeUnit) setTimeUnit(parsed.timeUnit)
+      } catch (e) {
+        console.error("Erro ao ler sessão ativa")
+      }
+    }
+    setIsLoaded(true)
+  }, [])
+
+  // 2. Salva os dados sempre que algo for alterado
+  useEffect(() => {
+    if (isLoaded) {
+      localStorage.setItem("gbo_active_session", JSON.stringify({
+        operations,
+        productCode,
+        productName,
+        calcType,
+        timeUnit
+      }))
+    }
+  }, [operations, productCode, productName, calcType, timeUnit, isLoaded])
 
   const totalCycleTime = operations.reduce((sum, op) => sum + op.time, 0)
 
@@ -293,7 +325,6 @@ export default function GBOAnalysis() {
             <TabsContent value="gbo" className="outline-none space-y-6">
               <div className="flex flex-col xl:flex-row gap-8 pb-12 print:p-0">
                 
-                {/* COLUNA ESQUERDA: FOMULÁRIOS */}
                 <div className="xl:w-[35%] flex flex-col gap-6 print:hidden">
                   
                   <div className="bg-card p-6 rounded-2xl shadow-sm border border-border space-y-4">
@@ -426,7 +457,6 @@ export default function GBOAnalysis() {
                   </div>
                 </div>
 
-                {/* COLUNA DIREITA: GRÁFICOS */}
                 <div className="xl:w-[65%] flex flex-col gap-6 print:w-full">
                   {operations.length > 0 ? (
                     <>
@@ -438,7 +468,6 @@ export default function GBOAnalysis() {
                         <GBOChart operations={operations} timeUnit={timeUnit} taktTime={undefined} taktTimeUnit={undefined} demandUnit="un" />
                       </div>
 
-                      {/* Botão de Salvar Produto e Sincronizar Injetado Aqui */}
                       <div className="flex justify-end mt-2 print:hidden">
                         <Button 
                           onClick={handleSaveProduct} 
