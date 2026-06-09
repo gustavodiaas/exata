@@ -132,7 +132,6 @@ export default function GBOAnalysis() {
     if (e.key === "Enter") addOperation()
   }
 
-  // Ponte de Sincronização em Tempo Real
   const handleSaveProduct = () => {
     if (!productCode.trim() || !productName.trim()) {
       toast({ title: "Erro de Cadastro", description: "O Código e o Nome do Produto são obrigatórios.", variant: "destructive" })
@@ -165,7 +164,6 @@ export default function GBOAnalysis() {
 
     localStorage.setItem("gbo_products", JSON.stringify(productsArray))
     
-    // Dispara o gatilho para a aba do PCP se atualizar sozinha
     window.dispatchEvent(new Event("sync_gbo_products"))
     
     toast({ title: "✅ Produto Salvo", description: "O roteiro foi sincronizado com o PCP Heijunka." })
@@ -307,15 +305,15 @@ export default function GBOAnalysis() {
                     <div className="space-y-3">
                       <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-1">
-                          <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest pl-1">Código do Produto</label>
-                          <input type="text" placeholder="Ex: PRD-001" value={productCode}
+                          <label htmlFor="productCode" className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest pl-1">Código do Produto</label>
+                          <input id="productCode" type="text" placeholder="Ex: PRD-001" value={productCode}
                             onChange={(e) => setProductCode(e.target.value)}
                             className="w-full h-12 px-4 rounded-xl border border-border bg-input text-foreground text-sm outline-none focus:ring-2 focus:ring-primary transition-all"
                           />
                         </div>
                         <div className="space-y-1">
-                          <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest pl-1">Nome do Produto</label>
-                          <input type="text" placeholder="Ex: Válvula de Retenção" value={productName}
+                          <label htmlFor="productName" className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest pl-1">Nome do Produto</label>
+                          <input id="productName" type="text" placeholder="Ex: Válvula de Retenção" value={productName}
                             onChange={(e) => setProductName(e.target.value)}
                             className="w-full h-12 px-4 rounded-xl border border-border bg-input text-foreground text-sm outline-none focus:ring-2 focus:ring-primary transition-all"
                           />
@@ -324,10 +322,10 @@ export default function GBOAnalysis() {
                       
                       <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-1">
-                          <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest pl-1">Tipo de Cálculo</label>
+                          <label htmlFor="calcTypeTrigger" className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest pl-1">Tipo de Cálculo</label>
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
-                              <button className="w-full h-12 px-4 rounded-xl bg-input border border-border text-sm font-medium text-foreground flex items-center justify-between outline-none hover:bg-muted transition-all focus:ring-2 focus:ring-primary">
+                              <button id="calcTypeTrigger" className="w-full h-12 px-4 rounded-xl bg-input border border-border text-sm font-medium text-foreground flex items-center justify-between outline-none hover:bg-muted transition-all focus:ring-2 focus:ring-primary">
                                 {calcType === "takt" ? "Takt" : calcType === "media" ? "Média" : "Soma"}
                                 <ChevronDown className="w-4 h-4 text-muted-foreground" />
                               </button>
@@ -340,8 +338,9 @@ export default function GBOAnalysis() {
                           </DropdownMenu>
                         </div>
                         <div className="space-y-1">
-                          <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest pl-1">Tempo de Ciclo</label>
+                          <label htmlFor="totalCycleTime" className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest pl-1">Tempo de Ciclo</label>
                           <input 
+                            id="totalCycleTime"
                             type="text" 
                             readOnly
                             value={`${totalCycleTime.toFixed(2)} ${timeUnit === "minutes" ? "min" : "seg"}`}
@@ -366,7 +365,7 @@ export default function GBOAnalysis() {
                       <h3 className="font-bold text-foreground text-sm tracking-wide uppercase">Nova Operação</h3>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                          <button className="h-8 px-3 rounded-lg bg-input border border-border text-[10px] font-bold text-muted-foreground flex items-center gap-1 outline-none hover:bg-muted transition-all focus:ring-2 focus:ring-primary">
+                          <button id="timeUnitTrigger" aria-label="Unidade de Tempo" className="h-8 px-3 rounded-lg bg-input border border-border text-[10px] font-bold text-muted-foreground flex items-center gap-1 outline-none hover:bg-muted transition-all focus:ring-2 focus:ring-primary">
                             {timeUnit === "minutes" ? "Minutos" : "Segundos"}
                             <ChevronDown className="w-3 h-3 text-muted-foreground" />
                           </button>
@@ -379,11 +378,13 @@ export default function GBOAnalysis() {
                     </div>
                     
                     <div className="space-y-3">
-                      <input placeholder="Nome da Operação" value={newOperationName} onKeyPress={handleKeyPress}
+                      <label htmlFor="newOperationName" className="sr-only">Nome da Operação</label>
+                      <input id="newOperationName" placeholder="Nome da Operação" value={newOperationName} onKeyPress={handleKeyPress}
                         onChange={(e) => { setNewOperationName(e.target.value); if (errors.operationName) setErrors((prev) => ({ ...prev, operationName: undefined })); }}
                         className="w-full h-12 px-4 rounded-xl border border-border bg-input text-foreground text-sm outline-none focus:ring-2 focus:ring-primary transition-all"
                       />
-                      <input type="number" step="0.01" min="0" placeholder="Tempo" value={newOperationTime} onKeyPress={handleKeyPress}
+                      <label htmlFor="newOperationTime" className="sr-only">Tempo da Operação</label>
+                      <input id="newOperationTime" type="number" step="0.01" min="0" placeholder="Tempo" value={newOperationTime} onKeyPress={handleKeyPress}
                         onChange={(e) => { setNewOperationTime(e.target.value); if (errors.operationTime) setErrors((prev) => ({ ...prev, operationTime: undefined })); }}
                         className="w-full h-12 px-4 rounded-xl border border-border bg-input text-foreground text-sm outline-none focus:ring-2 focus:ring-primary transition-all"
                       />
