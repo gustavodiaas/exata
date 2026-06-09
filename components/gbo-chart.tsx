@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import React, { useState, useMemo } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, Cell } from "recharts"
 import { Input } from "@/components/ui/input"
@@ -21,60 +21,72 @@ interface GBOChartProps {
   demandUnit?: string
 }
 
-export function GBOChart({ operations, timeUnit, taktTime, taktTimeUnit, demandUnit = "un" }: GBOChartProps) {
+export const GBOChart = React.memo(function GBOChart({ operations, timeUnit, taktTime, taktTimeUnit, demandUnit = "un" }: GBOChartProps) {
   const [chartTitle, setChartTitle] = useState("Gráfico de Balanceamento de Operações")
   const [isEditingTitle, setIsEditingTitle] = useState(false)
 
-  const convertToSeconds = (time: number, unit: "minutes" | "seconds"): number => {
-    return unit === "minutes" ? time * 60 : time
-  }
+  // Matemática pesada envelopada para não recalcular a cada letra digitada no input
+  const { chartData, averageTime, taktTimeInDisplayUnit, originalTaktValue, yAxisMax } = useMemo(() => {
+    const convertToSeconds = (time: number, unit: "minutes" | "seconds"): number => {
+      return unit === "minutes" ? time * 60 : time
+    }
 
-  const convertFromSeconds = (timeInSeconds: number, targetUnit: "minutes" | "seconds"): number => {
-    return targetUnit === "minutes" ? timeInSeconds / 60 : timeInSeconds
-  }
+    const convertFromSeconds = (timeInSeconds: number, targetUnit: "minutes" | "seconds"): number => {
+      return targetUnit === "minutes" ? timeInSeconds / 60 : timeInSeconds
+    }
 
-  const operationsInSeconds = operations.map((op) => ({
-    ...op,
-    timeInSeconds: convertToSeconds(op.time, op.unit),
-  }))
+    const operationsInSeconds = operations.map((op) => ({
+      ...op,
+      timeInSeconds: convertToSeconds(op.time, op.unit),
+    }))
 
-  const operationsInDisplayUnit = operationsInSeconds.map((op) => ({
-    ...op,
-    timeInDisplayUnit: convertFromSeconds(op.timeInSeconds, timeUnit),
-  }))
+    const operationsInDisplayUnit = operationsInSeconds.map((op) => ({
+      ...op,
+      timeInDisplayUnit: convertFromSeconds(op.timeInSeconds, timeUnit),
+    }))
 
-  const averageTimeInSeconds =
-    operationsInSeconds.reduce((sum, op) => sum + op.timeInSeconds, 0) / operationsInSeconds.length
-  const averageTime = convertFromSeconds(averageTimeInSeconds, timeUnit)
+    const averageTimeInSeconds = operationsInSeconds.length > 0 
+      ? operationsInSeconds.reduce((sum, op) => sum + op.timeInSeconds, 0) / operationsInSeconds.length
+      : 0
+    const avgTime = convertFromSeconds(averageTimeInSeconds, timeUnit)
 
-  const taktTimeInDisplayUnit = taktTime ? convertFromSeconds(taktTime, timeUnit) : undefined
+    const taktDisplay = taktTime ? convertFromSeconds(taktTime, timeUnit) : undefined
 
-  const originalTaktValue = taktTime ? (
-    taktTimeUnit === "hours" ? taktTime / 3600 :
-    taktTimeUnit === "minutes" ? taktTime / 60 :
-    taktTime
-  ) : undefined;
+    const origTakt = taktTime ? (
+      taktTimeUnit === "hours" ? taktTime / 3600 :
+      taktTimeUnit === "minutes" ? taktTime / 60 :
+      taktTime
+    ) : undefined;
 
-  const maxOperationTime = Math.max(...operationsInDisplayUnit.map((op) => op.timeInDisplayUnit))
-  const maxOperationWithPadding = maxOperationTime * 1.1
-  const taktWithPadding = taktTimeInDisplayUnit ? taktTimeInDisplayUnit * 1.1 : 0
-  
-  const yAxisMax = Math.ceil(Math.max(maxOperationWithPadding, taktWithPadding))
+    const maxOperationTime = operationsInDisplayUnit.length > 0 ? Math.max(...operationsInDisplayUnit.map((op) => op.timeInDisplayUnit)) : 0
+    const maxOperationWithPadding = maxOperationTime * 1.1
+    const taktWithPadding = taktDisplay ? taktDisplay * 1.1 : 0
+    
+    const yMax = Math.ceil(Math.max(maxOperationWithPadding, taktWithPadding, 1))
 
-  const chartData = operationsInDisplayUnit.map((operation, index) => {
-    const isMaxTime = operation.timeInSeconds === Math.max(...operationsInSeconds.map((op) => op.timeInSeconds))
-    const exceedsTakt = taktTime ? operation.timeInSeconds > taktTime : false
-    const isBottleneck = isMaxTime || exceedsTakt
+    const data = operationsInDisplayUnit.map((operation, index) => {
+      const isMaxTime = operation.timeInSeconds === Math.max(...operationsInSeconds.map((op) => op.timeInSeconds))
+      const exceedsTakt = taktTime ? operation.timeInSeconds > taktTime : false
+      const isBottleneck = isMaxTime || exceedsTakt
+
+      return {
+        name: operation.name,
+        time: operation.timeInDisplayUnit,
+        isBottleneck,
+        exceedsTakt,
+        index: index + 1,
+        originalUnit: operation.unit,
+      }
+    })
 
     return {
-      name: operation.name,
-      time: operation.timeInDisplayUnit,
-      isBottleneck,
-      exceedsTakt,
-      index: index + 1,
-      originalUnit: operation.unit,
+      chartData: data,
+      averageTime: avgTime,
+      taktTimeInDisplayUnit: taktDisplay,
+      originalTaktValue: origTakt,
+      yAxisMax: yMax
     }
-  })
+  }, [operations, timeUnit, taktTime, taktTimeUnit, demandUnit])
 
   const CustomTooltip = ({ active, payload, label }: any) => {
     if (active && payload && payload.length) {
@@ -143,7 +155,6 @@ export function GBOChart({ operations, timeUnit, taktTime, taktTimeUnit, demandU
         )}
       </div>
 
-      {/* Reduzido de 65vh para 50vh para garantir margem segura em qualquer impressora */}
       <div className="h-[450px] w-full mt-2 print:h-[50vh]">
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={chartData} margin={{ top: 20, right: 30, left: 35, bottom: 65 }}>
@@ -209,4 +220,4 @@ export function GBOChart({ operations, timeUnit, taktTime, taktTimeUnit, demandU
       </div>
     </div>
   )
-}
+})
