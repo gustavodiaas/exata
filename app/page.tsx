@@ -246,7 +246,7 @@ export default function GBOAnalysis() {
             <div className="flex items-center gap-4">
               <div className="flex flex-col">
                 <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground">
-                  Gráfico de Balanceamento de Operações (GBO)
+                  Gerenciamento Diário Fácil
                 </h1>
               </div>
             </div>
@@ -264,12 +264,12 @@ export default function GBOAnalysis() {
                   <DialogHeader>
                     <DialogTitle className="text-primary flex items-center gap-2 font-bold text-lg">
                       <HelpCircle className="w-5 h-5" />
-                      Manual Técnico GBO
+                      Manual Técnico Gerenciamento Diário
                     </DialogTitle>
-                    <DialogDescription className="text-muted-foreground">Protocolo Analítico de Balanceamento</DialogDescription>
+                    <DialogDescription className="text-muted-foreground">Protocolo de Execução</DialogDescription>
                   </DialogHeader>
                   <div className="space-y-4 text-sm mt-4 leading-relaxed text-justify text-foreground">
-                    <p>O <strong>GBO (Gráfico de Balanceamento de Operações)</strong> é uma ferramenta analítica de fluxo.</p>
+                    <p>O <strong>Gerenciamento Diário</strong> é uma rotina estruturada de acompanhamento e tomada de decisões para monitorar indicadores, identificar desvios e garantir o alcance das metas da organização..</p>
                   </div>
                 </DialogContent>
               </Dialog>
@@ -283,11 +283,11 @@ export default function GBOAnalysis() {
               <TabsList className="bg-muted p-1 rounded-xl shadow-sm h-auto border border-border">
                 <TabsTrigger value="gbo" className="px-6 py-2.5 text-xs font-bold uppercase tracking-wider rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all flex items-center gap-2">
                   <BarChart className="w-4 h-4" />
-                  Balanceamento GBO
+                  Gerenciamento Diário
                 </TabsTrigger>
                 <TabsTrigger value="pcp" className="px-6 py-2.5 text-xs font-bold uppercase tracking-wider rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all flex items-center gap-2">
                   <Settings className="w-4 h-4" />
-                  Programação PCP / Heijunka
+                  Programação e Controle de Produção
                 </TabsTrigger>
               </TabsList>
             </div>
