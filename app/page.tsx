@@ -321,7 +321,7 @@ export default function GBOAnalysis() {
                 </TabsTrigger>
                 <TabsTrigger value="pcp" className="px-6 py-2.5 text-xs font-bold uppercase tracking-wider rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all flex items-center gap-2">
                   <Settings className="w-4 h-4" />
-                  Programação e Controle de Produção
+                  Gerenciamento Diário
                 </TabsTrigger>
               </TabsList>
             </div>
