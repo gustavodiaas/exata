@@ -7,8 +7,8 @@ import { Toaster } from "@/components/ui/toaster"
 import { ThemeProvider } from "next-themes"
 
 export const metadata: Metadata = {
-  title: "Análise GBO - Gráfico de Balanceamento de Operações",
-  description: "Sistema interativo para análise de GBO com exportação e importação de dados",
+  title: "Gerenciamento Diário",
+  description: "Sistema interativo para análise de Gerenciamento Diário e PCP com exportação e importação de dados",
   generator: "v0.app",
 }
 
