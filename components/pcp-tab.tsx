@@ -34,8 +34,8 @@ interface ProductionOrder {
 
 interface DailyCapacity {
   date: string
-  globalCapacity: number // Em segundos
-  downtime: number // Em segundos
+  globalCapacity: number
+  downtime: number
 }
 
 export function PCPTab() {
@@ -49,7 +49,6 @@ export function PCPTab() {
   const [opDate, setOpDate] = useState("")
   const [opProductCode, setOpProductCode] = useState("")
   const [opQuantity, setOpQuantity] = useState("")
-  const [opRule, setOpRule] = useState<"soma" | "media" | "gargalo">("soma")
   const [opGroupSetup, setOpGroupSetup] = useState(false)
 
   const [selectedDate, setSelectedDate] = useState("")
@@ -102,7 +101,6 @@ export function PCPTab() {
     return op.quantity * baseTime + totalSetup
   }
 
-  // CÁLCULO INDEPENDENTE: Sem efeito cascata. O dia só mostra a carga que tem dentro dele.
   const getHeijunkaData = () => {
     const allDates = Array.from(
       new Set([...orders.map((o) => o.date), ...capacities.map((c) => c.date)])
@@ -120,7 +118,6 @@ export function PCPTab() {
       const directLoad = dayOrders.reduce((sum, op) => sum + calculateOPTime(op), 0)
 
       const overflow = Math.max(0, directLoad - realCapacity)
-      // Permite que a ocupação mostre acima de 100% para visualização do tamanho real do gargalo
       const occupation = realCapacity > 0 ? (directLoad / realCapacity) * 100 : 0
 
       dashboardData[date] = {
@@ -150,7 +147,7 @@ export function PCPTab() {
       date: opDate,
       productCode: opProductCode,
       quantity: parseInt(opQuantity),
-      calculationRule: opRule,
+      calculationRule: "soma",
       groupSetup: opGroupSetup,
     }
 
@@ -184,7 +181,7 @@ export function PCPTab() {
 
     let downInSeconds = currentCapConfig?.downtime ?? 0
     if (downtimeValue) {
-      downInSeconds = parseFloat(downtimeValue) * 60 
+      downInSeconds = parseFloat(downtimeValue) * 60
     }
 
     updatedCapacities.push({
@@ -466,17 +463,6 @@ export function PCPTab() {
               <Label className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Quantidade Solicitada</Label>
               <Input type="number" placeholder="Ex: 150" value={opQuantity} onChange={(e) => setOpQuantity(e.target.value)} className="bg-input border-border h-10" />
             </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Regra de Tempo Base</Label>
-              <Select value={opRule} onValueChange={(v: any) => setOpRule(v)}>
-                <SelectTrigger className="bg-input border-border h-10"><SelectValue /></SelectTrigger>
-                <SelectContent className="bg-card border-border">
-                  <SelectItem value="soma">Soma dos Tempos do Roteiro</SelectItem>
-                  <SelectItem value="media">Média dos Tempos</SelectItem>
-                  <SelectItem value="gargalo">Tempo da Operação Gargalo</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
             <div className="flex items-center justify-between p-3 bg-muted/30 border border-border rounded-lg">
               <div className="flex flex-col gap-0.5">
                 <Label className="text-xs font-bold">Agrupar Setup?</Label>
@@ -507,7 +493,6 @@ export function PCPTab() {
                     </div>
                     <span className="text-xs text-muted-foreground">Data: {op.date.split("-").reverse().join("/")} | Qtd: <strong className="text-foreground">{op.quantity}</strong></span>
                     <div className="flex gap-2 mt-1">
-                      <span className="text-[9px] uppercase tracking-wider font-medium text-muted-foreground bg-muted/50 px-1.5 py-0.5 rounded">Regra: {op.calculationRule}</span>
                       {op.groupSetup && <span className="text-[9px] uppercase tracking-wider font-bold text-green-500 bg-green-500/10 px-1.5 py-0.5 rounded">Setup Reaproveitado</span>}
                     </div>
                   </div>
