@@ -1,39 +1,57 @@
 "use client"
 
-import { Moon, Sun } from "lucide-react"
+import { Monitor, Moon, Sun } from "lucide-react"
 import { useTheme } from "next-themes"
-import { Button } from "@/components/ui/button"
 import { useEffect, useState } from "react"
 
 export function ThemeToggle() {
   const { theme, setTheme } = useTheme()
   const [mounted, setMounted] = useState(false)
 
+  // Previne erros de hidratação (quando o servidor e o navegador discordam do tema inicial)
   useEffect(() => {
     setMounted(true)
   }, [])
 
   if (!mounted) {
-    return (
-      <Button variant="outline" size="sm" className="w-9 h-9 p-0 bg-transparent">
-        <Sun className="h-4 w-4" />
-      </Button>
-    )
+    // Placeholder invisível para evitar que o layout pule enquanto carrega
+    return <div className="h-8 w-[210px] rounded-full" />
   }
 
   return (
-    <Button
-      variant="outline"
-      size="sm"
-      onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-      className="w-9 h-9 p-0 tech-glow transition-all duration-300 hover:scale-105"
-    >
-      {theme === "dark" ? (
-        <Sun className="h-4 w-4 text-accent transition-transform duration-300 rotate-0 scale-100" />
-      ) : (
-        <Moon className="h-4 w-4 text-primary transition-transform duration-300 rotate-0 scale-100" />
-      )}
-      <span className="sr-only">Alternar tema</span>
-    </Button>
+    <div className="flex items-center p-1 rounded-full border border-border/50 bg-muted/20 backdrop-blur-sm">
+      <button
+        onClick={() => setTheme("light")}
+        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-bold tracking-widest uppercase transition-all ${
+          theme === "light"
+            ? "bg-background text-foreground shadow-sm border border-border/50"
+            : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+        }`}
+      >
+        <Sun className="h-3 w-3" /> Claro
+      </button>
+      
+      <button
+        onClick={() => setTheme("dark")}
+        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-bold tracking-widest uppercase transition-all ${
+          theme === "dark"
+            ? "bg-background text-foreground shadow-sm border border-border/50"
+            : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+        }`}
+      >
+        <Moon className="h-3 w-3" /> Escuro
+      </button>
+      
+      <button
+        onClick={() => setTheme("system")}
+        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-bold tracking-widest uppercase transition-all ${
+          theme === "system"
+            ? "bg-background text-foreground shadow-sm border border-border/50"
+            : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+        }`}
+      >
+        <Monitor className="h-3 w-3" /> Sistema
+      </button>
+    </div>
   )
 }
