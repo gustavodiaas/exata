@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { useState, useRef, useEffect } from "react"
+import { useState, useRef, useEffect, useMemo } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -67,7 +67,6 @@ export default function GBOAnalysis() {
   const [productCode, setProductCode] = useState("")
   const [productName, setProductName] = useState("")
   const [calcType, setCalcType] = useState("takt")
-  const [setupTime, setSetupTime] = useState("")
 
   const [newOperationName, setNewOperationName] = useState("")
   const [newOperationTime, setNewOperationTime] = useState("")
@@ -81,7 +80,6 @@ export default function GBOAnalysis() {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const { toast } = useToast()
 
-  // 1. Puxa os dados salvos quando a página carrega
   useEffect(() => {
     const savedSession = localStorage.getItem("gbo_active_session")
     if (savedSession) {
@@ -92,7 +90,6 @@ export default function GBOAnalysis() {
         if (parsed.productName) setProductName(parsed.productName)
         if (parsed.calcType) setCalcType(parsed.calcType)
         if (parsed.timeUnit) setTimeUnit(parsed.timeUnit)
-        if (parsed.setupTime) setSetupTime(parsed.setupTime)
       } catch (e) {
         console.error("Erro ao ler sessão ativa")
       }
@@ -100,7 +97,6 @@ export default function GBOAnalysis() {
     setIsLoaded(true)
   }, [])
 
-  // 2. Salva os dados sempre que algo for alterado
   useEffect(() => {
     if (isLoaded) {
       localStorage.setItem("gbo_active_session", JSON.stringify({
@@ -108,13 +104,18 @@ export default function GBOAnalysis() {
         productCode,
         productName,
         calcType,
-        timeUnit,
-        setupTime
+        timeUnit
       }))
     }
-  }, [operations, productCode, productName, calcType, timeUnit, setupTime, isLoaded])
+  }, [operations, productCode, productName, calcType, timeUnit, isLoaded])
 
-  const totalCycleTime = operations.reduce((sum, op) => sum + op.time, 0)
+  const totalCycleTime = useMemo(() => {
+    if (operations.length === 0) return 0
+    if (calcType === "soma") return operations.reduce((sum, op) => sum + op.time, 0)
+    if (calcType === "media") return operations.reduce((sum, op) => sum + op.time, 0) / operations.length
+    if (calcType === "takt") return Math.max(...operations.map(op => op.time))
+    return 0
+  }, [operations, calcType])
 
   const addOperation = () => {
     const nameValidation = validateText(newOperationName)
@@ -180,7 +181,6 @@ export default function GBOAnalysis() {
     const newProduct = {
       code: productCode.trim(),
       description: productName.trim(),
-      setupTime: setupTime ? Number.parseFloat(setupTime) : 0,
       steps: operations.map(op => ({
         name: op.name,
         cycleTime: timeUnit === "minutes" ? op.time * 60 : op.time, // PCP lê em segundos
@@ -317,11 +317,11 @@ export default function GBOAnalysis() {
               <TabsList className="bg-muted p-1 rounded-xl shadow-sm h-auto border border-border">
                 <TabsTrigger value="gbo" className="px-6 py-2.5 text-xs font-bold uppercase tracking-wider rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all flex items-center gap-2">
                   <BarChart className="w-4 h-4" />
-                  Cadastro de Produto
+                  Gerenciamento Diário
                 </TabsTrigger>
                 <TabsTrigger value="pcp" className="px-6 py-2.5 text-xs font-bold uppercase tracking-wider rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all flex items-center gap-2">
                   <Settings className="w-4 h-4" />
-                  Gerenciamento Diário
+                  Programação e Controle de Produção
                 </TabsTrigger>
               </TabsList>
             </div>
@@ -381,24 +381,6 @@ export default function GBOAnalysis() {
                             value={`${totalCycleTime.toFixed(2)} ${timeUnit === "minutes" ? "min" : "seg"}`}
                             className="w-full h-12 px-4 rounded-xl border border-border bg-muted/50 text-muted-foreground text-sm outline-none cursor-not-allowed font-semibold"
                           />
-                        </div>
-                        <div className="space-y-1">
-                          <label htmlFor="setupTime" className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest pl-1">Tempo de Setup</label>
-                          <div className="relative">
-                            <input 
-                              id="setupTime"
-                              type="number"
-                              step="0.01"
-                              min="0"
-                              placeholder="0.00"
-                              value={setupTime}
-                              onChange={(e) => setSetupTime(e.target.value)}
-                              className="w-full h-12 px-4 rounded-xl border border-border bg-input text-foreground text-sm outline-none focus:ring-2 focus:ring-primary transition-all pr-14"
-                            />
-                            <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-bold text-muted-foreground pointer-events-none">
-                              {timeUnit === "minutes" ? "min" : "seg"}
-                            </span>
-                          </div>
                         </div>
                       </div>
 
