@@ -212,6 +212,12 @@ export function PCPTab() {
     toast({ title: "✅ Capacidade Atualizada", description: "O fluxo diário foi recalculado." })
   }
 
+  const handleRemoveCapacity = (date: string) => {
+    const updated = capacities.filter((c) => c.date !== date)
+    saveAndSync(orders, updated)
+    toast({ title: "Exceção Removida", description: `Configuração de ${date.split("-").reverse().join("/")} foi removida.` })
+  }
+
   const handleDragStart = (e: React.DragEvent, opId: string) => {
     e.dataTransfer.setData("text/plain", opId)
     if (e.currentTarget instanceof HTMLElement) {
@@ -304,6 +310,32 @@ export function PCPTab() {
             <Button size="sm" className="w-full h-9 text-xs font-bold uppercase tracking-wider bg-primary hover:opacity-90 text-primary-foreground" onClick={handleSaveDowntime} disabled={!selectedDate}>
               Aplicar Nova Restrição
             </Button>
+
+            {capacities.length > 0 && (
+              <div className="pt-2 space-y-1.5">
+                <Label className="text-[10px] uppercase font-bold text-muted-foreground">Exceções Cadastradas</Label>
+                <div className="space-y-1 max-h-[180px] overflow-y-auto custom-scrollbar">
+                  {capacities.sort((a, b) => a.date.localeCompare(b.date)).map((cap) => (
+                    <div key={cap.date} className="flex items-center justify-between p-2 bg-muted/30 border border-border rounded-lg">
+                      <div className="flex flex-col gap-0.5">
+                        <span className="text-[11px] font-bold text-foreground">{cap.date.split("-").reverse().join("/")}</span>
+                        <span className="text-[10px] text-muted-foreground">
+                          {(cap.globalCapacity / 3600).toFixed(1)}h disp. · {(cap.downtime / 60).toFixed(0)} min parada
+                        </span>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 text-muted-foreground hover:text-destructive hover:bg-destructive/10 flex-shrink-0"
+                        onClick={() => handleRemoveCapacity(cap.date)}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -340,8 +372,30 @@ export function PCPTab() {
           
           <CardContent className="flex-1 p-4 overflow-auto">
             {dashboardArray.length === 0 ? (
-              <div className="h-full flex items-center justify-center text-sm text-muted-foreground py-8">
-                Nenhuma ordem ou capacidade registrada para gerar o fluxo.
+              <div className="h-full flex flex-col items-center justify-center py-10 gap-4 text-center">
+                <div className="p-4 rounded-full bg-muted/40 border border-border">
+                  <Calendar className="h-8 w-8 text-muted-foreground" />
+                </div>
+                <div className="space-y-1">
+                  <p className="text-sm font-bold text-foreground">Nenhuma programação ainda</p>
+                  <p className="text-xs text-muted-foreground max-w-[260px]">
+                    Para começar, cadastre um produto no <strong>GBO</strong>, depois insira uma Ordem de Produção no formulário ao lado.
+                  </p>
+                </div>
+                <div className="flex flex-col gap-1.5 text-left w-full max-w-[280px]">
+                  <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
+                    <span className="flex-shrink-0 w-5 h-5 rounded-full bg-primary/10 text-primary font-bold flex items-center justify-center text-[10px]">1</span>
+                    Vá para <strong className="text-foreground">Gerenciamento Diário</strong> e cadastre um produto
+                  </div>
+                  <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
+                    <span className="flex-shrink-0 w-5 h-5 rounded-full bg-primary/10 text-primary font-bold flex items-center justify-center text-[10px]">2</span>
+                    Clique em <strong className="text-foreground">Salvar Produto e Sincronizar PCP</strong>
+                  </div>
+                  <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
+                    <span className="flex-shrink-0 w-5 h-5 rounded-full bg-primary/10 text-primary font-bold flex items-center justify-center text-[10px]">3</span>
+                    Volte aqui e insira uma <strong className="text-foreground">Ordem de Produção</strong>
+                  </div>
+                </div>
               </div>
             ) : (
               <>
