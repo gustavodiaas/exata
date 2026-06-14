@@ -19,7 +19,11 @@ import {
   ChevronDown,
   BarChart,
   Settings,
-  Save
+  Save,
+  BookOpen,
+  X,
+  Pencil,
+  Trash2
 } from "lucide-react"
 import { GBOChart } from "@/components/gbo-chart"
 import { CalculationsDashboard } from "@/components/calculations-dashboard"
@@ -77,8 +81,17 @@ export default function GBOAnalysis() {
   const [isLoading, setIsLoading] = useState(false)
   const [isLoaded, setIsLoaded] = useState(false)
 
+  const [savedProducts, setSavedProducts] = useState<Array<{code: string, description: string, steps: Array<{name: string, cycleTime: number, setupTime: number}>}>>([])
+  const [showProductsPanel, setShowProductsPanel] = useState(false)
+
   const fileInputRef = useRef<HTMLInputElement>(null)
   const { toast } = useToast()
+
+  const loadSavedProducts = () => {
+    const data = localStorage.getItem("gbo_products")
+    if (data) setSavedProducts(JSON.parse(data))
+    else setSavedProducts([])
+  }
 
   useEffect(() => {
     const savedSession = localStorage.getItem("gbo_active_session")
@@ -94,7 +107,11 @@ export default function GBOAnalysis() {
         console.error("Erro ao ler sessão ativa")
       }
     }
+    loadSavedProducts()
     setIsLoaded(true)
+
+    window.addEventListener("sync_gbo_products", loadSavedProducts)
+    return () => window.removeEventListener("sync_gbo_products", loadSavedProducts)
   }, [])
 
   useEffect(() => {
@@ -201,8 +218,34 @@ export default function GBOAnalysis() {
     localStorage.setItem("gbo_products", JSON.stringify(productsArray))
     
     window.dispatchEvent(new Event("sync_gbo_products"))
+    loadSavedProducts()
     
     toast({ title: "✅ Produto Salvo", description: "O roteiro foi sincronizado com o PCP Heijunka." })
+  }
+
+  const handleLoadProduct = (product: typeof savedProducts[0]) => {
+    const ops = product.steps.map((step, i) => ({
+      id: Date.now().toString() + i,
+      name: step.name,
+      time: step.cycleTime / 60, // converte segundos para minutos
+      unit: "minutes" as const,
+    }))
+    setProductCode(product.code)
+    setProductName(product.description)
+    setOperations(ops)
+    setTimeUnit("minutes")
+    setShowProductsPanel(false)
+    toast({ title: "✅ Produto Carregado", description: `Roteiro "${product.description}" carregado para edição.` })
+  }
+
+  const handleDeleteProduct = (code: string) => {
+    const data = localStorage.getItem("gbo_products")
+    if (!data) return
+    const updated = JSON.parse(data).filter((p: any) => p.code !== code)
+    localStorage.setItem("gbo_products", JSON.stringify(updated))
+    window.dispatchEvent(new Event("sync_gbo_products"))
+    loadSavedProducts()
+    toast({ title: "Produto Removido", description: `O roteiro "${code}" foi excluído.` })
   }
 
   const handleExportExcel = async () => {
@@ -394,6 +437,51 @@ export default function GBOAnalysis() {
                       )}
                     </div>
                   </div>
+
+                  {savedProducts.length > 0 && (
+                    <div className="bg-card rounded-2xl shadow-sm border border-border overflow-hidden">
+                      <button
+                        onClick={() => setShowProductsPanel(!showProductsPanel)}
+                        className="w-full flex items-center justify-between px-6 py-4 hover:bg-muted/50 transition-colors"
+                      >
+                        <div className="flex items-center gap-2">
+                          <BookOpen className="w-4 h-4 text-primary" />
+                          <span className="font-bold text-foreground text-sm">Produtos Salvos</span>
+                          <span className="text-[10px] bg-primary/10 text-primary font-bold px-2 py-0.5 rounded-full">{savedProducts.length}</span>
+                        </div>
+                        <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform ${showProductsPanel ? "rotate-180" : ""}`} />
+                      </button>
+
+                      {showProductsPanel && (
+                        <div className="border-t border-border divide-y divide-border max-h-[280px] overflow-y-auto">
+                          {savedProducts.map((product) => (
+                            <div key={product.code} className="flex items-center justify-between px-4 py-3 hover:bg-muted/30 transition-colors">
+                              <div className="flex flex-col gap-0.5 min-w-0">
+                                <span className="text-xs font-bold text-foreground truncate">{product.description}</span>
+                                <span className="text-[10px] text-muted-foreground">{product.code} · {product.steps.length} operações</span>
+                              </div>
+                              <div className="flex items-center gap-1 flex-shrink-0 ml-2">
+                                <button
+                                  onClick={() => handleLoadProduct(product)}
+                                  title="Carregar para edição"
+                                  className="h-7 w-7 flex items-center justify-center rounded-lg text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
+                                >
+                                  <Pencil className="h-3.5 w-3.5" />
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteProduct(product.code)}
+                                  title="Excluir produto"
+                                  className="h-7 w-7 flex items-center justify-center rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
 
                   <div className="bg-card p-6 rounded-2xl shadow-sm border border-border space-y-4">
                     <div className="flex items-center justify-between border-b border-border pb-2">
