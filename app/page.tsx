@@ -3,29 +3,6 @@
 import type React from "react"
 import { useState, useRef, useEffect, useMemo } from "react"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { ThemeToggle } from "@/components/theme-toggle"
-import {
-  Plus,
-  Download,
-  Upload,
-  FileSpreadsheet,
-  HelpCircle,
-  CheckCircle2,
-  FileImage,
-  ChevronDown,
-  BarChart,
-  Settings,
-  Save,
-  BookOpen,
-  X,
-  Pencil,
-  Trash2
-} from "lucide-react"
-import { GBOChart } from "@/components/gbo-chart"
 import { CalculationsDashboard } from "@/components/calculations-dashboard"
 import { DraggableOperationsList } from "@/components/draggable-operations-list"
 import { exportToExcel, importFromExcel, downloadTemplate } from "@/components/export-utils"
@@ -39,9 +16,27 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
-
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { GBOChart } from "@/components/gbo-chart"
 import { PCPTab } from "@/components/pcp-tab"
+import { ThemeToggle } from "@/components/theme-toggle"
+import {
+  Plus,
+  Download,
+  Upload,
+  FileSpreadsheet,
+  HelpCircle,
+  CheckCircle2,
+  FileImage,
+  ChevronDown,
+  BarChart2,
+  CalendarClock,
+  Save,
+  BookOpen,
+  Pencil,
+  Trash2,
+  Menu,
+  X,
+} from "lucide-react"
 
 interface Operation {
   id: string
@@ -64,24 +59,36 @@ const validateText = (value: string): { isValid: boolean; error?: string } => {
   return { isValid: true }
 }
 
+const NAV_ITEMS = [
+  {
+    id: "gbo",
+    label: "GBO",
+    sublabel: "Gerenciamento Diário",
+    icon: BarChart2,
+  },
+  {
+    id: "pcp",
+    label: "PCP",
+    sublabel: "Programação de Produção",
+    icon: CalendarClock,
+  },
+]
+
 export default function GBOAnalysis() {
+  const [activeTab, setActiveTab] = useState<"gbo" | "pcp">("gbo")
+  const [sidebarOpen, setSidebarOpen] = useState(false)
+
   const [operations, setOperations] = useState<Operation[]>([])
   const [timeUnit, setTimeUnit] = useState<"minutes" | "seconds">("minutes")
-  
   const [productCode, setProductCode] = useState("")
   const [productName, setProductName] = useState("")
   const [calcType, setCalcType] = useState("takt")
-
   const [newOperationName, setNewOperationName] = useState("")
   const [newOperationTime, setNewOperationTime] = useState("")
-  const [errors, setErrors] = useState<{
-    operationName?: string
-    operationTime?: string
-  }>({})
+  const [errors, setErrors] = useState<{ operationName?: string; operationTime?: string }>({})
   const [isLoading, setIsLoading] = useState(false)
   const [isLoaded, setIsLoaded] = useState(false)
-
-  const [savedProducts, setSavedProducts] = useState<Array<{code: string, description: string, steps: Array<{name: string, cycleTime: number, setupTime: number}>}>>([])
+  const [savedProducts, setSavedProducts] = useState<Array<{ code: string; description: string; steps: Array<{ name: string; cycleTime: number; setupTime: number }> }>>([])
   const [showProductsPanel, setShowProductsPanel] = useState(false)
 
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -109,20 +116,13 @@ export default function GBOAnalysis() {
     }
     loadSavedProducts()
     setIsLoaded(true)
-
     window.addEventListener("sync_gbo_products", loadSavedProducts)
     return () => window.removeEventListener("sync_gbo_products", loadSavedProducts)
   }, [])
 
   useEffect(() => {
     if (isLoaded) {
-      localStorage.setItem("gbo_active_session", JSON.stringify({
-        operations,
-        productCode,
-        productName,
-        calcType,
-        timeUnit
-      }))
+      localStorage.setItem("gbo_active_session", JSON.stringify({ operations, productCode, productName, calcType, timeUnit }))
     }
   }, [operations, productCode, productName, calcType, timeUnit, isLoaded])
 
@@ -130,32 +130,27 @@ export default function GBOAnalysis() {
     if (operations.length === 0) return 0
     if (calcType === "soma") return operations.reduce((sum, op) => sum + op.time, 0)
     if (calcType === "media") return operations.reduce((sum, op) => sum + op.time, 0) / operations.length
-    if (calcType === "takt") return Math.max(...operations.map(op => op.time))
+    if (calcType === "takt") return Math.max(...operations.map((op) => op.time))
     return 0
   }, [operations, calcType])
 
   const addOperation = () => {
     const nameValidation = validateText(newOperationName)
     const timeValidation = validateNumber(newOperationTime)
-
     const newErrors: typeof errors = {}
     if (!nameValidation.isValid) newErrors.operationName = nameValidation.error
     if (!timeValidation.isValid) newErrors.operationTime = timeValidation.error
-
     setErrors(newErrors)
-
     if (!nameValidation.isValid || !timeValidation.isValid) {
       toast({ title: "Dados inválidos", description: "Verifique os campos destacados.", variant: "destructive" })
       return
     }
-
     const newOperation: Operation = {
       id: Date.now().toString(),
       name: newOperationName.trim(),
       time: Number.parseFloat(newOperationTime),
       unit: timeUnit,
     }
-
     setOperations([...operations, newOperation])
     setNewOperationName("")
     setNewOperationTime("")
@@ -170,9 +165,7 @@ export default function GBOAnalysis() {
   }
 
   const editOperation = (id: string, newName: string, newTime: number) => {
-    setOperations(
-      operations.map((op) => (op.id === id ? { ...op, name: newName, time: newTime } : op))
-    )
+    setOperations(operations.map((op) => (op.id === id ? { ...op, name: newName, time: newTime } : op)))
     toast({ title: "✅ Atualizado", description: `Operação "${newName}" atualizada.` })
   }
 
@@ -194,32 +187,23 @@ export default function GBOAnalysis() {
       toast({ title: "Roteiro Vazio", description: "Adicione ao menos uma operação antes de salvar.", variant: "destructive" })
       return
     }
-
     const newProduct = {
       code: productCode.trim(),
       description: productName.trim(),
-      steps: operations.map(op => ({
+      steps: operations.map((op) => ({
         name: op.name,
-        cycleTime: timeUnit === "minutes" ? op.time * 60 : op.time, // PCP lê em segundos
-        setupTime: 0
-      }))
+        cycleTime: timeUnit === "minutes" ? op.time * 60 : op.time,
+        setupTime: 0,
+      })),
     }
-
     const existingData = localStorage.getItem("gbo_products")
     let productsArray = existingData ? JSON.parse(existingData) : []
-    
     const existingIndex = productsArray.findIndex((p: any) => p.code === newProduct.code)
-    if (existingIndex >= 0) {
-      productsArray[existingIndex] = newProduct
-    } else {
-      productsArray.push(newProduct)
-    }
-
+    if (existingIndex >= 0) productsArray[existingIndex] = newProduct
+    else productsArray.push(newProduct)
     localStorage.setItem("gbo_products", JSON.stringify(productsArray))
-    
     window.dispatchEvent(new Event("sync_gbo_products"))
     loadSavedProducts()
-    
     toast({ title: "✅ Produto Salvo", description: "O roteiro foi sincronizado com o PCP Heijunka." })
   }
 
@@ -227,7 +211,7 @@ export default function GBOAnalysis() {
     const ops = product.steps.map((step, i) => ({
       id: Date.now().toString() + i,
       name: step.name,
-      time: step.cycleTime / 60, // converte segundos para minutos
+      time: step.cycleTime / 60,
       unit: "minutes" as const,
     }))
     setProductCode(product.code)
@@ -254,7 +238,7 @@ export default function GBOAnalysis() {
     try {
       await exportToExcel(operations, timeUnit)
       toast({ title: "✅ Excel exportado", description: "A planilha foi baixada." })
-    } catch (error) {
+    } catch {
       toast({ title: "❌ Erro", description: "Falha ao exportar Excel.", variant: "destructive" })
     } finally {
       setIsLoading(false)
@@ -263,19 +247,14 @@ export default function GBOAnalysis() {
 
   const handleExportChartPDF = () => {
     if (operations.length === 0) return
-    setTimeout(() => {
-      window.print()
-    }, 300)
+    setTimeout(() => window.print(), 300)
   }
 
-  const handleImportExcel = () => {
-    fileInputRef.current?.click()
-  }
+  const handleImportExcel = () => fileInputRef.current?.click()
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
-
     setIsLoading(true)
     try {
       const importedOperations = await importFromExcel(file)
@@ -285,7 +264,7 @@ export default function GBOAnalysis() {
       }
       setOperations(importedOperations)
       toast({ title: "✅ Importação concluída", description: `${importedOperations.length} operações carregadas.` })
-    } catch (error) {
+    } catch {
       toast({ title: "❌ Erro", description: "Falha na importação.", variant: "destructive" })
     } finally {
       setIsLoading(false)
@@ -295,115 +274,185 @@ export default function GBOAnalysis() {
 
   return (
     <>
-      <style dangerouslySetInnerHTML={{__html: `
+      <style dangerouslySetInnerHTML={{ __html: `
         @media print {
           @page { size: landscape; margin: 1cm; }
-          body { 
-            background: white !important; 
-            -webkit-print-color-adjust: exact !important; 
-            print-color-adjust: exact !important; 
-          }
-          [data-radix-toast-provider], 
-          [role="region"][aria-label="Notifications"], 
-          .toaster,
-          [data-radix-popper-content-wrapper] {
-            display: none !important;
-            opacity: 0 !important;
-            visibility: hidden !important;
-            pointer-events: none !important;
+          body { background: white !important; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+          [data-radix-toast-provider], [role="region"][aria-label="Notifications"], .toaster, [data-radix-popper-content-wrapper] {
+            display: none !important; opacity: 0 !important; visibility: hidden !important; pointer-events: none !important;
           }
         }
-      `}} />
+      ` }} />
 
-      <div className="min-h-screen bg-background relative print:min-h-0 print:bg-transparent">
+      <div className="min-h-screen bg-background flex print:block">
         <input ref={fileInputRef} type="file" accept=".xlsx,.xls" onChange={handleFileChange} className="hidden" />
 
-        <div className="pt-6 pb-8 px-4 w-full flex justify-center z-50 print:hidden border-b border-border mb-6">
-          <header className="w-full max-w-[95%] px-6 flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <div className="flex flex-col">
-                <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground">
-                  Gerenciamento Diário Fácil
-                </h1>
-              </div>
+        {/* SIDEBAR */}
+        <aside className={`
+          fixed inset-y-0 left-0 z-40 w-64 bg-card border-r border-border flex flex-col
+          transition-transform duration-200 ease-in-out print:hidden
+          lg:relative lg:translate-x-0 lg:flex
+          ${sidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}
+        `}>
+          {/* Logo */}
+          <div className="px-6 py-6 border-b border-border flex items-center justify-between">
+            <div>
+              <h1 className="text-base font-bold text-foreground leading-tight">Gerenciamento</h1>
+              <h1 className="text-base font-bold text-primary leading-tight">Fácil</h1>
             </div>
-            
-            <div className="flex items-center gap-4">
-              <ThemeToggle />
-              
-              <Dialog>
-                <DialogTrigger asChild>
-                  <Button variant="ghost" size="icon" className="h-9 w-9 rounded-full text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors">
-                    <HelpCircle className="h-5 w-5" />
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto bg-card border-border rounded-2xl shadow-xl">
-                  <DialogHeader>
-                    <DialogTitle className="text-primary flex items-center gap-2 font-bold text-lg">
-                      <HelpCircle className="w-5 h-5" />
-                      Manual Técnico Gerenciamento Diário
-                    </DialogTitle>
-                    <DialogDescription className="text-muted-foreground">Protocolo de Execução</DialogDescription>
-                  </DialogHeader>
-                  <div className="space-y-4 text-sm mt-4 leading-relaxed text-justify text-foreground">
-                    <p>O <strong>Gerenciamento Diário</strong> é uma rotina estruturada de acompanhamento e tomada de decisões para monitorar indicadores, identificar desvios e garantir o alcance das metas da organização..</p>
+            <button
+              onClick={() => setSidebarOpen(false)}
+              className="lg:hidden h-8 w-8 flex items-center justify-center rounded-lg text-muted-foreground hover:bg-muted transition-colors"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+
+          {/* Nav */}
+          <nav className="flex-1 px-3 py-4 space-y-1">
+            {NAV_ITEMS.map((item) => {
+              const Icon = item.icon
+              const isActive = activeTab === item.id
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => { setActiveTab(item.id as "gbo" | "pcp"); setSidebarOpen(false) }}
+                  className={`
+                    w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left transition-all
+                    ${isActive
+                      ? "bg-primary text-primary-foreground shadow-sm"
+                      : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                    }
+                  `}
+                >
+                  <Icon className="h-5 w-5 flex-shrink-0" />
+                  <div className="flex flex-col min-w-0">
+                    <span className="text-sm font-bold leading-tight">{item.label}</span>
+                    <span className={`text-[10px] leading-tight truncate ${isActive ? "text-primary-foreground/70" : "text-muted-foreground"}`}>
+                      {item.sublabel}
+                    </span>
                   </div>
-                </DialogContent>
-              </Dialog>
-            </div>
+                </button>
+              )
+            })}
+          </nav>
+
+          {/* Footer */}
+          <div className="px-3 py-4 border-t border-border flex items-center justify-between">
+            <span className="text-[10px] text-muted-foreground font-medium pl-1">v2.1.0</span>
+            <ThemeToggle />
+          </div>
+        </aside>
+
+        {/* Overlay mobile */}
+        {sidebarOpen && (
+          <div
+            className="fixed inset-0 z-30 bg-black/40 lg:hidden"
+            onClick={() => setSidebarOpen(false)}
+          />
+        )}
+
+        {/* MAIN CONTENT */}
+        <div className="flex-1 flex flex-col min-w-0 print:w-full">
+
+          {/* Topbar mobile */}
+          <header className="lg:hidden flex items-center justify-between px-4 py-4 border-b border-border bg-card print:hidden">
+            <button
+              onClick={() => setSidebarOpen(true)}
+              className="h-9 w-9 flex items-center justify-center rounded-xl text-muted-foreground hover:bg-muted transition-colors"
+            >
+              <Menu className="h-5 w-5" />
+            </button>
+            <span className="font-bold text-foreground text-sm">
+              {NAV_ITEMS.find((i) => i.id === activeTab)?.sublabel}
+            </span>
+            <Dialog>
+              <DialogTrigger asChild>
+                <button className="h-9 w-9 flex items-center justify-center rounded-xl text-muted-foreground hover:bg-muted transition-colors">
+                  <HelpCircle className="h-5 w-5" />
+                </button>
+              </DialogTrigger>
+              <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto bg-card border-border rounded-2xl shadow-xl">
+                <DialogHeader>
+                  <DialogTitle className="text-primary flex items-center gap-2 font-bold text-lg">
+                    <HelpCircle className="w-5 h-5" /> Manual Técnico
+                  </DialogTitle>
+                  <DialogDescription className="text-muted-foreground">Protocolo de Execução</DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4 text-sm mt-4 leading-relaxed text-justify text-foreground">
+                  <p>O <strong>Gerenciamento Diário</strong> é uma rotina estruturada de acompanhamento e tomada de decisões para monitorar indicadores, identificar desvios e garantir o alcance das metas da organização.</p>
+                </div>
+              </DialogContent>
+            </Dialog>
           </header>
-        </div>
 
-        <div className="w-full max-w-[95%] mx-auto px-4 pb-12 print:p-12 print:max-w-none print:w-[100vw] print:break-inside-avoid">
-          <Tabs defaultValue="gbo" className="w-full space-y-6">
-            <div className="flex justify-center print:hidden">
-              <TabsList className="bg-muted p-1 rounded-xl shadow-sm h-auto border border-border">
-                <TabsTrigger value="gbo" className="px-6 py-2.5 text-xs font-bold uppercase tracking-wider rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all flex items-center gap-2">
-                  <BarChart className="w-4 h-4" />
-                  Gerenciamento Diário
-                </TabsTrigger>
-                <TabsTrigger value="pcp" className="px-6 py-2.5 text-xs font-bold uppercase tracking-wider rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all flex items-center gap-2">
-                  <Settings className="w-4 h-4" />
-                  Programação e Controle de Produção
-                </TabsTrigger>
-              </TabsList>
+          {/* Topbar desktop */}
+          <header className="hidden lg:flex items-center justify-between px-8 py-5 border-b border-border bg-card/50 print:hidden">
+            <div>
+              <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Módulo Ativo</p>
+              <h2 className="text-lg font-bold text-foreground">
+                {NAV_ITEMS.find((i) => i.id === activeTab)?.sublabel}
+              </h2>
             </div>
+            <Dialog>
+              <DialogTrigger asChild>
+                <button className="h-9 w-9 flex items-center justify-center rounded-xl text-muted-foreground hover:bg-muted hover:text-primary transition-colors">
+                  <HelpCircle className="h-5 w-5" />
+                </button>
+              </DialogTrigger>
+              <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto bg-card border-border rounded-2xl shadow-xl">
+                <DialogHeader>
+                  <DialogTitle className="text-primary flex items-center gap-2 font-bold text-lg">
+                    <HelpCircle className="w-5 h-5" /> Manual Técnico Gerenciamento Diário
+                  </DialogTitle>
+                  <DialogDescription className="text-muted-foreground">Protocolo de Execução</DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4 text-sm mt-4 leading-relaxed text-justify text-foreground">
+                  <p>O <strong>Gerenciamento Diário</strong> é uma rotina estruturada de acompanhamento e tomada de decisões para monitorar indicadores, identificar desvios e garantir o alcance das metas da organização.</p>
+                </div>
+              </DialogContent>
+            </Dialog>
+          </header>
 
-            <TabsContent value="gbo" className="outline-none space-y-6">
+          {/* PAGE CONTENT */}
+          <main className="flex-1 overflow-auto px-4 lg:px-8 py-8 print:p-12">
+
+            {/* GBO TAB */}
+            {activeTab === "gbo" && (
               <div className="flex flex-col xl:flex-row gap-8 pb-12 print:p-0">
-                
+
+                {/* Left panel */}
                 <div className="xl:w-[35%] flex flex-col gap-6 print:hidden">
-                  
+
+                  {/* Identificação */}
                   <div className="bg-card p-6 rounded-2xl shadow-sm border border-border space-y-4">
                     <h3 className="font-bold text-foreground border-b border-border pb-2 flex items-center gap-2">
                       <div className="w-2 h-2 rounded-full bg-primary animate-pulse"></div>
                       Identificação do Produto
                     </h3>
-                    
                     <div className="space-y-3">
                       <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-1">
-                          <label htmlFor="productCode" className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest pl-1">Código do Produto</label>
+                          <label htmlFor="productCode" className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest pl-1">Código</label>
                           <input id="productCode" type="text" placeholder="Ex: PRD-001" value={productCode}
                             onChange={(e) => setProductCode(e.target.value)}
                             className="w-full h-12 px-4 rounded-xl border border-border bg-input text-foreground text-sm outline-none focus:ring-2 focus:ring-primary transition-all"
                           />
                         </div>
                         <div className="space-y-1">
-                          <label htmlFor="productName" className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest pl-1">Nome do Produto</label>
+                          <label htmlFor="productName" className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest pl-1">Nome</label>
                           <input id="productName" type="text" placeholder="Ex: Válvula de Retenção" value={productName}
                             onChange={(e) => setProductName(e.target.value)}
                             className="w-full h-12 px-4 rounded-xl border border-border bg-input text-foreground text-sm outline-none focus:ring-2 focus:ring-primary transition-all"
                           />
                         </div>
                       </div>
-                      
                       <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-1">
-                          <label htmlFor="calcTypeTrigger" className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest pl-1">Tipo de Cálculo</label>
+                          <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest pl-1">Tipo de Cálculo</label>
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
-                              <button id="calcTypeTrigger" className="w-full h-12 px-4 rounded-xl bg-input border border-border text-sm font-medium text-foreground flex items-center justify-between outline-none hover:bg-muted transition-all focus:ring-2 focus:ring-primary">
+                              <button className="w-full h-12 px-4 rounded-xl bg-input border border-border text-sm font-medium text-foreground flex items-center justify-between outline-none hover:bg-muted transition-all focus:ring-2 focus:ring-primary">
                                 {calcType === "takt" ? "Takt" : calcType === "media" ? "Média" : "Soma"}
                                 <ChevronDown className="w-4 h-4 text-muted-foreground" />
                               </button>
@@ -416,17 +465,12 @@ export default function GBOAnalysis() {
                           </DropdownMenu>
                         </div>
                         <div className="space-y-1">
-                          <label htmlFor="totalCycleTime" className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest pl-1">Tempo de Ciclo</label>
-                          <input 
-                            id="totalCycleTime"
-                            type="text" 
-                            readOnly
-                            value={`${totalCycleTime.toFixed(2)} ${timeUnit === "minutes" ? "min" : "seg"}`}
+                          <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest pl-1">Tempo de Ciclo</label>
+                          <input type="text" readOnly value={`${totalCycleTime.toFixed(2)} ${timeUnit === "minutes" ? "min" : "seg"}`}
                             className="w-full h-12 px-4 rounded-xl border border-border bg-muted/50 text-muted-foreground text-sm outline-none cursor-not-allowed font-semibold"
                           />
                         </div>
                       </div>
-
                       {operations.length > 0 && (
                         <div className="bg-primary/5 border border-primary/20 p-4 rounded-xl flex items-center gap-3 mt-4">
                           <CheckCircle2 className="h-5 w-5 text-primary" />
@@ -438,6 +482,7 @@ export default function GBOAnalysis() {
                     </div>
                   </div>
 
+                  {/* Produtos Salvos */}
                   {savedProducts.length > 0 && (
                     <div className="bg-card rounded-2xl shadow-sm border border-border overflow-hidden">
                       <button
@@ -451,7 +496,6 @@ export default function GBOAnalysis() {
                         </div>
                         <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform ${showProductsPanel ? "rotate-180" : ""}`} />
                       </button>
-
                       {showProductsPanel && (
                         <div className="border-t border-border divide-y divide-border max-h-[280px] overflow-y-auto">
                           {savedProducts.map((product) => (
@@ -461,18 +505,12 @@ export default function GBOAnalysis() {
                                 <span className="text-[10px] text-muted-foreground">{product.code} · {product.steps.length} operações</span>
                               </div>
                               <div className="flex items-center gap-1 flex-shrink-0 ml-2">
-                                <button
-                                  onClick={() => handleLoadProduct(product)}
-                                  title="Carregar para edição"
-                                  className="h-7 w-7 flex items-center justify-center rounded-lg text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
-                                >
+                                <button onClick={() => handleLoadProduct(product)} title="Carregar para edição"
+                                  className="h-7 w-7 flex items-center justify-center rounded-lg text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors">
                                   <Pencil className="h-3.5 w-3.5" />
                                 </button>
-                                <button
-                                  onClick={() => handleDeleteProduct(product.code)}
-                                  title="Excluir produto"
-                                  className="h-7 w-7 flex items-center justify-center rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
-                                >
+                                <button onClick={() => handleDeleteProduct(product.code)} title="Excluir produto"
+                                  className="h-7 w-7 flex items-center justify-center rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors">
                                   <Trash2 className="h-3.5 w-3.5" />
                                 </button>
                               </div>
@@ -483,12 +521,13 @@ export default function GBOAnalysis() {
                     </div>
                   )}
 
+                  {/* Nova Operação */}
                   <div className="bg-card p-6 rounded-2xl shadow-sm border border-border space-y-4">
                     <div className="flex items-center justify-between border-b border-border pb-2">
                       <h3 className="font-bold text-foreground text-sm tracking-wide uppercase">Nova Operação</h3>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                          <button id="timeUnitTrigger" aria-label="Unidade de Tempo" className="h-8 px-3 rounded-lg bg-input border border-border text-[10px] font-bold text-muted-foreground flex items-center gap-1 outline-none hover:bg-muted transition-all focus:ring-2 focus:ring-primary">
+                          <button className="h-8 px-3 rounded-lg bg-input border border-border text-[10px] font-bold text-muted-foreground flex items-center gap-1 outline-none hover:bg-muted transition-all focus:ring-2 focus:ring-primary">
                             {timeUnit === "minutes" ? "Minutos" : "Segundos"}
                             <ChevronDown className="w-3 h-3 text-muted-foreground" />
                           </button>
@@ -499,27 +538,23 @@ export default function GBOAnalysis() {
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </div>
-                    
                     <div className="space-y-3">
-                      <label htmlFor="newOperationName" className="sr-only">Nome da Operação</label>
-                      <input id="newOperationName" placeholder="Nome da Operação" value={newOperationName} onKeyPress={handleKeyPress}
-                        onChange={(e) => { setNewOperationName(e.target.value); if (errors.operationName) setErrors((prev) => ({ ...prev, operationName: undefined })); }}
+                      <input placeholder="Nome da Operação" value={newOperationName} onKeyPress={handleKeyPress}
+                        onChange={(e) => { setNewOperationName(e.target.value); if (errors.operationName) setErrors((prev) => ({ ...prev, operationName: undefined })) }}
                         className="w-full h-12 px-4 rounded-xl border border-border bg-input text-foreground text-sm outline-none focus:ring-2 focus:ring-primary transition-all"
                       />
-                      <label htmlFor="newOperationTime" className="sr-only">Tempo da Operação</label>
-                      <input id="newOperationTime" type="number" step="0.01" min="0" placeholder="Tempo" value={newOperationTime} onKeyPress={handleKeyPress}
-                        onChange={(e) => { setNewOperationTime(e.target.value); if (errors.operationTime) setErrors((prev) => ({ ...prev, operationTime: undefined })); }}
+                      <input type="number" step="0.01" min="0" placeholder="Tempo" value={newOperationTime} onKeyPress={handleKeyPress}
+                        onChange={(e) => { setNewOperationTime(e.target.value); if (errors.operationTime) setErrors((prev) => ({ ...prev, operationTime: undefined })) }}
                         className="w-full h-12 px-4 rounded-xl border border-border bg-input text-foreground text-sm outline-none focus:ring-2 focus:ring-primary transition-all"
                       />
-                      <button 
-                        onClick={addOperation} disabled={!newOperationName.trim() || !newOperationTime.trim() || isLoading}
-                        className="w-full h-12 flex items-center justify-center bg-primary text-primary-foreground rounded-xl font-bold text-xs uppercase tracking-widest shadow-md hover:opacity-90 transition-all disabled:opacity-50 disabled:cursor-not-allowed mt-2"
-                      >
+                      <button onClick={addOperation} disabled={!newOperationName.trim() || !newOperationTime.trim() || isLoading}
+                        className="w-full h-12 flex items-center justify-center bg-primary text-primary-foreground rounded-xl font-bold text-xs uppercase tracking-widest shadow-md hover:opacity-90 transition-all disabled:opacity-50 disabled:cursor-not-allowed mt-2">
                         <Plus className="h-4 w-4 mr-2" /> Adicionar
                       </button>
                     </div>
                   </div>
 
+                  {/* Import/Export */}
                   <div className="flex gap-3">
                     <button onClick={handleImportExcel} disabled={isLoading} className="flex-1 h-12 flex items-center justify-center bg-card border border-border text-muted-foreground font-bold text-xs rounded-xl hover:bg-muted transition-colors shadow-sm">
                       <Upload className="h-4 w-4 mr-2" /> Importar
@@ -544,27 +579,24 @@ export default function GBOAnalysis() {
                     <FileSpreadsheet className="h-4 w-4 mr-2 text-green-600" /> Baixar Modelo Padrão (Excel)
                   </button>
 
+                  {/* Lista de Operações */}
                   <div className="bg-card border border-border rounded-2xl shadow-sm p-6">
                     <DraggableOperationsList operations={operations} timeUnit={timeUnit} onReorder={reorderOperations} onRemove={removeOperation} onEdit={editOperation} />
                   </div>
                 </div>
 
+                {/* Right panel - Chart */}
                 <div className="xl:w-[65%] flex flex-col gap-6 print:w-full">
                   {operations.length > 0 ? (
                     <>
                       <div className="print:hidden">
                         <CalculationsDashboard operations={operations} timeUnit={timeUnit} taktTime={undefined} taktTimeUnit={undefined} demandUnit="un" />
                       </div>
-                      
                       <div id="gbo-chart-container" className="bg-card rounded-3xl shadow-sm border border-border p-6 print:border-none print:shadow-none print:p-0">
                         <GBOChart operations={operations} timeUnit={timeUnit} taktTime={undefined} taktTimeUnit={undefined} demandUnit="un" />
                       </div>
-
                       <div className="flex justify-end mt-2 print:hidden">
-                        <Button 
-                          onClick={handleSaveProduct} 
-                          className="bg-primary hover:opacity-90 text-primary-foreground font-bold uppercase tracking-widest h-12 px-8 rounded-xl shadow-md transition-all"
-                        >
+                        <Button onClick={handleSaveProduct} className="bg-primary hover:opacity-90 text-primary-foreground font-bold uppercase tracking-widest h-12 px-8 rounded-xl shadow-md transition-all">
                           <Save className="h-5 w-5 mr-2" />
                           Salvar Produto e Sincronizar PCP
                         </Button>
@@ -581,12 +613,12 @@ export default function GBOAnalysis() {
                   )}
                 </div>
               </div>
-            </TabsContent>
+            )}
 
-            <TabsContent value="pcp" className="outline-none">
-              <PCPTab />
-            </TabsContent>
-          </Tabs>
+            {/* PCP TAB */}
+            {activeTab === "pcp" && <PCPTab />}
+
+          </main>
         </div>
       </div>
     </>
