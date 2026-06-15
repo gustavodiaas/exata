@@ -45,7 +45,7 @@ type TabId = "gbo" | "pcp" | "configuracoes"
 
 const NAV_ITEMS: { id: TabId; label: string; sublabel: string; icon: React.ElementType }[] = [
   { id: "gbo", label: "GBO", sublabel: "Gerenciamento Diário", icon: BarChart2 },
-  { id: "pcp", label: "PCP", sublabel: "Programação de Production", icon: CalendarClock },
+  { id: "pcp", label: "PCP", sublabel: "Programação de Produção", icon: CalendarClock },
 ]
 
 const NAV_BOTTOM: { id: TabId; label: string; sublabel: string; icon: React.ElementType }[] = [
@@ -393,34 +393,6 @@ export default function GBOAnalysis() {
     if (fileInputRef.current) fileInputRef.current.value = ""
   }
 
-  const allNavItems = [...NAV_ITEMS, ...NAV_BOTTOM]
-
-  const NavButton = ({ item, onClick }: { item: typeof allNavItems[0]; onClick: () => void }) => {
-    const Icon = item.icon
-    const isActive = activeTab === item.id
-    return (
-      <button
-        onClick={onClick}
-        title={collapsed ? item.sublabel : undefined}
-        className={`
-          w-full flex items-center rounded-xl transition-all
-          ${collapsed ? "justify-center h-10 w-10 mx-auto" : "gap-3 px-3 py-3"}
-          ${isActive ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:bg-muted hover:text-foreground"}
-        `}
-      >
-        <Icon className="h-[18px] w-[18px] flex-shrink-0" />
-        {!collapsed && (
-          <div className="flex flex-col min-w-0 text-left">
-            <span className="text-xs font-bold leading-tight">{item.label}</span>
-            <span className={`text-[10px] leading-tight truncate ${isActive ? "text-primary-foreground/70" : "text-muted-foreground"}`}>
-              {item.sublabel}
-            </span>
-          </div>
-        )}
-      </button>
-    )
-  }
-
   if (authLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -522,15 +494,61 @@ export default function GBOAnalysis() {
           </div>
 
           <nav className="flex-1 px-2 py-3 space-y-1">
-            {NAV_ITEMS.map((item) => (
-              <NavButton key={item.id} item={item} onClick={() => setActiveTab(item.id)} />
-            ))}
+            {NAV_ITEMS.map((item) => {
+              const Icon = item.icon
+              const isActive = activeTab === item.id
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => setActiveTab(item.id)}
+                  title={collapsed ? item.sublabel : undefined}
+                  className={`
+                    w-full flex items-center rounded-xl transition-all text-left
+                    ${collapsed ? "justify-center h-10 w-10 mx-auto" : "gap-3 px-3 py-3"}
+                    ${isActive ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:bg-muted hover:text-foreground"}
+                  `}
+                >
+                  <Icon className="h-[18px] w-[18px] flex-shrink-0" />
+                  {!collapsed && (
+                    <div className="flex flex-col min-w-0">
+                      <span className="text-xs font-bold leading-tight">{item.label}</span>
+                      <span className={`text-[10px] leading-tight truncate ${isActive ? "text-primary-foreground/70" : "text-muted-foreground"}`}>
+                        {item.sublabel}
+                      </span>
+                    </div>
+                  )}
+                </button>
+              )
+            })}
           </nav>
 
           <div className="px-2 py-3 border-t border-border space-y-1">
-            {NAV_BOTTOM.map((item) => (
-              <NavButton key={item.id} item={item} onClick={() => setActiveTab(item.id)} />
-            ))}
+            {NAV_BOTTOM.map((item) => {
+              const Icon = item.icon
+              const isActive = activeTab === item.id
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => setActiveTab(item.id)}
+                  title={collapsed ? item.sublabel : undefined}
+                  className={`
+                    w-full flex items-center rounded-xl transition-all text-left
+                    ${collapsed ? "justify-center h-10 w-10 mx-auto" : "gap-3 px-3 py-3"}
+                    ${isActive ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:bg-muted hover:text-foreground"}
+                  `}
+                >
+                  <Icon className="h-[18px] w-[18px] flex-shrink-0" />
+                  {!collapsed && (
+                    <div className="flex flex-col min-w-0">
+                      <span className="text-xs font-bold leading-tight">{item.label}</span>
+                      <span className={`text-[10px] leading-tight truncate ${isActive ? "text-primary-foreground/70" : "text-muted-foreground"}`}>
+                        {item.sublabel}
+                      </span>
+                    </div>
+                  )}
+                </button>
+              )
+            })}
             <button onClick={handleLogout} className={`w-full flex items-center rounded-xl text-destructive hover:bg-destructive/10 transition-all ${collapsed ? "justify-center h-10 w-10 mx-auto" : "gap-3 px-3 py-3"}`} title={collapsed ? "Sair do sistema" : undefined}>
               <LogOut className="h-[18px] w-[18px] flex-shrink-0" />
               {!collapsed && <span className="text-xs font-bold leading-tight">Sair do Sistema</span>}
