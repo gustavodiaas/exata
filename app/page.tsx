@@ -392,6 +392,41 @@ export default function GBOAnalysis() {
     if (fileInputRef.current) fileInputRef.current.value = ""
   }
 
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground animate-pulse">Carregando Exata...</p>
+      </div>
+    )
+  }
+
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4">
+        <div className="w-full max-w-sm border border-border/50 bg-card p-8 shadow-2xl rounded-2xl space-y-6">
+          <div className="text-center space-y-1">
+            <h1 className="text-3xl font-black tracking-tighter text-foreground uppercase">Exata</h1>
+            <p className="text-xs text-muted-foreground font-medium">Controle de acesso para contas cadastradas</p>
+          </div>
+          <form onSubmit={handleLogin} className="space-y-4">
+            <div className="space-y-1">
+              <label htmlFor="email" className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider pl-1">E-mail Corporativo</label>
+              <input id="email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} className="w-full h-12 px-4 rounded-xl border border-border bg-input text-foreground text-sm outline-none focus:ring-2 focus:ring-primary transition-all" placeholder="nome@empresa.com" />
+            </div>
+            <div className="space-y-1">
+              <label htmlFor="pass" className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider pl-1">Senha</label>
+              <input id="pass" type="password" required value={password} onChange={(e) => setPassword(e.target.value)} className="w-full h-12 px-4 rounded-xl border border-border bg-input text-foreground text-sm outline-none focus:ring-2 focus:ring-primary transition-all" placeholder="••••••••" />
+            </div>
+            {loginError && <p className="text-xs font-bold text-destructive text-center bg-destructive/10 p-2 rounded-lg">{loginError}</p>}
+            <button type="submit" disabled={isLoading} className="w-full h-12 flex items-center justify-center bg-primary text-primary-foreground font-bold uppercase tracking-widest text-xs rounded-xl shadow-md hover:opacity-90 transition-all">
+              {isLoading ? "Validando Acesso..." : "Entrar no Sistema"}
+            </button>
+          </form>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <>
       <style dangerouslySetInnerHTML={{ __html: `
@@ -789,7 +824,7 @@ export default function GBOAnalysis() {
                               { value: "light", label: "Claro", description: "Fundo branco, ideal para ambientes iluminados", icon: Sun },
                               { value: "dark", label: "Escuro", description: "Fundo escuro, reduz fadiga visual à noite", icon: Moon },
                               { value: "system", label: "Sistema", description: "Segue automaticamente as configurações do seu dispositivo", icon: Monitor },
-                            ].map(({ value, label description, icon: Icon }) => (
+                            ].map(({ value, label, description, icon: Icon }) => (
                               <button key={value} onClick={() => setTheme(value)}
                                 className={`w-full flex items-center gap-4 px-4 py-4 rounded-xl border transition-all text-left ${theme === value ? "border-primary bg-primary/5 shadow-sm" : "border-border hover:bg-muted/50"}`}>
                                 <div className={`h-9 w-9 flex items-center justify-center rounded-lg flex-shrink-0 ${theme === value ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"}`}>
