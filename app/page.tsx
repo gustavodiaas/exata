@@ -70,6 +70,7 @@ export default function GBOAnalysis() {
   const [isLoaded, setIsLoaded] = useState(false)
   const [savedProducts, setSavedProducts] = useState<Array<{ code: string; description: string; steps: Array<{ name: string; cycleTime: number; setupTime: number }> }>>([])
   const [showProductsPanel, setShowProductsPanel] = useState(false)
+  const [confirmOverwrite, setConfirmOverwrite] = useState<{ product: any; index: number } | null>(null)
 
   const fileInputRef = useRef<HTMLInputElement>(null)
   const { toast } = useToast()
@@ -159,6 +160,28 @@ export default function GBOAnalysis() {
     if (e.key === "Enter") addOperation()
   }
 
+  const buildNewProduct = () => ({
+    code: productCode.trim(),
+    description: productName.trim(),
+    steps: operations.map((op) => ({
+      name: op.name,
+      cycleTime: timeUnit === "minutes" ? op.time * 60 : op.time,
+      setupTime: 0,
+    })),
+  })
+
+  const commitSaveProduct = (product: ReturnType<typeof buildNewProduct>, existingIndex: number) => {
+    const existingData = localStorage.getItem("gbo_products")
+    let productsArray = existingData ? JSON.parse(existingData) : []
+    if (existingIndex >= 0) productsArray[existingIndex] = product
+    else productsArray.push(product)
+    localStorage.setItem("gbo_products", JSON.stringify(productsArray))
+    window.dispatchEvent(new Event("sync_gbo_products"))
+    loadSavedProducts()
+    setConfirmOverwrite(null)
+    toast({ title: "✅ Produto Salvo", description: "O roteiro foi sincronizado com o PCP Heijunka." })
+  }
+
   const handleSaveProduct = () => {
     if (!productCode.trim() || !productName.trim()) {
       toast({ title: "Erro de Cadastro", description: "O Código e o Nome do Produto são obrigatórios.", variant: "destructive" })
@@ -168,24 +191,16 @@ export default function GBOAnalysis() {
       toast({ title: "Roteiro Vazio", description: "Adicione ao menos uma operação antes de salvar.", variant: "destructive" })
       return
     }
-    const newProduct = {
-      code: productCode.trim(),
-      description: productName.trim(),
-      steps: operations.map((op) => ({
-        name: op.name,
-        cycleTime: timeUnit === "minutes" ? op.time * 60 : op.time,
-        setupTime: 0,
-      })),
-    }
+    const newProduct = buildNewProduct()
     const existingData = localStorage.getItem("gbo_products")
-    let productsArray = existingData ? JSON.parse(existingData) : []
+    const productsArray = existingData ? JSON.parse(existingData) : []
     const existingIndex = productsArray.findIndex((p: any) => p.code === newProduct.code)
-    if (existingIndex >= 0) productsArray[existingIndex] = newProduct
-    else productsArray.push(newProduct)
-    localStorage.setItem("gbo_products", JSON.stringify(productsArray))
-    window.dispatchEvent(new Event("sync_gbo_products"))
-    loadSavedProducts()
-    toast({ title: "✅ Produto Salvo", description: "O roteiro foi sincronizado com o PCP Heijunka." })
+    if (existingIndex >= 0) {
+      // Conflito detectado — pede confirmação
+      setConfirmOverwrite({ product: newProduct, index: existingIndex })
+      return
+    }
+    commitSaveProduct(newProduct, -1)
   }
 
   const handleLoadProduct = (product: typeof savedProducts[0]) => {
@@ -294,6 +309,39 @@ export default function GBOAnalysis() {
         }
         .sidebar-transition { transition: width 200ms cubic-bezier(0.4,0,0.2,1); }
       ` }} />
+
+      {/* Modal de confirmação de sobrescrita */}
+      {confirmOverwrite && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
+          <div className="bg-card border border-border rounded-2xl shadow-2xl w-full max-w-sm p-6 space-y-4">
+            <div className="flex items-start gap-3">
+              <div className="h-9 w-9 flex-shrink-0 flex items-center justify-center rounded-xl bg-yellow-500/10 text-yellow-500">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+              </div>
+              <div>
+                <p className="text-sm font-bold text-foreground">Código já existe</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Já existe um produto com o código <span className="font-bold text-foreground">"{confirmOverwrite.product.code}"</span>. Deseja substituir o roteiro salvo pelo atual?
+                </p>
+              </div>
+            </div>
+            <div className="flex gap-2 pt-1">
+              <button
+                onClick={() => setConfirmOverwrite(null)}
+                className="flex-1 h-10 rounded-xl border border-border text-sm font-bold text-muted-foreground hover:bg-muted transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={() => commitSaveProduct(confirmOverwrite.product, confirmOverwrite.index)}
+                className="flex-1 h-10 rounded-xl bg-primary text-primary-foreground text-sm font-bold hover:opacity-90 transition-colors"
+              >
+                Substituir
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="min-h-screen bg-background flex print:block">
         <input ref={fileInputRef} type="file" accept=".xlsx,.xls" onChange={handleFileChange} className="hidden" />
