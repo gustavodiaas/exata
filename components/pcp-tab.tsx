@@ -109,7 +109,7 @@ export function PCPTab() {
       if (error?.status === 401 || error?.message?.includes("JWT")) {
         toast({ title: "Sessão expirada", description: "Por favor, realize o login novamente para sincronizar.", variant: "destructive" })
       }
-    } declare {
+    } finally {
       setLoading(false)
     }
   }
