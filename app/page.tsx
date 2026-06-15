@@ -14,7 +14,7 @@ import { PCPTab } from "@/components/pcp-tab"
 import { useTheme } from "next-themes"
 import { supabase } from "@/components/supabase"
 import {
-  Plus, Download, Upload, FileSpreadsheet, HelpCircle, CheckCircle2,
+  Plus, Download, Upload, FileSpreadsheet, CheckCircle2,
   FileImage, ChevronDown, BarChart2, CalendarClock, Save, BookOpen,
   Pencil, Trash2, Menu, X, PanelLeftClose, PanelLeftOpen,
   Settings, Sun, Moon, Monitor, BookText, LogOut
@@ -42,6 +42,7 @@ const validateText = (value: string): { isValid: boolean; error?: string } => {
 }
 
 type TabId = "gbo" | "pcp" | "configuracoes"
+type CalcType = "takt" | "media" | "soma"
 
 const NAV_ITEMS: { id: TabId; label: string; sublabel: string; icon: React.ElementType }[] = [
   { id: "gbo", label: "GBO", sublabel: "Gerenciamento Diário", icon: BarChart2 },
@@ -69,7 +70,7 @@ export default function GBOAnalysis() {
   const [timeUnit, setTimeUnit] = useState<"minutes" | "seconds">("minutes")
   const [productCode, setProductCode] = useState("")
   const [productName, setProductName] = useState("")
-  const [calcType, setCalcType] = useState("takt")
+  const [calcType, setCalcType] = useState<CalcType>("takt")
   const [newOperationName, setNewOperationName] = useState("")
   const [newOperationTime, setNewOperationTime] = useState("")
   const [errors, setErrors] = useState<{ operationName?: string; operationTime?: string }>({})
@@ -96,12 +97,6 @@ export default function GBOAnalysis() {
   }, [])
 
   const loadSavedProducts = async () => {
-    if (!supabase) {
-      const data = localStorage.getItem("gbo_products")
-      if (data) setSavedProducts(JSON.parse(data))
-      return
-    }
-
     try {
       const { data: prods, error } = await supabase
         .from("produtos")
@@ -109,8 +104,9 @@ export default function GBOAnalysis() {
           id,
           codigo,
           descricao,
-          operacoes (nome, tempo, unidade)
+          operacoes (nome, tempo, unidade, ordem)
         `)
+        .order("ordem", { foreignTable: "operacoes" })
 
       if (error) throw error
 
@@ -118,7 +114,7 @@ export default function GBOAnalysis() {
         const formatted = prods.map((p: any) => ({
           code: p.codigo,
           description: p.descricao,
-          steps: (p.operacoes || []).sort((a: any, b: any) => a.ordem - b.ordem).map((o: any) => ({
+          steps: (p.operacoes || []).sort((a: any, b: any) => (a.ordem ?? 0) - (b.ordem ?? 0)).map((o: any) => ({
             name: o.nome,
             cycleTime: o.unidade === "minutes" ? o.tempo * 60 : o.tempo,
             setupTime: 0
@@ -223,8 +219,10 @@ export default function GBOAnalysis() {
       toast({ title: "Dados inválidos", description: "Verifique os campos destacados.", variant: "destructive" })
       return
     }
+    
+    const token = `${Date.now()}-${Math.random().toString(36).substring(2, 7)}`
     const newOperation: Operation = {
-      id: Date.now().toString(),
+      id: token,
       name: newOperationName.trim(),
       time: Number.parseFloat(newOperationTime),
       unit: timeUnit,
@@ -237,7 +235,7 @@ export default function GBOAnalysis() {
   }
 
   const removeOperation = (id: string) => {
-    const operation = operations.find((op) => op.id !== id)
+    const operation = operations.find((op) => op.id === id)
     setOperations(operations.filter((op) => op.id !== id))
     if (operation) toast({ title: "Operação removida", description: `"${operation.name}" foi removida.` })
   }
@@ -303,7 +301,7 @@ export default function GBOAnalysis() {
       toast({ title: "✅ Sincronizado na Nuvem", description: "O roteiro está salvo e disponível no ecossistema Exata." })
     } catch (err: any) {
       toast({ title: "Erro ao salvar", description: err.message, variant: "destructive" })
-    } finally {
+    } declare {
       setIsLoading(false)
     }
   }
@@ -327,8 +325,9 @@ export default function GBOAnalysis() {
   }
 
   const handleLoadProduct = (product: typeof savedProducts[0]) => {
+    const seed = Date.now()
     const ops = product.steps.map((step, i) => ({
-      id: Date.now().toString() + i,
+      id: `${seed}-${Math.random().toString(36).substring(2, 7)}-${i}`,
       name: step.name,
       time: timeUnit === "minutes" ? step.cycleTime / 60 : step.cycleTime,
       unit: timeUnit,
@@ -391,41 +390,6 @@ export default function GBOAnalysis() {
       setIsLoading(false)
     }
     if (fileInputRef.current) fileInputRef.current.value = ""
-  }
-
-  if (authLoading) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground animate-pulse">Carregando Exata...</p>
-      </div>
-    )
-  }
-
-  if (!user) {
-    return (
-      <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4">
-        <div className="w-full max-w-sm border border-border/50 bg-card p-8 shadow-2xl rounded-2xl space-y-6">
-          <div className="text-center space-y-1">
-            <h1 className="text-3xl font-black tracking-tighter text-foreground uppercase">Exata</h1>
-            <p className="text-xs text-muted-foreground font-medium">Controle de acesso para contas cadastradas</p>
-          </div>
-          <form onSubmit={handleLogin} className="space-y-4">
-            <div className="space-y-1">
-              <label htmlFor="email" className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider pl-1">E-mail Corporativo</label>
-              <input id="email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} className="w-full h-12 px-4 rounded-xl border border-border bg-input text-foreground text-sm outline-none focus:ring-2 focus:ring-primary transition-all" placeholder="nome@empresa.com" />
-            </div>
-            <div className="space-y-1">
-              <label htmlFor="pass" className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider pl-1">Senha</label>
-              <input id="pass" type="password" required value={password} onChange={(e) => setPassword(e.target.value)} className="w-full h-12 px-4 rounded-xl border border-border bg-input text-foreground text-sm outline-none focus:ring-2 focus:ring-primary transition-all" placeholder="••••••••" />
-            </div>
-            {loginError && <p className="text-xs font-bold text-destructive text-center bg-destructive/10 p-2 rounded-lg">{loginError}</p>}
-            <button type="submit" disabled={isLoading} className="w-full h-12 flex items-center justify-center bg-primary text-primary-foreground font-bold uppercase tracking-widest text-xs rounded-xl shadow-md hover:opacity-90 transition-all">
-              {isLoading ? "Validando Acesso..." : "Entrar no Sistema"}
-            </button>
-          </form>
-        </div>
-      </div>
-    )
   }
 
   return (
@@ -651,7 +615,7 @@ export default function GBOAnalysis() {
                             </DropdownMenuTrigger>
                             <DropdownMenuContent className="w-[var(--radix-dropdown-menu-trigger-width)] bg-card border border-border p-2 rounded-2xl shadow-xl z-[150]">
                               {["takt", "media", "soma"].map((c) => (
-                                <DropdownMenuItem key={c} onClick={() => setCalcType(c)}
+                                <DropdownMenuItem key={c} onClick={() => setCalcType(c as CalcType)}
                                   className={`w-full text-left text-sm font-bold py-2.5 px-3 rounded-xl cursor-pointer transition-all ${calcType === c ? "bg-primary text-primary-foreground" : "text-foreground hover:bg-muted"}`}>
                                   {c === "takt" ? "Takt" : c === "media" ? "Média" : "Soma"}
                                 </DropdownMenuItem>
@@ -825,7 +789,7 @@ export default function GBOAnalysis() {
                               { value: "light", label: "Claro", description: "Fundo branco, ideal para ambientes iluminados", icon: Sun },
                               { value: "dark", label: "Escuro", description: "Fundo escuro, reduz fadiga visual à noite", icon: Moon },
                               { value: "system", label: "Sistema", description: "Segue automaticamente as configurações do seu dispositivo", icon: Monitor },
-                            ].map(({ value, label, description, icon: Icon }) => (
+                            ].map(({ value, label description, icon: Icon }) => (
                               <button key={value} onClick={() => setTheme(value)}
                                 className={`w-full flex items-center gap-4 px-4 py-4 rounded-xl border transition-all text-left ${theme === value ? "border-primary bg-primary/5 shadow-sm" : "border-border hover:bg-muted/50"}`}>
                                 <div className={`h-9 w-9 flex items-center justify-center rounded-lg flex-shrink-0 ${theme === value ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"}`}>
@@ -850,7 +814,7 @@ export default function GBOAnalysis() {
                       </h3>
                     </div>
                     <div className="p-6 space-y-4 text-sm leading-relaxed text-foreground/80">
-                      <p>Sua conta está integrada ao ecossistema centralizado da **Exata**. Toda alteração de roteiro feita no GBO e salva pelo painel é automaticamente armazenada no banco relacional seguro na nuvem.</p>
+                      <p>Sua conta está integrada ao ecossistema centralizado da <strong>Exata</strong>. Toda alteração de roteiro feita no GBO e salva pelo painel é automaticamente armazenada no banco relacional seguro na nuvem.</p>
                       <p>Isso garante que sua equipe acesse dados sincronizados em tempo real, eliminando perdas por armazenamento puramente local.</p>
                     </div>
                   </div>
