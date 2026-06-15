@@ -775,10 +775,10 @@ export default function GBOAnalysis() {
                   {operations.length > 0 ? (
                     <React.Fragment>
                       <div className="print:hidden">
-                        <CalculationsDashboard operations={operations} timeUnit={timeUnit} taktTime={undefined} taktTimeUnit={undefined} demandUnit="un" />
+                        <CalculationsDashboard operations={operations} timeUnit={timeUnit} taktTime={calcType === "takt" && operations.length > 0 ? (timeUnit === "minutes" ? totalCycleTime * 60 : totalCycleTime) : undefined} taktTimeUnit="seconds" demandUnit="un" />
                       </div>
                       <div id="gbo-chart-container" className="bg-card rounded-3xl shadow-sm border border-border p-6 print:border-none print:shadow-none print:p-0">
-                        <GBOChart operations={operations} timeUnit={timeUnit} taktTime={undefined} taktTimeUnit={undefined} demandUnit="un" />
+                        <GBOChart operations={operations} timeUnit={timeUnit} taktTime={calcType === "takt" && operations.length > 0 ? (timeUnit === "minutes" ? totalCycleTime * 60 : totalCycleTime) : undefined} taktTimeUnit="seconds" demandUnit="un" />
                       </div>
                       <div className="flex justify-end mt-2 print:hidden">
                         <Button onClick={handleSaveProduct} disabled={isLoading} className="bg-primary hover:opacity-90 text-primary-foreground font-bold uppercase tracking-widest h-12 px-8 rounded-xl shadow-md transition-all">
