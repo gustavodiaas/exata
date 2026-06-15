@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch"
 import { Plus, Trash2, Calendar, ShieldAlert, TrendingUp, Columns3, CalendarDays, ListOrdered, GripVertical } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
 
 interface RoutingStep {
   name: string
@@ -33,15 +34,20 @@ interface ProductionOrder {
 }
 
 interface DailyCapacity {
+  id?: string
   date: string
-  globalCapacity: number // Em segundos
-  downtime: number // Em segundos
+  globalCapacity: number
+  downtime: number
 }
 
 export function PCPTab() {
+  const supabase = createClientComponentClient()
+  const { toast } = useToast()
+
   const [products, setProducts] = useState<Product[]>([])
   const [orders, setOrders] = useState<ProductionOrder[]>([])
   const [capacities, setCapacities] = useState<DailyCapacity[]>([])
+  const [loading, setLoading] = useState(true)
 
   const [viewMode, setViewMode] = useState<"kanban" | "calendario" | "lista">("kanban")
 
@@ -57,31 +63,56 @@ export function PCPTab() {
   const [capacityUnit, setCapacityUnit] = useState<"hours" | "minutes">("hours")
   const [downtimeValue, setDowntimeValue] = useState("")
 
-  const { toast } = useToast()
+  const loadData = async () => {
+    try {
+      const { data: userResponse } = await supabase.auth.getUser()
+      const userId = userResponse.user?.id
 
-  const loadGBOProducts = () => {
-    const savedProducts = localStorage.getItem("gbo_products")
-    if (savedProducts) setProducts(JSON.parse(savedProducts))
+      if (!userId) return
+
+      const { data: prodsData } = await supabase.from("produtos").select("*, operacoes(*)")
+      const formattedProducts = (prodsData || []).map((p: any) => ({
+        code: p.codigo,
+        description: p.descricao,
+        steps: (p.operacoes || []).map((op: any) => ({
+          name: op.nome,
+          cycleTime: Number(op.tempo),
+          setupTime: 0 
+        }))
+      }))
+      setProducts(formattedProducts)
+
+      const { data: opsData } = await supabase.from("ordens_producao").select("*")
+      const formattedOrders = (opsData || []).map((op: any) => ({
+        id: op.id,
+        opNumber: op.numero_op,
+        date: op.data_programacao,
+        productCode: op.produto_codigo,
+        quantity: op.quantidade,
+        calculationRule: op.regra_calculo,
+        groupSetup: op.agrupar_setup
+      }))
+      setOrders(formattedOrders)
+
+      const { data: capData } = await supabase.from("capacidade_diaria").select("*")
+      const formattedCapacities = (capData || []).map((c: any) => ({
+        id: c.id,
+        date: c.data_excecao,
+        globalCapacity: Number(c.capacidade_global),
+        downtime: Number(c.tempo_parada)
+      }))
+      setCapacities(formattedCapacities)
+
+    } catch (error) {
+      console.error("Erro ao carregar dados do Supabase:", error)
+    } finally {
+      setLoading(false)
+    }
   }
 
   useEffect(() => {
-    loadGBOProducts()
-    const savedOrders = localStorage.getItem("pcp_orders")
-    const savedCapacities = localStorage.getItem("pcp_capacities")
-
-    if (savedOrders) setOrders(JSON.parse(savedOrders))
-    if (savedCapacities) setCapacities(JSON.parse(savedCapacities))
-
-    window.addEventListener("sync_gbo_products", loadGBOProducts)
-    return () => window.removeEventListener("sync_gbo_products", loadGBOProducts)
+    loadData()
   }, [])
-
-  const saveAndSync = (newOrders: ProductionOrder[], newCapacities: DailyCapacity[]) => {
-    setOrders(newOrders)
-    setCapacities(newCapacities)
-    localStorage.setItem("pcp_orders", JSON.stringify(newOrders))
-    localStorage.setItem("pcp_capacities", JSON.stringify(newCapacities))
-  }
 
   const calculateOPTime = (op: ProductionOrder): number => {
     const product = products.find((p) => p.code === op.productCode)
@@ -121,13 +152,7 @@ export function PCPTab() {
       const overflow = Math.max(0, directLoad - realCapacity)
       const occupation = realCapacity > 0 ? (directLoad / realCapacity) * 100 : 0
 
-      dashboardData[date] = {
-        date,
-        realCapacity,
-        directLoad,
-        overflow,
-        occupation,
-      }
+      dashboardData[date] = { date, realCapacity, directLoad, overflow, occupation }
     })
 
     return dashboardData
@@ -136,24 +161,36 @@ export function PCPTab() {
   const heijunkaDashboard = getHeijunkaData()
   const dashboardArray = Object.values(heijunkaDashboard)
 
-  const handleAddOP = () => {
+  const handleAddOP = async () => {
     if (!opNumber || !opDate || !opProductCode || !opQuantity) {
       toast({ title: "Erro", description: "Preencha todos os campos da OP.", variant: "destructive" })
       return
     }
 
-    const newOP: ProductionOrder = {
-      id: Date.now().toString(),
-      opNumber: opNumber.trim(),
-      date: opDate,
-      productCode: opProductCode,
-      quantity: parseInt(opQuantity),
-      calculationRule: opRule,
-      groupSetup: opGroupSetup,
+    const { data: userData } = await supabase.auth.getUser()
+    const userId = userData.user?.id
+    if (!userId) return
+
+    const newOPConfig = {
+      user_id: userId,
+      numero_op: opNumber.trim(),
+      data_programacao: opDate,
+      produto_codigo: opProductCode,
+      quantidade: parseInt(opQuantity),
+      regra_calculo: opRule,
+      agrupar_setup: opGroupSetup,
     }
 
-    // Trava matemática de Transbordo (Bloqueia acréscimos acima de 100%)
-    const requiredTime = calculateOPTime(newOP)
+    const requiredTime = calculateOPTime({
+      id: "temp",
+      opNumber: newOPConfig.numero_op,
+      date: newOPConfig.data_programacao,
+      productCode: newOPConfig.produto_codigo,
+      quantity: newOPConfig.quantidade,
+      calculationRule: newOPConfig.regra_calculo,
+      groupSetup: newOPConfig.agrupar_setup
+    })
+
     const dayCapacityConfig = capacities.find((c) => c.date === opDate)
     const globalCap = dayCapacityConfig?.globalCapacity ?? 29880
     const downtime = dayCapacityConfig?.downtime ?? 0
@@ -167,27 +204,49 @@ export function PCPTab() {
       return
     }
 
-    const updated = [...orders, newOP]
-    saveAndSync(updated, capacities)
-    setOpNumber("")
-    setOpQuantity("")
-    toast({ title: "✅ OP Adicionada", description: "Carga recalculada com sucesso." })
+    const { data, error } = await supabase.from("ordens_producao").insert([newOPConfig]).select()
+
+    if (error) {
+      toast({ title: "Erro", description: "Falha ao salvar OP no banco.", variant: "destructive" })
+      return
+    }
+
+    if (data && data[0]) {
+      const addedOP: ProductionOrder = {
+        id: data[0].id,
+        opNumber: data[0].numero_op,
+        date: data[0].data_programacao,
+        productCode: data[0].produto_codigo,
+        quantity: data[0].quantidade,
+        calculationRule: data[0].regra_calculo,
+        groupSetup: data[0].agrupar_setup
+      }
+      setOrders([...orders, addedOP])
+      setOpNumber("")
+      setOpQuantity("")
+      toast({ title: "✅ OP Adicionada", description: "Carga recalculada com sucesso." })
+    }
   }
 
-  const handleRemoveOP = (id: string) => {
-    const updated = orders.filter((o) => o.id !== id)
-    saveAndSync(updated, capacities)
-    toast({ title: "OP Removida", description: "Carga recalculada." })
+  const handleRemoveOP = async (id: string) => {
+    const { error } = await supabase.from("ordens_producao").delete().eq("id", id)
+    if (!error) {
+      setOrders(orders.filter((o) => o.id !== id))
+      toast({ title: "OP Removida", description: "Carga recalculada." })
+    }
   }
 
-  const handleSaveDowntime = () => {
+  const handleSaveDowntime = async () => {
     if (!selectedDate) {
       toast({ title: "Erro", description: "Selecione uma data para registrar a exceção.", variant: "destructive" })
       return
     }
 
+    const { data: userData } = await supabase.auth.getUser()
+    const userId = userData.user?.id
+    if (!userId) return
+
     const currentCapConfig = capacities.find((c) => c.date === selectedDate)
-    const updatedCapacities = capacities.filter((c) => c.date !== selectedDate)
 
     let capInSeconds = currentCapConfig?.globalCapacity ?? 29880
     if (capacityValue) {
@@ -200,22 +259,39 @@ export function PCPTab() {
       downInSeconds = parseFloat(downtimeValue) * 60 
     }
 
-    updatedCapacities.push({
-      date: selectedDate,
-      globalCapacity: capInSeconds,
-      downtime: downInSeconds,
-    })
+    const payload = {
+      user_id: userId,
+      data_excecao: selectedDate,
+      capacidade_global: capInSeconds,
+      tempo_parada: downInSeconds
+    }
 
-    saveAndSync(orders, updatedCapacities)
-    setCapacityValue("")
-    setDowntimeValue("")
-    toast({ title: "✅ Capacidade Atualizada", description: "O fluxo diário foi recalculado." })
+    const { data, error } = await supabase
+      .from("capacidade_diaria")
+      .upsert(payload, { onConflict: "user_id, data_excecao" })
+      .select()
+
+    if (!error && data) {
+      const updatedCapacities = capacities.filter((c) => c.date !== selectedDate)
+      updatedCapacities.push({
+        id: data[0].id,
+        date: data[0].data_excecao,
+        globalCapacity: Number(data[0].capacidade_global),
+        downtime: Number(data[0].tempo_parada)
+      })
+      setCapacities(updatedCapacities)
+      setCapacityValue("")
+      setDowntimeValue("")
+      toast({ title: "✅ Capacidade Atualizada", description: "O fluxo diário foi recalculado." })
+    }
   }
 
-  const handleRemoveCapacity = (date: string) => {
-    const updated = capacities.filter((c) => c.date !== date)
-    saveAndSync(orders, updated)
-    toast({ title: "Exceção Removida", description: `Configuração de ${date.split("-").reverse().join("/")} foi removida.` })
+  const handleRemoveCapacity = async (date: string) => {
+    const { error } = await supabase.from("capacidade_diaria").delete().eq("data_excecao", date)
+    if (!error) {
+      setCapacities(capacities.filter((c) => c.date !== date))
+      toast({ title: "Exceção Removida", description: `Configuração removida com sucesso.` })
+    }
   }
 
   const handleDragStart = (e: React.DragEvent, opId: string) => {
@@ -235,17 +311,14 @@ export function PCPTab() {
     e.preventDefault()
   }
 
-  const handleDrop = (e: React.DragEvent, targetDate: string) => {
+  const handleDrop = async (e: React.DragEvent, targetDate: string) => {
     e.preventDefault()
     const opId = e.dataTransfer.getData("text/plain")
     if (!opId) return
 
     const opToMove = orders.find(op => op.id === opId)
-    if (!opToMove) return
+    if (!opToMove || opToMove.date === targetDate) return
 
-    if (opToMove.date === targetDate) return // Já está neste dia
-
-    // Trava matemática para drag and drop
     const requiredTime = calculateOPTime(opToMove)
     const dayCapacityConfig = capacities.find((c) => c.date === targetDate)
     const globalCap = dayCapacityConfig?.globalCapacity ?? 29880
@@ -260,21 +333,19 @@ export function PCPTab() {
       return
     }
 
-    const updatedOrders = orders.map(op => {
-      if (op.id === opId) {
-        return { ...op, date: targetDate }
-      }
-      return op
-    })
-
-    saveAndSync(updatedOrders, capacities)
-    toast({ title: "🔄 OP Realocada", description: `Ordem movida para ${targetDate.split("-").reverse().join("/")}.` })
+    const { error } = await supabase.from("ordens_producao").update({ data_programacao: targetDate }).eq("id", opId)
+    
+    if (!error) {
+      setOrders(orders.map(op => op.id === opId ? { ...op, date: targetDate } : op))
+      toast({ title: "🔄 OP Realocada", description: `Ordem movida para a nova data.` })
+    }
   }
+
+  if (loading) return <div className="flex h-40 items-center justify-center text-muted-foreground">Sincronizando com a fábrica...</div>
 
   return (
     <div className="space-y-6">
       <div className="grid gap-4 md:grid-cols-3">
-        
         <Card className="bg-card border-border shadow-sm">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-semibold uppercase tracking-wider text-muted-foreground flex items-center justify-between">
@@ -287,7 +358,6 @@ export function PCPTab() {
               <Label className="text-[10px] uppercase font-bold text-muted-foreground">Data da Exceção</Label>
               <Input type="date" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} className="h-9 text-xs bg-input border-border" />
             </div>
-            
             <div className="space-y-1">
               <Label className="text-[10px] uppercase font-bold text-muted-foreground">Tempo Disponível</Label>
               <div className="grid grid-cols-2 gap-2">
@@ -301,16 +371,13 @@ export function PCPTab() {
                 </Select>
               </div>
             </div>
-
             <div className="space-y-1">
               <Label className="text-[10px] uppercase font-bold text-muted-foreground">Paradas Planejadas (Minutos)</Label>
               <Input type="number" placeholder="Ex: 45 (Refeição/Manutenção)" value={downtimeValue} onChange={(e) => setDowntimeValue(e.target.value)} className="h-9 text-xs bg-input border-border" />
             </div>
-
             <Button size="sm" className="w-full h-9 text-xs font-bold uppercase tracking-wider bg-primary hover:opacity-90 text-primary-foreground" onClick={handleSaveDowntime} disabled={!selectedDate}>
               Aplicar Nova Restrição
             </Button>
-
             {capacities.length > 0 && (
               <div className="pt-2 space-y-1.5">
                 <Label className="text-[10px] uppercase font-bold text-muted-foreground">Exceções Cadastradas</Label>
@@ -323,12 +390,7 @@ export function PCPTab() {
                           {(cap.globalCapacity / 3600).toFixed(1)}h disp. · {(cap.downtime / 60).toFixed(0)} min parada
                         </span>
                       </div>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7 text-muted-foreground hover:text-destructive hover:bg-destructive/10 flex-shrink-0"
-                        onClick={() => handleRemoveCapacity(cap.date)}
-                      >
+                      <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-destructive hover:bg-destructive/10 flex-shrink-0" onClick={() => handleRemoveCapacity(cap.date)}>
                         <Trash2 className="h-3.5 w-3.5" />
                       </Button>
                     </div>
@@ -344,32 +406,18 @@ export function PCPTab() {
             <CardTitle className="text-sm font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
               <TrendingUp className="h-4 w-4 text-primary" /> Visão de Carga Global Nivelada
             </CardTitle>
-            
             <div className="flex bg-input border border-border p-1 rounded-lg">
-              <button 
-                onClick={() => setViewMode("kanban")} 
-                className={`p-1.5 rounded-md transition-colors ${viewMode === "kanban" ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
-                title="Visão Kanban"
-              >
+              <button onClick={() => setViewMode("kanban")} className={`p-1.5 rounded-md transition-colors ${viewMode === "kanban" ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}>
                 <Columns3 className="w-4 h-4" />
               </button>
-              <button 
-                onClick={() => setViewMode("calendario")} 
-                className={`p-1.5 rounded-md transition-colors ${viewMode === "calendario" ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
-                title="Visão Calendário"
-              >
+              <button onClick={() => setViewMode("calendario")} className={`p-1.5 rounded-md transition-colors ${viewMode === "calendario" ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}>
                 <CalendarDays className="w-4 h-4" />
               </button>
-              <button 
-                onClick={() => setViewMode("lista")} 
-                className={`p-1.5 rounded-md transition-colors ${viewMode === "lista" ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
-                title="Visão em Lista"
-              >
+              <button onClick={() => setViewMode("lista")} className={`p-1.5 rounded-md transition-colors ${viewMode === "lista" ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}>
                 <ListOrdered className="w-4 h-4" />
               </button>
             </div>
           </CardHeader>
-          
           <CardContent className="flex-1 p-4 overflow-auto">
             {dashboardArray.length === 0 ? (
               <div className="h-full flex flex-col items-center justify-center py-10 gap-4 text-center">
@@ -378,34 +426,15 @@ export function PCPTab() {
                 </div>
                 <div className="space-y-1">
                   <p className="text-sm font-bold text-foreground">Nenhuma programação ainda</p>
-                  <p className="text-xs text-muted-foreground max-w-[260px]">
-                    Para começar, cadastre um produto no <strong>GBO</strong>, depois insira uma Ordem de Produção no formulário ao lado.
-                  </p>
-                </div>
-                <div className="flex flex-col gap-1.5 text-left w-full max-w-[280px]">
-                  <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
-                    <span className="flex-shrink-0 w-5 h-5 rounded-full bg-primary/10 text-primary font-bold flex items-center justify-center text-[10px]">1</span>
-                    Vá para <strong className="text-foreground">Gerenciamento Diário</strong> e cadastre um produto
-                  </div>
-                  <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
-                    <span className="flex-shrink-0 w-5 h-5 rounded-full bg-primary/10 text-primary font-bold flex items-center justify-center text-[10px]">2</span>
-                    Clique em <strong className="text-foreground">Salvar Produto e Sincronizar PCP</strong>
-                  </div>
-                  <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
-                    <span className="flex-shrink-0 w-5 h-5 rounded-full bg-primary/10 text-primary font-bold flex items-center justify-center text-[10px]">3</span>
-                    Volte aqui e insira uma <strong className="text-foreground">Ordem de Produção</strong>
-                  </div>
+                  <p className="text-xs text-muted-foreground max-w-[260px]">Para começar cadastre um produto no GBO e insira uma Ordem de Produção no formulário ao lado.</p>
                 </div>
               </div>
             ) : (
               <>
-                {/* ── PAINEL DE INDICADORES DE EFICIÊNCIA ── */}
                 {(() => {
                   const totalDays = dashboardArray.length
                   const overloadedDays = dashboardArray.filter((d: any) => d.overflow > 0).length
-                  const avgOccupation = totalDays > 0
-                    ? dashboardArray.reduce((sum: number, d: any) => sum + d.occupation, 0) / totalDays
-                    : 0
+                  const avgOccupation = totalDays > 0 ? dashboardArray.reduce((sum: number, d: any) => sum + d.occupation, 0) / totalDays : 0
                   const totalLoad = dashboardArray.reduce((sum: number, d: any) => sum + d.directLoad, 0)
                   const totalCapacity = dashboardArray.reduce((sum: number, d: any) => sum + d.realCapacity, 0)
                   const globalOccupation = totalCapacity > 0 ? (totalLoad / totalCapacity) * 100 : 0
@@ -413,51 +442,26 @@ export function PCPTab() {
 
                   return (
                     <div className="mb-4 grid grid-cols-2 lg:grid-cols-4 gap-3">
-                      {/* Ocupação média */}
                       <div className={`p-4 rounded-xl border flex flex-col gap-1 ${avgOccupation > 100 ? "bg-destructive/5 border-destructive/30" : avgOccupation > 85 ? "bg-yellow-500/5 border-yellow-500/30" : "bg-card border-border"}`}>
                         <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Ocupação Média</span>
-                        <span className={`text-2xl font-bold ${avgOccupation > 100 ? "text-destructive" : avgOccupation > 85 ? "text-yellow-500" : "text-primary"}`}>
-                          {avgOccupation.toFixed(0)}%
-                        </span>
+                        <span className={`text-2xl font-bold ${avgOccupation > 100 ? "text-destructive" : avgOccupation > 85 ? "text-yellow-500" : "text-primary"}`}>{avgOccupation.toFixed(0)}%</span>
                         <div className="w-full bg-input h-1.5 rounded-full overflow-hidden mt-1">
-                          <div
-                            className={`h-full rounded-full transition-all ${avgOccupation > 100 ? "bg-destructive" : avgOccupation > 85 ? "bg-yellow-500" : "bg-primary"}`}
-                            style={{ width: `${Math.min(100, avgOccupation)}%` }}
-                          />
+                          <div className={`h-full rounded-full transition-all ${avgOccupation > 100 ? "bg-destructive" : avgOccupation > 85 ? "bg-yellow-500" : "bg-primary"}`} style={{ width: `${Math.min(100, avgOccupation)}%` }} />
                         </div>
                       </div>
-
-                      {/* Ocupação global */}
                       <div className={`p-4 rounded-xl border flex flex-col gap-1 ${globalOccupation > 100 ? "bg-destructive/5 border-destructive/30" : "bg-card border-border"}`}>
                         <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Ocupação Global</span>
-                        <span className={`text-2xl font-bold ${globalOccupation > 100 ? "text-destructive" : "text-foreground"}`}>
-                          {globalOccupation.toFixed(0)}%
-                        </span>
-                        <span className="text-[10px] text-muted-foreground mt-1">
-                          {(totalLoad / 3600).toFixed(1)}h de {(totalCapacity / 3600).toFixed(1)}h
-                        </span>
+                        <span className={`text-2xl font-bold ${globalOccupation > 100 ? "text-destructive" : "text-foreground"}`}>{globalOccupation.toFixed(0)}%</span>
+                        <span className="text-[10px] text-muted-foreground mt-1">{(totalLoad / 3600).toFixed(1)}h de {(totalCapacity / 3600).toFixed(1)}h</span>
                       </div>
-
-                      {/* Dias com sobrecarga */}
                       <div className={`p-4 rounded-xl border flex flex-col gap-1 ${hasOverload ? "bg-destructive/5 border-destructive/30" : "bg-card border-border"}`}>
                         <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Dias Sobrecarregados</span>
-                        <span className={`text-2xl font-bold ${hasOverload ? "text-destructive" : "text-primary"}`}>
-                          {overloadedDays} <span className="text-sm font-medium text-muted-foreground">/ {totalDays}</span>
-                        </span>
-                        {hasOverload ? (
-                          <span className="text-[10px] text-destructive font-bold mt-1">⚠ Revisar programação</span>
-                        ) : (
-                          <span className="text-[10px] text-primary font-bold mt-1">✓ Dentro da capacidade</span>
-                        )}
+                        <span className={`text-2xl font-bold ${hasOverload ? "text-destructive" : "text-primary"}`}>{overloadedDays} <span className="text-sm font-medium text-muted-foreground">/ {totalDays}</span></span>
                       </div>
-
-                      {/* Carga total */}
                       <div className="p-4 rounded-xl border border-border bg-card flex flex-col gap-1">
                         <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Carga Total</span>
-                        <span className="text-2xl font-bold text-foreground">
-                          {(totalLoad / 3600).toFixed(1)}<span className="text-sm font-medium text-muted-foreground">h</span>
-                        </span>
-                        <span className="text-[10px] text-muted-foreground mt-1">{totalDays} dia{totalDays !== 1 ? "s" : ""} programado{totalDays !== 1 ? "s" : ""}</span>
+                        <span className="text-2xl font-bold text-foreground">{(totalLoad / 3600).toFixed(1)}<span className="text-sm font-medium text-muted-foreground">h</span></span>
+                        <span className="text-[10px] text-muted-foreground mt-1">{totalDays} dia{totalDays !== 1 ? "s" : ""}</span>
                       </div>
                     </div>
                   )
@@ -468,16 +472,9 @@ export function PCPTab() {
                     {dashboardArray.map((day: any) => {
                       const dayOrders = orders.filter((o) => o.date === day.date)
                       return (
-                        <div 
-                          key={day.date} 
-                          className="min-w-[280px] w-[280px] flex-shrink-0 bg-muted/10 border border-border rounded-xl flex flex-col"
-                          onDragOver={handleDragOver}
-                          onDrop={(e) => handleDrop(e, day.date)}
-                        >
+                        <div key={day.date} className="min-w-[280px] w-[280px] flex-shrink-0 bg-muted/10 border border-border rounded-xl flex flex-col" onDragOver={handleDragOver} onDrop={(e) => handleDrop(e, day.date)}>
                           <div className="p-3 border-b border-border bg-muted/30 rounded-t-xl">
-                            <span className="text-xs font-bold text-foreground flex items-center gap-1.5">
-                              <Calendar className="h-3 w-3 text-primary" /> {day.date.split("-").reverse().join("/")}
-                            </span>
+                            <span className="text-xs font-bold text-foreground flex items-center gap-1.5"><Calendar className="h-3 w-3 text-primary" /> {day.date.split("-").reverse().join("/")}</span>
                             <div className="my-2.5 w-full bg-input h-1.5 rounded-full overflow-hidden">
                               <div className={`h-full transition-all ${day.overflow > 0 ? "bg-destructive" : "bg-primary"}`} style={{ width: `${Math.min(100, day.occupation)}%` }}></div>
                             </div>
@@ -486,24 +483,14 @@ export function PCPTab() {
                               {day.overflow > 0 && <span className="text-[10px] text-destructive font-bold">+{ (day.overflow / 60).toFixed(0) } min</span>}
                             </div>
                           </div>
-                          
                           <div className="p-2 flex flex-col gap-2 flex-1 min-h-[100px] max-h-[400px] overflow-y-auto custom-scrollbar">
                             {dayOrders.map(op => {
                               const opTime = calculateOPTime(op)
                               return (
-                                <div 
-                                  key={op.id}
-                                  draggable
-                                  onDragStart={(e) => handleDragStart(e, op.id)}
-                                  onDragEnd={handleDragEnd}
-                                  className="p-2.5 bg-card border border-border hover:border-primary/50 shadow-sm rounded-lg cursor-grab active:cursor-grabbing flex flex-col gap-1.5 transition-colors group relative"
-                                >
+                                <div key={op.id} draggable onDragStart={(e) => handleDragStart(e, op.id)} onDragEnd={handleDragEnd} className="p-2.5 bg-card border border-border hover:border-primary/50 shadow-sm rounded-lg cursor-grab active:cursor-grabbing flex flex-col gap-1.5 transition-colors group relative">
                                   <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-primary/20 rounded-l-lg group-hover:bg-primary transition-colors"></div>
                                   <div className="flex justify-between items-start pl-2">
-                                    <div className="flex items-center gap-1.5">
-                                      <GripVertical className="h-3 w-3 text-muted-foreground/50" />
-                                      <span className="text-xs font-bold text-foreground">{op.opNumber}</span>
-                                    </div>
+                                    <div className="flex items-center gap-1.5"><GripVertical className="h-3 w-3 text-muted-foreground/50" /><span className="text-xs font-bold text-foreground">{op.opNumber}</span></div>
                                     <span className="text-[9px] bg-primary/10 text-primary font-bold px-1.5 py-0.5 rounded">{op.productCode}</span>
                                   </div>
                                   <div className="flex justify-between items-end mt-1 pl-2">
@@ -513,11 +500,6 @@ export function PCPTab() {
                                 </div>
                               )
                             })}
-                            {dayOrders.length === 0 && (
-                              <div className="text-[10px] text-muted-foreground text-center py-6 border-2 border-dashed border-border/50 rounded-lg m-1">
-                                Arraste OPs para cá
-                              </div>
-                            )}
                           </div>
                         </div>
                       )
@@ -564,14 +546,8 @@ export function PCPTab() {
                             <td className="px-4 py-3 font-medium text-foreground">{day.date.split("-").reverse().join("/")}</td>
                             <td className="px-4 py-3 text-muted-foreground">{(day.realCapacity / 3600).toFixed(1)}h</td>
                             <td className="px-4 py-3 text-foreground">{(day.directLoad / 3600).toFixed(1)}h</td>
-                            <td className="px-4 py-3">
-                              <span className={`px-2 py-0.5 rounded-full font-bold ${day.overflow > 0 ? "bg-destructive/10 text-destructive" : "bg-primary/10 text-primary"}`}>
-                                {day.occupation.toFixed(0)}%
-                              </span>
-                            </td>
-                            <td className={`px-4 py-3 text-right font-bold ${day.overflow > 0 ? "text-destructive" : "text-muted-foreground"}`}>
-                              {day.overflow > 0 ? `+${(day.overflow / 3600).toFixed(1)}h` : "-"}
-                            </td>
+                            <td className="px-4 py-3"><span className={`px-2 py-0.5 rounded-full font-bold ${day.overflow > 0 ? "bg-destructive/10 text-destructive" : "bg-primary/10 text-primary"}`}>{day.occupation.toFixed(0)}%</span></td>
+                            <td className={`px-4 py-3 text-right font-bold ${day.overflow > 0 ? "text-destructive" : "text-muted-foreground"}`}>{day.overflow > 0 ? `+${(day.overflow / 3600).toFixed(1)}h` : "-"}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -608,7 +584,7 @@ export function PCPTab() {
                     <SelectItem key={p.code} value={p.code}>{p.code} - {p.description}</SelectItem>
                   ))}
                   {products.length === 0 && (
-                    <SelectItem value="none" disabled>Nenhum roteiro salvo no GBO</SelectItem>
+                    <SelectItem value="none" disabled>Nenhum roteiro salvo no banco</SelectItem>
                   )}
                 </SelectContent>
               </Select>
