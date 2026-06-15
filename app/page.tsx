@@ -616,8 +616,8 @@ export default function GBOAnalysis() {
 
           <main className="flex-1 overflow-auto px-4 lg:px-8 py-6 print:p-12">
             
-            <div className={activeTab === "gbo" ? "block" : "hidden"}>
-              <div className="flex flex-col xl:flex-row gap-8 pb-12 print:p-0">
+            {activeTab === "gbo" && (
+              <div className="flex flex-col xl:flex-row gap-8 pb-12 print:p-0 animate-in fade-in duration-300">
                 <div className="xl:w-[35%] flex flex-col gap-6 print:hidden">
                   <div className="bg-card p-6 rounded-2xl shadow-sm border border-border space-y-4">
                     <h3 className="font-bold text-foreground border-b border-border pb-2 flex items-center gap-2">
@@ -797,14 +797,16 @@ export default function GBOAnalysis() {
                   )}
                 </div>
               </div>
-            </div>
+            )}
 
-            <div className={activeTab === "pcp" ? "block" : "hidden"}>
-              <PCPTab />
-            </div>
+            {activeTab === "pcp" && (
+              <div className="animate-in fade-in duration-300">
+                <PCPTab />
+              </div>
+            )}
 
-            <div className={activeTab === "configuracoes" ? "block" : "hidden"}>
-              <div className="space-y-8 pb-12">
+            {activeTab === "configuracoes" && (
+              <div className="space-y-8 pb-12 animate-in fade-in duration-300">
                 <div>
                   <h2 className="text-lg font-bold text-foreground">Configurações</h2>
                   <p className="text-sm text-muted-foreground mt-0.5">Preferências e personalização do sistema</p>
@@ -854,7 +856,7 @@ export default function GBOAnalysis() {
                   </div>
                 </div>
               </div>
-            </div>
+            )}
 
           </main>
         </div>
