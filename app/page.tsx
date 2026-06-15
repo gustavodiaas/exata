@@ -301,7 +301,7 @@ export default function GBOAnalysis() {
       toast({ title: "✅ Sincronizado na Nuvem", description: "O roteiro está salvo e disponível no ecossistema Exata." })
     } catch (err: any) {
       toast({ title: "Erro ao salvar", description: err.message, variant: "destructive" })
-    } declare {
+    } finally {
       setIsLoading(false)
     }
   }
