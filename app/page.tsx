@@ -379,7 +379,7 @@ export default function GBOAnalysis() {
               <NavButton key={item.id} item={item} onClick={() => setActiveTab(item.id)} />
             ))}
             {!collapsed && (
-              <p className="text-[9px] text-muted-foreground/50 font-medium text-center pt-2 pb-1">v2.0.0</p>
+              <p className="text-[9px] text-muted-foreground/50 font-medium text-center pt-2 pb-1">v2.1.0</p>
             )}
           </div>
         </aside>
@@ -427,7 +427,7 @@ export default function GBOAnalysis() {
                 </button>
               )
             })}
-            <p className="text-[9px] text-muted-foreground/50 font-medium text-center pt-2">v2.0.0</p>
+            <p className="text-[9px] text-muted-foreground/50 font-medium text-center pt-2">v2.1.0</p>
           </div>
         </aside>
 
@@ -634,88 +634,100 @@ export default function GBOAnalysis() {
 
             {/* ── CONFIGURAÇÕES ── */}
             {activeTab === "configuracoes" && (
-              <div className="max-w-2xl space-y-6">
+              <div className="space-y-8 pb-12">
 
                 <div>
                   <h2 className="text-lg font-bold text-foreground">Configurações</h2>
                   <p className="text-sm text-muted-foreground mt-0.5">Preferências e personalização do sistema</p>
                 </div>
 
-                {/* Aparência */}
-                <div className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden">
-                  <div className="px-6 py-4 border-b border-border">
-                    <h3 className="text-sm font-bold text-foreground">Aparência</h3>
-                    <p className="text-[11px] text-muted-foreground mt-0.5">Escolha como o sistema é exibido na sua tela</p>
-                  </div>
-                  <div className="p-6 space-y-3">
-                    {mounted && (
-                      <>
-                        {[
-                          { value: "light", label: "Claro", description: "Fundo branco, ideal para ambientes iluminados", icon: Sun },
-                          { value: "dark", label: "Escuro", description: "Fundo escuro, reduz fadiga visual à noite", icon: Moon },
-                          { value: "system", label: "Sistema", description: "Segue automaticamente as configurações do seu dispositivo", icon: Monitor },
-                        ].map(({ value, label, description, icon: Icon }) => (
-                          <button
-                            key={value}
-                            onClick={() => setTheme(value)}
-                            className={`w-full flex items-center gap-4 px-4 py-4 rounded-xl border transition-all text-left ${
-                              theme === value
-                                ? "border-primary bg-primary/5 shadow-sm"
-                                : "border-border hover:bg-muted/50"
-                            }`}
-                          >
-                            <div className={`h-9 w-9 flex items-center justify-center rounded-lg flex-shrink-0 ${theme === value ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"}`}>
-                              <Icon className="h-4 w-4" />
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <p className={`text-sm font-bold ${theme === value ? "text-primary" : "text-foreground"}`}>{label}</p>
-                              <p className="text-[11px] text-muted-foreground mt-0.5">{description}</p>
-                            </div>
-                            <div className={`h-4 w-4 rounded-full border-2 flex-shrink-0 transition-all ${theme === value ? "border-primary bg-primary" : "border-muted-foreground/30"}`}>
-                              {theme === value && <div className="h-full w-full rounded-full bg-primary-foreground scale-50" />}
-                            </div>
-                          </button>
-                        ))}
-                      </>
-                    )}
-                  </div>
-                </div>
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
 
-                {/* Manual Técnico */}
-                <div className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden">
-                  <div className="px-6 py-4 border-b border-border">
-                    <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
-                      <BookText className="h-4 w-4 text-primary" /> Manual Técnico
-                    </h3>
-                    <p className="text-[11px] text-muted-foreground mt-0.5">Protocolo de execução e instruções de uso</p>
-                  </div>
-                  <div className="p-6 space-y-4 text-sm leading-relaxed text-foreground">
-                    <div className="space-y-2">
-                      <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">GBO — Gerenciamento Diário</p>
-                      <p className="text-sm text-foreground/80">O GBO é uma rotina estruturada de acompanhamento e tomada de decisões para monitorar indicadores, identificar desvios e garantir o alcance das metas da organização. Cadastre o produto, adicione as operações com seus tempos de ciclo e salve para sincronizar com o PCP.</p>
-                    </div>
-                    <div className="border-t border-border pt-4 space-y-2">
-                      <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">PCP — Programação de Produção</p>
-                      <p className="text-sm text-foreground/80">O módulo PCP utiliza a lógica Heijunka para nivelar a carga de produção. Após salvar um produto no GBO, crie ordens de produção, configure capacidades por turno e visualize o fluxo programado no quadro de nivelamento.</p>
-                    </div>
-                    <div className="border-t border-border pt-4 space-y-2">
-                      <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Exceções de Capacidade</p>
-                      <p className="text-sm text-foreground/80">Use o Gerenciamento de Exceções no PCP para configurar dias com capacidade diferenciada, como feriados, manutenções programadas ou turnos reduzidos. As exceções ficam listadas e podem ser removidas a qualquer momento.</p>
-                    </div>
-                  </div>
-                </div>
+                  {/* Coluna esquerda */}
+                  <div className="space-y-6">
 
-                {/* Seção futura — placeholder */}
-                <div className="bg-card border border-border border-dashed rounded-2xl px-6 py-5 flex items-center gap-4 opacity-50">
-                  <div className="h-9 w-9 flex items-center justify-center rounded-lg bg-muted flex-shrink-0">
-                    <Settings className="h-4 w-4 text-muted-foreground" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-bold text-foreground">Perfil de Usuário</p>
-                    <p className="text-[11px] text-muted-foreground mt-0.5">Em breve — nome, empresa e preferências de acesso</p>
-                  </div>
-                </div>
+                    {/* Aparência */}
+                    <div className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden">
+                      <div className="px-6 py-4 border-b border-border">
+                        <h3 className="text-sm font-bold text-foreground">Aparência</h3>
+                        <p className="text-[11px] text-muted-foreground mt-0.5">Escolha como o sistema é exibido na sua tela</p>
+                      </div>
+                      <div className="p-6 space-y-3">
+                        {mounted && (
+                          <>
+                            {[
+                              { value: "light", label: "Claro", description: "Fundo branco, ideal para ambientes iluminados", icon: Sun },
+                              { value: "dark", label: "Escuro", description: "Fundo escuro, reduz fadiga visual à noite", icon: Moon },
+                              { value: "system", label: "Sistema", description: "Segue automaticamente as configurações do seu dispositivo", icon: Monitor },
+                            ].map(({ value, label, description, icon: Icon }) => (
+                              <button
+                                key={value}
+                                onClick={() => setTheme(value)}
+                                className={`w-full flex items-center gap-4 px-4 py-4 rounded-xl border transition-all text-left ${
+                                  theme === value
+                                    ? "border-primary bg-primary/5 shadow-sm"
+                                    : "border-border hover:bg-muted/50"
+                                }`}
+                              >
+                                <div className={`h-9 w-9 flex items-center justify-center rounded-lg flex-shrink-0 ${theme === value ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"}`}>
+                                  <Icon className="h-4 w-4" />
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <p className={`text-sm font-bold ${theme === value ? "text-primary" : "text-foreground"}`}>{label}</p>
+                                  <p className="text-[11px] text-muted-foreground mt-0.5">{description}</p>
+                                </div>
+                                <div className={`h-4 w-4 rounded-full border-2 flex-shrink-0 transition-all ${theme === value ? "border-primary bg-primary" : "border-muted-foreground/30"}`}>
+                                  {theme === value && <div className="h-full w-full rounded-full bg-primary-foreground scale-50" />}
+                                </div>
+                              </button>
+                            ))}
+                          </>
+                        )}
+                      </div>
+                    </div>
 
+                    {/* Perfil futuro */}
+                    <div className="bg-card border border-border border-dashed rounded-2xl px-6 py-5 flex items-center gap-4 opacity-50">
+                      <div className="h-9 w-9 flex items-center justify-center rounded-lg bg-muted flex-shrink-0">
+                        <Settings className="h-4 w-4 text-muted-foreground" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-bold text-foreground">Perfil de Usuário</p>
+                        <p className="text-[11px] text-muted-foreground mt-0.5">Em breve — nome, empresa e preferências de acesso</p>
+                      </div>
+                    </div>
+
+                  </div>
+
+                  {/* Coluna direita — Manual Técnico */}
+                  <div className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden">
+                    <div className="px-6 py-4 border-b border-border">
+                      <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
+                        <BookText className="h-4 w-4 text-primary" /> Manual Técnico
+                      </h3>
+                      <p className="text-[11px] text-muted-foreground mt-0.5">Protocolo de execução e instruções de uso</p>
+                    </div>
+                    <div className="p-6 space-y-5 text-sm leading-relaxed text-foreground">
+                      <div className="space-y-2">
+                        <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">GBO — Gerenciamento Diário</p>
+                        <p className="text-sm text-foreground/80">O GBO é uma rotina estruturada de acompanhamento e tomada de decisões para monitorar indicadores, identificar desvios e garantir o alcance das metas da organização. Cadastre o produto, adicione as operações com seus tempos de ciclo e salve para sincronizar com o PCP.</p>
+                      </div>
+                      <div className="border-t border-border pt-4 space-y-2">
+                        <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">PCP — Programação de Produção</p>
+                        <p className="text-sm text-foreground/80">O módulo PCP utiliza a lógica Heijunka para nivelar a carga de produção. Após salvar um produto no GBO, crie ordens de produção, configure capacidades por turno e visualize o fluxo programado no quadro de nivelamento.</p>
+                      </div>
+                      <div className="border-t border-border pt-4 space-y-2">
+                        <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Exceções de Capacidade</p>
+                        <p className="text-sm text-foreground/80">Use o Gerenciamento de Exceções no PCP para configurar dias com capacidade diferenciada, como feriados, manutenções programadas ou turnos reduzidos. As exceções ficam listadas e podem ser removidas a qualquer momento.</p>
+                      </div>
+                      <div className="border-t border-border pt-4 space-y-2">
+                        <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Produtos Salvos</p>
+                        <p className="text-sm text-foreground/80">Produtos cadastrados no GBO ficam salvos e acessíveis pelo painel "Produtos Salvos". Use o lápis para carregar um roteiro existente para edição ou a lixeira para excluir. O código do produto é único — salvar com o mesmo código exige confirmação.</p>
+                      </div>
+                    </div>
+                  </div>
+
+                </div>
               </div>
             )}
 
