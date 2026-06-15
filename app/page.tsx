@@ -8,34 +8,15 @@ import { DraggableOperationsList } from "@/components/draggable-operations-list"
 import { exportToExcel, importFromExcel, downloadTemplate } from "@/components/export-utils"
 import { useToast } from "@/hooks/use-toast"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog"
+
 import { GBOChart } from "@/components/gbo-chart"
 import { PCPTab } from "@/components/pcp-tab"
-import { ThemeToggle } from "@/components/theme-toggle"
+import { useTheme } from "next-themes"
 import {
-  Plus,
-  Download,
-  Upload,
-  FileSpreadsheet,
-  HelpCircle,
-  CheckCircle2,
-  FileImage,
-  ChevronDown,
-  BarChart2,
-  CalendarClock,
-  Save,
-  BookOpen,
-  Pencil,
-  Trash2,
-  Menu,
-  X,
+  Plus, Download, Upload, FileSpreadsheet, HelpCircle, CheckCircle2,
+  FileImage, ChevronDown, BarChart2, CalendarClock, Save, BookOpen,
+  Pencil, Trash2, Menu, X, PanelLeftClose, PanelLeftOpen,
+  Settings, Sun, Moon, Monitor, BookText,
 } from "lucide-react"
 
 interface Operation {
@@ -59,24 +40,23 @@ const validateText = (value: string): { isValid: boolean; error?: string } => {
   return { isValid: true }
 }
 
-const NAV_ITEMS = [
-  {
-    id: "gbo",
-    label: "GBO",
-    sublabel: "Gerenciamento Diário",
-    icon: BarChart2,
-  },
-  {
-    id: "pcp",
-    label: "PCP",
-    sublabel: "Programação de Produção",
-    icon: CalendarClock,
-  },
+type TabId = "gbo" | "pcp" | "configuracoes"
+
+const NAV_ITEMS: { id: TabId; label: string; sublabel: string; icon: React.ElementType }[] = [
+  { id: "gbo", label: "GBO", sublabel: "Gerenciamento Diário", icon: BarChart2 },
+  { id: "pcp", label: "PCP", sublabel: "Programação de Produção", icon: CalendarClock },
+]
+
+const NAV_BOTTOM: { id: TabId; label: string; sublabel: string; icon: React.ElementType }[] = [
+  { id: "configuracoes", label: "Configurações", sublabel: "Preferências do sistema", icon: Settings },
 ]
 
 export default function GBOAnalysis() {
-  const [activeTab, setActiveTab] = useState<"gbo" | "pcp">("gbo")
-  const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [activeTab, setActiveTab] = useState<TabId>("gbo")
+  const [collapsed, setCollapsed] = useState(false)
+  const [mobileOpen, setMobileOpen] = useState(false)
+  const [mounted, setMounted] = useState(false)
+  const { theme, setTheme } = useTheme()
 
   const [operations, setOperations] = useState<Operation[]>([])
   const [timeUnit, setTimeUnit] = useState<"minutes" | "seconds">("minutes")
@@ -101,6 +81,7 @@ export default function GBOAnalysis() {
   }
 
   useEffect(() => {
+    setMounted(true)
     const savedSession = localStorage.getItem("gbo_active_session")
     if (savedSession) {
       try {
@@ -272,6 +253,35 @@ export default function GBOAnalysis() {
     if (fileInputRef.current) fileInputRef.current.value = ""
   }
 
+  const allNavItems = [...NAV_ITEMS, ...NAV_BOTTOM]
+  const activeItem = allNavItems.find((i) => i.id === activeTab)
+
+  const NavButton = ({ item, onClick }: { item: typeof allNavItems[0]; onClick: () => void }) => {
+    const Icon = item.icon
+    const isActive = activeTab === item.id
+    return (
+      <button
+        onClick={onClick}
+        title={collapsed ? item.sublabel : undefined}
+        className={`
+          w-full flex items-center rounded-xl transition-all
+          ${collapsed ? "justify-center h-10 w-10 mx-auto" : "gap-3 px-3 py-3"}
+          ${isActive ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:bg-muted hover:text-foreground"}
+        `}
+      >
+        <Icon className="h-[18px] w-[18px] flex-shrink-0" />
+        {!collapsed && (
+          <div className="flex flex-col min-w-0 text-left">
+            <span className="text-xs font-bold leading-tight">{item.label}</span>
+            <span className={`text-[10px] leading-tight truncate ${isActive ? "text-primary-foreground/70" : "text-muted-foreground"}`}>
+              {item.sublabel}
+            </span>
+          </div>
+        )}
+      </button>
+    )
+  }
+
   return (
     <>
       <style dangerouslySetInnerHTML={{ __html: `
@@ -282,169 +292,131 @@ export default function GBOAnalysis() {
             display: none !important; opacity: 0 !important; visibility: hidden !important; pointer-events: none !important;
           }
         }
+        .sidebar-transition { transition: width 200ms cubic-bezier(0.4,0,0.2,1); }
       ` }} />
 
       <div className="min-h-screen bg-background flex print:block">
         <input ref={fileInputRef} type="file" accept=".xlsx,.xls" onChange={handleFileChange} className="hidden" />
 
-        {/* SIDEBAR */}
-        <aside className={`
-          fixed inset-y-0 left-0 z-40 w-64 bg-card border-r border-border flex flex-col
-          transition-transform duration-200 ease-in-out print:hidden
-          lg:relative lg:translate-x-0 lg:flex
-          ${sidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}
-        `}>
-          {/* Logo */}
-          <div className="px-6 py-6 border-b border-border flex items-center justify-between">
-            <div>
-              <h1 className="text-base font-bold text-foreground leading-tight">Gerenciamento</h1>
-              <h1 className="text-base font-bold text-primary leading-tight">Fácil</h1>
-            </div>
+        {/* ── SIDEBAR DESKTOP ── */}
+        <aside className={`hidden lg:flex flex-col flex-shrink-0 bg-card border-r border-border sidebar-transition print:hidden ${collapsed ? "w-[68px]" : "w-60"}`}>
+
+          {/* Logo + toggle */}
+          <div className={`flex items-center border-b border-border h-[65px] px-3 ${collapsed ? "justify-center" : "justify-between px-4"}`}>
+            {!collapsed && (
+              <div>
+                <p className="text-sm font-bold text-foreground leading-tight whitespace-nowrap">Gerenciamento</p>
+                <p className="text-sm font-bold text-primary leading-tight whitespace-nowrap">Fácil</p>
+              </div>
+            )}
             <button
-              onClick={() => setSidebarOpen(false)}
-              className="lg:hidden h-8 w-8 flex items-center justify-center rounded-lg text-muted-foreground hover:bg-muted transition-colors"
+              onClick={() => setCollapsed(!collapsed)}
+              className="h-8 w-8 flex items-center justify-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors flex-shrink-0"
+              title={collapsed ? "Expandir menu" : "Recolher menu"}
             >
-              <X className="h-4 w-4" />
+              {collapsed ? <PanelLeftOpen className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
             </button>
           </div>
 
-          {/* Nav */}
-          <nav className="flex-1 px-3 py-4 space-y-1">
+          {/* Nav principal */}
+          <nav className="flex-1 px-2 py-3 space-y-1">
+            {NAV_ITEMS.map((item) => (
+              <NavButton key={item.id} item={item} onClick={() => setActiveTab(item.id)} />
+            ))}
+          </nav>
+
+          {/* Nav inferior — Configurações */}
+          <div className="px-2 py-3 border-t border-border space-y-1">
+            {NAV_BOTTOM.map((item) => (
+              <NavButton key={item.id} item={item} onClick={() => setActiveTab(item.id)} />
+            ))}
+            {!collapsed && (
+              <p className="text-[9px] text-muted-foreground/50 font-medium text-center pt-2 pb-1">v2.1.0</p>
+            )}
+          </div>
+        </aside>
+
+        {/* ── SIDEBAR MOBILE (drawer) ── */}
+        {mobileOpen && <div className="fixed inset-0 z-30 bg-black/40 lg:hidden" onClick={() => setMobileOpen(false)} />}
+        <aside className={`fixed inset-y-0 left-0 z-40 w-64 bg-card border-r border-border flex flex-col transition-transform duration-200 ease-in-out lg:hidden print:hidden ${mobileOpen ? "translate-x-0" : "-translate-x-full"}`}>
+          <div className="flex items-center justify-between px-5 h-[65px] border-b border-border">
+            <div>
+              <p className="text-sm font-bold text-foreground leading-tight">Gerenciamento</p>
+              <p className="text-sm font-bold text-primary leading-tight">Fácil</p>
+            </div>
+            <button onClick={() => setMobileOpen(false)} className="h-8 w-8 flex items-center justify-center rounded-lg text-muted-foreground hover:bg-muted transition-colors">
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+          <nav className="flex-1 px-3 py-3 space-y-1">
             {NAV_ITEMS.map((item) => {
               const Icon = item.icon
               const isActive = activeTab === item.id
               return (
-                <button
-                  key={item.id}
-                  onClick={() => { setActiveTab(item.id as "gbo" | "pcp"); setSidebarOpen(false) }}
-                  className={`
-                    w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left transition-all
-                    ${isActive
-                      ? "bg-primary text-primary-foreground shadow-sm"
-                      : "text-muted-foreground hover:bg-muted hover:text-foreground"
-                    }
-                  `}
-                >
+                <button key={item.id} onClick={() => { setActiveTab(item.id); setMobileOpen(false) }}
+                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left transition-all ${isActive ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:bg-muted hover:text-foreground"}`}>
                   <Icon className="h-5 w-5 flex-shrink-0" />
                   <div className="flex flex-col min-w-0">
                     <span className="text-sm font-bold leading-tight">{item.label}</span>
-                    <span className={`text-[10px] leading-tight truncate ${isActive ? "text-primary-foreground/70" : "text-muted-foreground"}`}>
-                      {item.sublabel}
-                    </span>
+                    <span className={`text-[10px] leading-tight truncate ${isActive ? "text-primary-foreground/70" : "text-muted-foreground"}`}>{item.sublabel}</span>
                   </div>
                 </button>
               )
             })}
           </nav>
-
-          {/* Footer */}
-          <div className="px-3 py-4 border-t border-border flex items-center justify-between">
-            <span className="text-[10px] text-muted-foreground font-medium pl-1">v2.1.0</span>
-            <ThemeToggle />
+          <div className="px-3 py-3 border-t border-border space-y-1">
+            {NAV_BOTTOM.map((item) => {
+              const Icon = item.icon
+              const isActive = activeTab === item.id
+              return (
+                <button key={item.id} onClick={() => { setActiveTab(item.id); setMobileOpen(false) }}
+                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left transition-all ${isActive ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:bg-muted hover:text-foreground"}`}>
+                  <Icon className="h-5 w-5 flex-shrink-0" />
+                  <div className="flex flex-col min-w-0">
+                    <span className="text-sm font-bold leading-tight">{item.label}</span>
+                    <span className={`text-[10px] leading-tight truncate ${isActive ? "text-primary-foreground/70" : "text-muted-foreground"}`}>{item.sublabel}</span>
+                  </div>
+                </button>
+              )
+            })}
+            <p className="text-[9px] text-muted-foreground/50 font-medium text-center pt-2">v2.1.0</p>
           </div>
         </aside>
 
-        {/* Overlay mobile */}
-        {sidebarOpen && (
-          <div
-            className="fixed inset-0 z-30 bg-black/40 lg:hidden"
-            onClick={() => setSidebarOpen(false)}
-          />
-        )}
+        {/* ── MAIN ── */}
+        <div className="flex-1 flex flex-col min-w-0 print:w-full overflow-hidden">
 
-        {/* MAIN CONTENT */}
-        <div className="flex-1 flex flex-col min-w-0 print:w-full">
-
-          {/* Topbar mobile */}
-          <header className="lg:hidden flex items-center justify-between px-4 py-4 border-b border-border bg-card print:hidden">
-            <button
-              onClick={() => setSidebarOpen(true)}
-              className="h-9 w-9 flex items-center justify-center rounded-xl text-muted-foreground hover:bg-muted transition-colors"
-            >
+          {/* Mobile: botão hamburguer flutuante no canto */}
+          <div className="lg:hidden flex items-center px-4 pt-4 pb-0 print:hidden">
+            <button onClick={() => setMobileOpen(true)} className="h-9 w-9 flex items-center justify-center rounded-xl text-muted-foreground hover:bg-muted transition-colors">
               <Menu className="h-5 w-5" />
             </button>
-            <span className="font-bold text-foreground text-sm">
-              {NAV_ITEMS.find((i) => i.id === activeTab)?.sublabel}
-            </span>
-            <Dialog>
-              <DialogTrigger asChild>
-                <button className="h-9 w-9 flex items-center justify-center rounded-xl text-muted-foreground hover:bg-muted transition-colors">
-                  <HelpCircle className="h-5 w-5" />
-                </button>
-              </DialogTrigger>
-              <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto bg-card border-border rounded-2xl shadow-xl">
-                <DialogHeader>
-                  <DialogTitle className="text-primary flex items-center gap-2 font-bold text-lg">
-                    <HelpCircle className="w-5 h-5" /> Manual Técnico
-                  </DialogTitle>
-                  <DialogDescription className="text-muted-foreground">Protocolo de Execução</DialogDescription>
-                </DialogHeader>
-                <div className="space-y-4 text-sm mt-4 leading-relaxed text-justify text-foreground">
-                  <p>O <strong>Gerenciamento Diário</strong> é uma rotina estruturada de acompanhamento e tomada de decisões para monitorar indicadores, identificar desvios e garantir o alcance das metas da organização.</p>
-                </div>
-              </DialogContent>
-            </Dialog>
-          </header>
+          </div>
 
-          {/* Topbar desktop */}
-          <header className="hidden lg:flex items-center justify-between px-8 py-5 border-b border-border bg-card/50 print:hidden">
-            <div>
-              <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Módulo Ativo</p>
-              <h2 className="text-lg font-bold text-foreground">
-                {NAV_ITEMS.find((i) => i.id === activeTab)?.sublabel}
-              </h2>
-            </div>
-            <Dialog>
-              <DialogTrigger asChild>
-                <button className="h-9 w-9 flex items-center justify-center rounded-xl text-muted-foreground hover:bg-muted hover:text-primary transition-colors">
-                  <HelpCircle className="h-5 w-5" />
-                </button>
-              </DialogTrigger>
-              <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto bg-card border-border rounded-2xl shadow-xl">
-                <DialogHeader>
-                  <DialogTitle className="text-primary flex items-center gap-2 font-bold text-lg">
-                    <HelpCircle className="w-5 h-5" /> Manual Técnico Gerenciamento Diário
-                  </DialogTitle>
-                  <DialogDescription className="text-muted-foreground">Protocolo de Execução</DialogDescription>
-                </DialogHeader>
-                <div className="space-y-4 text-sm mt-4 leading-relaxed text-justify text-foreground">
-                  <p>O <strong>Gerenciamento Diário</strong> é uma rotina estruturada de acompanhamento e tomada de decisões para monitorar indicadores, identificar desvios e garantir o alcance das metas da organização.</p>
-                </div>
-              </DialogContent>
-            </Dialog>
-          </header>
+          {/* Page content */}
+          <main className="flex-1 overflow-auto px-4 lg:px-8 py-6 print:p-12">
 
-          {/* PAGE CONTENT */}
-          <main className="flex-1 overflow-auto px-4 lg:px-8 py-8 print:p-12">
-
-            {/* GBO TAB */}
+            {/* ── GBO ── */}
             {activeTab === "gbo" && (
               <div className="flex flex-col xl:flex-row gap-8 pb-12 print:p-0">
-
-                {/* Left panel */}
                 <div className="xl:w-[35%] flex flex-col gap-6 print:hidden">
 
-                  {/* Identificação */}
                   <div className="bg-card p-6 rounded-2xl shadow-sm border border-border space-y-4">
                     <h3 className="font-bold text-foreground border-b border-border pb-2 flex items-center gap-2">
-                      <div className="w-2 h-2 rounded-full bg-primary animate-pulse"></div>
+                      <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
                       Identificação do Produto
                     </h3>
                     <div className="space-y-3">
                       <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-1">
-                          <label htmlFor="productCode" className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest pl-1">Código</label>
-                          <input id="productCode" type="text" placeholder="Ex: PRD-001" value={productCode}
-                            onChange={(e) => setProductCode(e.target.value)}
-                            className="w-full h-12 px-4 rounded-xl border border-border bg-input text-foreground text-sm outline-none focus:ring-2 focus:ring-primary transition-all"
-                          />
+                          <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest pl-1">Código</label>
+                          <input type="text" placeholder="Ex: PRD-001" value={productCode} onChange={(e) => setProductCode(e.target.value)}
+                            className="w-full h-12 px-4 rounded-xl border border-border bg-input text-foreground text-sm outline-none focus:ring-2 focus:ring-primary transition-all" />
                         </div>
                         <div className="space-y-1">
-                          <label htmlFor="productName" className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest pl-1">Nome</label>
-                          <input id="productName" type="text" placeholder="Ex: Válvula de Retenção" value={productName}
-                            onChange={(e) => setProductName(e.target.value)}
-                            className="w-full h-12 px-4 rounded-xl border border-border bg-input text-foreground text-sm outline-none focus:ring-2 focus:ring-primary transition-all"
-                          />
+                          <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest pl-1">Nome</label>
+                          <input type="text" placeholder="Ex: Válvula" value={productName} onChange={(e) => setProductName(e.target.value)}
+                            className="w-full h-12 px-4 rounded-xl border border-border bg-input text-foreground text-sm outline-none focus:ring-2 focus:ring-primary transition-all" />
                         </div>
                       </div>
                       <div className="grid grid-cols-2 gap-4">
@@ -458,17 +430,19 @@ export default function GBOAnalysis() {
                               </button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent className="w-[var(--radix-dropdown-menu-trigger-width)] bg-card border border-border p-2 rounded-2xl shadow-xl z-[150]">
-                              <DropdownMenuItem onClick={() => setCalcType("takt")} className={`w-full text-left text-sm font-bold py-2.5 px-3 rounded-xl cursor-pointer transition-all ${calcType === "takt" ? "bg-primary text-primary-foreground" : "text-foreground hover:bg-muted"}`}>Takt</DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => setCalcType("media")} className={`w-full text-left text-sm font-bold py-2.5 px-3 rounded-xl cursor-pointer transition-all ${calcType === "media" ? "bg-primary text-primary-foreground" : "text-foreground hover:bg-muted"}`}>Média</DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => setCalcType("soma")} className={`w-full text-left text-sm font-bold py-2.5 px-3 rounded-xl cursor-pointer transition-all ${calcType === "soma" ? "bg-primary text-primary-foreground" : "text-foreground hover:bg-muted"}`}>Soma</DropdownMenuItem>
+                              {["takt", "media", "soma"].map((c) => (
+                                <DropdownMenuItem key={c} onClick={() => setCalcType(c)}
+                                  className={`w-full text-left text-sm font-bold py-2.5 px-3 rounded-xl cursor-pointer transition-all ${calcType === c ? "bg-primary text-primary-foreground" : "text-foreground hover:bg-muted"}`}>
+                                  {c === "takt" ? "Takt" : c === "media" ? "Média" : "Soma"}
+                                </DropdownMenuItem>
+                              ))}
                             </DropdownMenuContent>
                           </DropdownMenu>
                         </div>
                         <div className="space-y-1">
                           <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest pl-1">Tempo de Ciclo</label>
                           <input type="text" readOnly value={`${totalCycleTime.toFixed(2)} ${timeUnit === "minutes" ? "min" : "seg"}`}
-                            className="w-full h-12 px-4 rounded-xl border border-border bg-muted/50 text-muted-foreground text-sm outline-none cursor-not-allowed font-semibold"
-                          />
+                            className="w-full h-12 px-4 rounded-xl border border-border bg-muted/50 text-muted-foreground text-sm outline-none cursor-not-allowed font-semibold" />
                         </div>
                       </div>
                       {operations.length > 0 && (
@@ -482,13 +456,9 @@ export default function GBOAnalysis() {
                     </div>
                   </div>
 
-                  {/* Produtos Salvos */}
                   {savedProducts.length > 0 && (
                     <div className="bg-card rounded-2xl shadow-sm border border-border overflow-hidden">
-                      <button
-                        onClick={() => setShowProductsPanel(!showProductsPanel)}
-                        className="w-full flex items-center justify-between px-6 py-4 hover:bg-muted/50 transition-colors"
-                      >
+                      <button onClick={() => setShowProductsPanel(!showProductsPanel)} className="w-full flex items-center justify-between px-6 py-4 hover:bg-muted/50 transition-colors">
                         <div className="flex items-center gap-2">
                           <BookOpen className="w-4 h-4 text-primary" />
                           <span className="font-bold text-foreground text-sm">Produtos Salvos</span>
@@ -521,32 +491,32 @@ export default function GBOAnalysis() {
                     </div>
                   )}
 
-                  {/* Nova Operação */}
                   <div className="bg-card p-6 rounded-2xl shadow-sm border border-border space-y-4">
                     <div className="flex items-center justify-between border-b border-border pb-2">
                       <h3 className="font-bold text-foreground text-sm tracking-wide uppercase">Nova Operação</h3>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                          <button className="h-8 px-3 rounded-lg bg-input border border-border text-[10px] font-bold text-muted-foreground flex items-center gap-1 outline-none hover:bg-muted transition-all focus:ring-2 focus:ring-primary">
-                            {timeUnit === "minutes" ? "Minutos" : "Segundos"}
-                            <ChevronDown className="w-3 h-3 text-muted-foreground" />
+                          <button className="h-8 px-3 rounded-lg bg-input border border-border text-[10px] font-bold text-muted-foreground flex items-center gap-1 outline-none hover:bg-muted transition-all">
+                            {timeUnit === "minutes" ? "Minutos" : "Segundos"} <ChevronDown className="w-3 h-3" />
                           </button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent className="w-32 bg-card border border-border p-1.5 rounded-xl shadow-xl z-[150]">
-                          <DropdownMenuItem onClick={() => setTimeUnit("minutes")} className={`w-full text-left text-[10px] font-bold py-2 px-2.5 rounded-lg cursor-pointer transition-all ${timeUnit === "minutes" ? "bg-primary text-primary-foreground" : "text-foreground hover:bg-muted"}`}>Minutos</DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => setTimeUnit("seconds")} className={`w-full text-left text-[10px] font-bold py-2 px-2.5 rounded-lg cursor-pointer transition-all ${timeUnit === "seconds" ? "bg-primary text-primary-foreground" : "text-foreground hover:bg-muted"}`}>Segundos</DropdownMenuItem>
+                          {(["minutes", "seconds"] as const).map((u) => (
+                            <DropdownMenuItem key={u} onClick={() => setTimeUnit(u)}
+                              className={`w-full text-left text-[10px] font-bold py-2 px-2.5 rounded-lg cursor-pointer transition-all ${timeUnit === u ? "bg-primary text-primary-foreground" : "text-foreground hover:bg-muted"}`}>
+                              {u === "minutes" ? "Minutos" : "Segundos"}
+                            </DropdownMenuItem>
+                          ))}
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </div>
                     <div className="space-y-3">
                       <input placeholder="Nome da Operação" value={newOperationName} onKeyPress={handleKeyPress}
-                        onChange={(e) => { setNewOperationName(e.target.value); if (errors.operationName) setErrors((prev) => ({ ...prev, operationName: undefined })) }}
-                        className="w-full h-12 px-4 rounded-xl border border-border bg-input text-foreground text-sm outline-none focus:ring-2 focus:ring-primary transition-all"
-                      />
+                        onChange={(e) => { setNewOperationName(e.target.value); if (errors.operationName) setErrors((p) => ({ ...p, operationName: undefined })) }}
+                        className="w-full h-12 px-4 rounded-xl border border-border bg-input text-foreground text-sm outline-none focus:ring-2 focus:ring-primary transition-all" />
                       <input type="number" step="0.01" min="0" placeholder="Tempo" value={newOperationTime} onKeyPress={handleKeyPress}
-                        onChange={(e) => { setNewOperationTime(e.target.value); if (errors.operationTime) setErrors((prev) => ({ ...prev, operationTime: undefined })) }}
-                        className="w-full h-12 px-4 rounded-xl border border-border bg-input text-foreground text-sm outline-none focus:ring-2 focus:ring-primary transition-all"
-                      />
+                        onChange={(e) => { setNewOperationTime(e.target.value); if (errors.operationTime) setErrors((p) => ({ ...p, operationTime: undefined })) }}
+                        className="w-full h-12 px-4 rounded-xl border border-border bg-input text-foreground text-sm outline-none focus:ring-2 focus:ring-primary transition-all" />
                       <button onClick={addOperation} disabled={!newOperationName.trim() || !newOperationTime.trim() || isLoading}
                         className="w-full h-12 flex items-center justify-center bg-primary text-primary-foreground rounded-xl font-bold text-xs uppercase tracking-widest shadow-md hover:opacity-90 transition-all disabled:opacity-50 disabled:cursor-not-allowed mt-2">
                         <Plus className="h-4 w-4 mr-2" /> Adicionar
@@ -554,7 +524,6 @@ export default function GBOAnalysis() {
                     </div>
                   </div>
 
-                  {/* Import/Export */}
                   <div className="flex gap-3">
                     <button onClick={handleImportExcel} disabled={isLoading} className="flex-1 h-12 flex items-center justify-center bg-card border border-border text-muted-foreground font-bold text-xs rounded-xl hover:bg-muted transition-colors shadow-sm">
                       <Upload className="h-4 w-4 mr-2" /> Importar
@@ -579,13 +548,11 @@ export default function GBOAnalysis() {
                     <FileSpreadsheet className="h-4 w-4 mr-2 text-green-600" /> Baixar Modelo Padrão (Excel)
                   </button>
 
-                  {/* Lista de Operações */}
                   <div className="bg-card border border-border rounded-2xl shadow-sm p-6">
                     <DraggableOperationsList operations={operations} timeUnit={timeUnit} onReorder={reorderOperations} onRemove={removeOperation} onEdit={editOperation} />
                   </div>
                 </div>
 
-                {/* Right panel - Chart */}
                 <div className="xl:w-[65%] flex flex-col gap-6 print:w-full">
                   {operations.length > 0 ? (
                     <>
@@ -597,8 +564,7 @@ export default function GBOAnalysis() {
                       </div>
                       <div className="flex justify-end mt-2 print:hidden">
                         <Button onClick={handleSaveProduct} className="bg-primary hover:opacity-90 text-primary-foreground font-bold uppercase tracking-widest h-12 px-8 rounded-xl shadow-md transition-all">
-                          <Save className="h-5 w-5 mr-2" />
-                          Salvar Produto e Sincronizar PCP
+                          <Save className="h-5 w-5 mr-2" /> Salvar Produto e Sincronizar PCP
                         </Button>
                       </div>
                     </>
@@ -615,8 +581,95 @@ export default function GBOAnalysis() {
               </div>
             )}
 
-            {/* PCP TAB */}
+            {/* ── PCP ── */}
             {activeTab === "pcp" && <PCPTab />}
+
+            {/* ── CONFIGURAÇÕES ── */}
+            {activeTab === "configuracoes" && (
+              <div className="max-w-2xl space-y-6">
+
+                <div>
+                  <h2 className="text-lg font-bold text-foreground">Configurações</h2>
+                  <p className="text-sm text-muted-foreground mt-0.5">Preferências e personalização do sistema</p>
+                </div>
+
+                {/* Aparência */}
+                <div className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden">
+                  <div className="px-6 py-4 border-b border-border">
+                    <h3 className="text-sm font-bold text-foreground">Aparência</h3>
+                    <p className="text-[11px] text-muted-foreground mt-0.5">Escolha como o sistema é exibido na sua tela</p>
+                  </div>
+                  <div className="p-6 space-y-3">
+                    {mounted && (
+                      <>
+                        {[
+                          { value: "light", label: "Claro", description: "Fundo branco, ideal para ambientes iluminados", icon: Sun },
+                          { value: "dark", label: "Escuro", description: "Fundo escuro, reduz fadiga visual à noite", icon: Moon },
+                          { value: "system", label: "Sistema", description: "Segue automaticamente as configurações do seu dispositivo", icon: Monitor },
+                        ].map(({ value, label, description, icon: Icon }) => (
+                          <button
+                            key={value}
+                            onClick={() => setTheme(value)}
+                            className={`w-full flex items-center gap-4 px-4 py-4 rounded-xl border transition-all text-left ${
+                              theme === value
+                                ? "border-primary bg-primary/5 shadow-sm"
+                                : "border-border hover:bg-muted/50"
+                            }`}
+                          >
+                            <div className={`h-9 w-9 flex items-center justify-center rounded-lg flex-shrink-0 ${theme === value ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"}`}>
+                              <Icon className="h-4 w-4" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className={`text-sm font-bold ${theme === value ? "text-primary" : "text-foreground"}`}>{label}</p>
+                              <p className="text-[11px] text-muted-foreground mt-0.5">{description}</p>
+                            </div>
+                            <div className={`h-4 w-4 rounded-full border-2 flex-shrink-0 transition-all ${theme === value ? "border-primary bg-primary" : "border-muted-foreground/30"}`}>
+                              {theme === value && <div className="h-full w-full rounded-full bg-primary-foreground scale-50" />}
+                            </div>
+                          </button>
+                        ))}
+                      </>
+                    )}
+                  </div>
+                </div>
+
+                {/* Manual Técnico */}
+                <div className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden">
+                  <div className="px-6 py-4 border-b border-border">
+                    <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
+                      <BookText className="h-4 w-4 text-primary" /> Manual Técnico
+                    </h3>
+                    <p className="text-[11px] text-muted-foreground mt-0.5">Protocolo de execução e instruções de uso</p>
+                  </div>
+                  <div className="p-6 space-y-4 text-sm leading-relaxed text-foreground">
+                    <div className="space-y-2">
+                      <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">GBO — Gerenciamento Diário</p>
+                      <p className="text-sm text-foreground/80">O GBO é uma rotina estruturada de acompanhamento e tomada de decisões para monitorar indicadores, identificar desvios e garantir o alcance das metas da organização. Cadastre o produto, adicione as operações com seus tempos de ciclo e salve para sincronizar com o PCP.</p>
+                    </div>
+                    <div className="border-t border-border pt-4 space-y-2">
+                      <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">PCP — Programação de Produção</p>
+                      <p className="text-sm text-foreground/80">O módulo PCP utiliza a lógica Heijunka para nivelar a carga de produção. Após salvar um produto no GBO, crie ordens de produção, configure capacidades por turno e visualize o fluxo programado no quadro de nivelamento.</p>
+                    </div>
+                    <div className="border-t border-border pt-4 space-y-2">
+                      <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Exceções de Capacidade</p>
+                      <p className="text-sm text-foreground/80">Use o Gerenciamento de Exceções no PCP para configurar dias com capacidade diferenciada, como feriados, manutenções programadas ou turnos reduzidos. As exceções ficam listadas e podem ser removidas a qualquer momento.</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Seção futura — placeholder */}
+                <div className="bg-card border border-border border-dashed rounded-2xl px-6 py-5 flex items-center gap-4 opacity-50">
+                  <div className="h-9 w-9 flex items-center justify-center rounded-lg bg-muted flex-shrink-0">
+                    <Settings className="h-4 w-4 text-muted-foreground" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-bold text-foreground">Perfil de Usuário</p>
+                    <p className="text-[11px] text-muted-foreground mt-0.5">Em breve — nome, empresa e preferências de acesso</p>
+                  </div>
+                </div>
+
+              </div>
+            )}
 
           </main>
         </div>
