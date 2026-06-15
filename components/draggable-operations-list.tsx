@@ -63,7 +63,7 @@ export function DraggableOperationsList({
 
   const saveEditing = (id: string) => {
     const time = parseFloat(editTime)
-    if (!editName.trim() || isNaN(time) || time < 0) return
+    if (!editName.trim() || isNaN(time) || time <= 0) return
 
     if (onEdit) {
       onEdit(id, editName.trim(), time)
