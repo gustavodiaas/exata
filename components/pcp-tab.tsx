@@ -399,6 +399,70 @@ export function PCPTab() {
               </div>
             ) : (
               <>
+                {/* ── PAINEL DE INDICADORES DE EFICIÊNCIA ── */}
+                {(() => {
+                  const totalDays = dashboardArray.length
+                  const overloadedDays = dashboardArray.filter((d: any) => d.overflow > 0).length
+                  const avgOccupation = totalDays > 0
+                    ? dashboardArray.reduce((sum: number, d: any) => sum + d.occupation, 0) / totalDays
+                    : 0
+                  const totalLoad = dashboardArray.reduce((sum: number, d: any) => sum + d.directLoad, 0)
+                  const totalCapacity = dashboardArray.reduce((sum: number, d: any) => sum + d.realCapacity, 0)
+                  const globalOccupation = totalCapacity > 0 ? (totalLoad / totalCapacity) * 100 : 0
+                  const hasOverload = overloadedDays > 0
+
+                  return (
+                    <div className="mb-4 grid grid-cols-2 lg:grid-cols-4 gap-3">
+                      {/* Ocupação média */}
+                      <div className={`p-4 rounded-xl border flex flex-col gap-1 ${avgOccupation > 100 ? "bg-destructive/5 border-destructive/30" : avgOccupation > 85 ? "bg-yellow-500/5 border-yellow-500/30" : "bg-card border-border"}`}>
+                        <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Ocupação Média</span>
+                        <span className={`text-2xl font-bold ${avgOccupation > 100 ? "text-destructive" : avgOccupation > 85 ? "text-yellow-500" : "text-primary"}`}>
+                          {avgOccupation.toFixed(0)}%
+                        </span>
+                        <div className="w-full bg-input h-1.5 rounded-full overflow-hidden mt-1">
+                          <div
+                            className={`h-full rounded-full transition-all ${avgOccupation > 100 ? "bg-destructive" : avgOccupation > 85 ? "bg-yellow-500" : "bg-primary"}`}
+                            style={{ width: `${Math.min(100, avgOccupation)}%` }}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Ocupação global */}
+                      <div className={`p-4 rounded-xl border flex flex-col gap-1 ${globalOccupation > 100 ? "bg-destructive/5 border-destructive/30" : "bg-card border-border"}`}>
+                        <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Ocupação Global</span>
+                        <span className={`text-2xl font-bold ${globalOccupation > 100 ? "text-destructive" : "text-foreground"}`}>
+                          {globalOccupation.toFixed(0)}%
+                        </span>
+                        <span className="text-[10px] text-muted-foreground mt-1">
+                          {(totalLoad / 3600).toFixed(1)}h de {(totalCapacity / 3600).toFixed(1)}h
+                        </span>
+                      </div>
+
+                      {/* Dias com sobrecarga */}
+                      <div className={`p-4 rounded-xl border flex flex-col gap-1 ${hasOverload ? "bg-destructive/5 border-destructive/30" : "bg-card border-border"}`}>
+                        <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Dias Sobrecarregados</span>
+                        <span className={`text-2xl font-bold ${hasOverload ? "text-destructive" : "text-primary"}`}>
+                          {overloadedDays} <span className="text-sm font-medium text-muted-foreground">/ {totalDays}</span>
+                        </span>
+                        {hasOverload ? (
+                          <span className="text-[10px] text-destructive font-bold mt-1">⚠ Revisar programação</span>
+                        ) : (
+                          <span className="text-[10px] text-primary font-bold mt-1">✓ Dentro da capacidade</span>
+                        )}
+                      </div>
+
+                      {/* Carga total */}
+                      <div className="p-4 rounded-xl border border-border bg-card flex flex-col gap-1">
+                        <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Carga Total</span>
+                        <span className="text-2xl font-bold text-foreground">
+                          {(totalLoad / 3600).toFixed(1)}<span className="text-sm font-medium text-muted-foreground">h</span>
+                        </span>
+                        <span className="text-[10px] text-muted-foreground mt-1">{totalDays} dia{totalDays !== 1 ? "s" : ""} programado{totalDays !== 1 ? "s" : ""}</span>
+                      </div>
+                    </div>
+                  )
+                })()}
+
                 {viewMode === "kanban" && (
                   <div className="flex gap-4 overflow-x-auto pb-2 custom-scrollbar items-start min-h-[300px]">
                     {dashboardArray.map((day: any) => {
