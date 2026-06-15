@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import React, { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -434,7 +434,7 @@ export function PCPTab() {
                 </div>
               </div>
             ) : (
-              <>
+              <React.Fragment>
                 {(() => {
                   const totalDays = dashboardArray.length
                   const overloadedDays = dashboardArray.filter((d: any) => d.overflow > 0).length
@@ -557,7 +557,7 @@ export function PCPTab() {
                     </table>
                   </div>
                 )}
-              </>
+              </React.Fragment>
             )}
           </CardContent>
         </Card>
