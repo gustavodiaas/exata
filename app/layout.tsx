@@ -7,9 +7,8 @@ import { Toaster } from "@/components/ui/toaster"
 import { ThemeProvider } from "next-themes"
 
 export const metadata: Metadata = {
-  title: "Gerenciamento Diário",
-  description: "Sistema interativo para análise de Gerenciamento Diário e PCP com exportação e importação de dados",
-  generator: "v0.app",
+  title: "Exata | GBO & PCP",
+  description: "Plataforma de análise de GBO e PCP com nivelamento de carga e sincronização em nuvem.",
 }
 
 export default function RootLayout({
