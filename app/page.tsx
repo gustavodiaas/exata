@@ -1,7 +1,6 @@
 "use client"
 
-import type React from "react"
-import { useState, useRef, useEffect, useMemo } from "react"
+import React, { useState, useRef, useEffect, useMemo } from "react"
 import { Button } from "@/components/ui/button"
 import { CalculationsDashboard } from "@/components/calculations-dashboard"
 import { DraggableOperationsList } from "@/components/draggable-operations-list"
@@ -428,7 +427,7 @@ export default function GBOAnalysis() {
   }
 
   return (
-    <>
+    <React.Fragment>
       <style dangerouslySetInnerHTML={{ __html: `
         @media print {
           @page { size: landscape; margin: 1cm; }
@@ -774,7 +773,7 @@ export default function GBOAnalysis() {
 
                 <div className="xl:w-[65%] flex flex-col gap-6 print:w-full">
                   {operations.length > 0 ? (
-                    <>
+                    <React.Fragment>
                       <div className="print:hidden">
                         <CalculationsDashboard operations={operations} timeUnit={timeUnit} taktTime={undefined} taktTimeUnit={undefined} demandUnit="un" />
                       </div>
@@ -786,7 +785,7 @@ export default function GBOAnalysis() {
                           <Save className="h-5 w-5 mr-2" /> {isLoading ? "Sincronizando..." : "Salvar e Sincronizar Nuvem"}
                         </Button>
                       </div>
-                    </>
+                    </React.Fragment>
                   ) : (
                     <div className="h-full min-h-[400px] flex flex-col items-center justify-center bg-card border border-border rounded-2xl shadow-sm print:hidden">
                       <div className="p-4 rounded-full bg-input mb-4">
@@ -819,7 +818,7 @@ export default function GBOAnalysis() {
                       </div>
                       <div className="p-6 space-y-3">
                         {mounted && (
-                          <>
+                          <React.Fragment>
                             {[
                               { value: "light", label: "Claro", description: "Fundo branco, ideal para ambientes iluminados", icon: Sun },
                               { value: "dark", label: "Escuro", description: "Fundo escuro, reduz fadiga visual à noite", icon: Moon },
@@ -836,7 +835,7 @@ export default function GBOAnalysis() {
                                 </div>
                               </button>
                             ))}
-                          </>
+                          </React.Fragment>
                         )}
                       </div>
                     </div>
@@ -860,6 +859,6 @@ export default function GBOAnalysis() {
           </main>
         </div>
       </div>
-    </>
+    </React.Fragment>
   )
 }
