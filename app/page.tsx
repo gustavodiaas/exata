@@ -379,7 +379,7 @@ export default function GBOAnalysis() {
               <NavButton key={item.id} item={item} onClick={() => setActiveTab(item.id)} />
             ))}
             {!collapsed && (
-              <p className="text-[9px] text-muted-foreground/50 font-medium text-center pt-2 pb-1">v2.1.0</p>
+              <p className="text-[9px] text-muted-foreground/50 font-medium text-center pt-2 pb-1">v2.0.0</p>
             )}
           </div>
         </aside>
@@ -427,7 +427,7 @@ export default function GBOAnalysis() {
                 </button>
               )
             })}
-            <p className="text-[9px] text-muted-foreground/50 font-medium text-center pt-2">v2.1.0</p>
+            <p className="text-[9px] text-muted-foreground/50 font-medium text-center pt-2">v2.0.0</p>
           </div>
         </aside>
 
