@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch"
 import { Plus, Trash2, Calendar, ShieldAlert, TrendingUp, Columns3, CalendarDays, ListOrdered, GripVertical } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
+import { createClient } from "@supabase/supabase-js"
 
 interface RoutingStep {
   name: string
