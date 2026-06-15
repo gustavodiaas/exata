@@ -12,11 +12,12 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { GBOChart } from "@/components/gbo-chart"
 import { PCPTab } from "@/components/pcp-tab"
 import { useTheme } from "next-themes"
+import { supabase } from "@/components/supabase"
 import {
   Plus, Download, Upload, FileSpreadsheet, HelpCircle, CheckCircle2,
   FileImage, ChevronDown, BarChart2, CalendarClock, Save, BookOpen,
   Pencil, Trash2, Menu, X, PanelLeftClose, PanelLeftOpen,
-  Settings, Sun, Moon, Monitor, BookText,
+  Settings, Sun, Moon, Monitor, BookText, LogOut
 } from "lucide-react"
 
 interface Operation {
@@ -44,7 +45,7 @@ type TabId = "gbo" | "pcp" | "configuracoes"
 
 const NAV_ITEMS: { id: TabId; label: string; sublabel: string; icon: React.ElementType }[] = [
   { id: "gbo", label: "GBO", sublabel: "Gerenciamento Diário", icon: BarChart2 },
-  { id: "pcp", label: "PCP", sublabel: "Programação de Produção", icon: CalendarClock },
+  { id: "pcp", label: "PCP", sublabel: "Programação de Production", icon: CalendarClock },
 ]
 
 const NAV_BOTTOM: { id: TabId; label: string; sublabel: string; icon: React.ElementType }[] = [
@@ -52,6 +53,13 @@ const NAV_BOTTOM: { id: TabId; label: string; sublabel: string; icon: React.Elem
 ]
 
 export default function GBOAnalysis() {
+  // Controle de Autenticação e Sessão Cloud
+  const [user, setUser] = useState<any>(null)
+  const [authLoading, setAuthLoading] = useState(true)
+  const [email, setEmail] = useState("")
+  const [password, setPassword] = useState("")
+  const [loginError, setLoginError] = useState("")
+
   const [activeTab, setActiveTab] = useState<TabId>("gbo")
   const [collapsed, setCollapsed] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
@@ -75,38 +83,87 @@ export default function GBOAnalysis() {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const { toast } = useToast()
 
-  const loadSavedProducts = () => {
-    const data = localStorage.getItem("gbo_products")
-    if (data) setSavedProducts(JSON.parse(data))
-    else setSavedProducts([])
+  // Escuta o estado do usuário logado no Supabase
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUser(session?.user ?? null)
+      setAuthLoading(false)
+    })
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null)
+    })
+
+    return () => subscription.unsubscribe()
+  }, [])
+
+  // Carrega produtos vindos da nuvem (Supabase) ou fallback local
+  const loadSavedProducts = async () => {
+    if (!supabase) {
+      const data = localStorage.getItem("gbo_products")
+      if (data) setSavedProducts(JSON.parse(data))
+      return
+    }
+
+    try {
+      const { data: prods, error } = await supabase
+        .from("produtos")
+        .select(`
+          id,
+          codigo,
+          descricao,
+          operacoes (nome, tempo, unidade)
+        `)
+
+      if (error) throw error
+
+      if (prods) {
+        const formatted = prods.map((p: any) => ({
+          code: p.codigo,
+          description: p.descricao,
+          steps: (p.operacoes || []).sort((a: any, b: any) => a.ordem - b.ordem).map((o: any) => ({
+            name: o.nome,
+            cycleTime: o.unidade === "minutes" ? o.tempo * 60 : o.tempo,
+            setupTime: 0
+          }))
+        }))
+        setSavedProducts(formatted)
+        localStorage.setItem("gbo_products", JSON.stringify(formatted))
+      }
+    } catch (e) {
+      const data = localStorage.getItem("gbo_products")
+      if (data) setSavedProducts(JSON.parse(data))
+    }
   }
 
   useEffect(() => {
     setMounted(true)
-    const savedSession = localStorage.getItem("gbo_active_session")
-    if (savedSession) {
-      try {
-        const parsed = JSON.parse(savedSession)
-        if (parsed.operations) setOperations(parsed.operations)
-        if (parsed.productCode) setProductCode(parsed.productCode)
-        if (parsed.productName) setProductName(parsed.productName)
-        if (parsed.calcType) setCalcType(parsed.calcType)
-        if (parsed.timeUnit) setTimeUnit(parsed.timeUnit)
-      } catch (e) {
-        console.error("Erro ao ler sessão ativa")
+    if (user) {
+      const savedSession = localStorage.getItem(`exata_session_${user.id}`)
+      if (savedSession) {
+        try {
+          const parsed = JSON.parse(savedSession)
+          if (parsed.operations) setOperations(parsed.operations)
+          if (parsed.productCode) setProductCode(parsed.productCode)
+          if (parsed.productName) setProductName(parsed.productName)
+          if (parsed.calcType) setCalcType(parsed.calcType)
+          if (parsed.timeUnit) setTimeUnit(parsed.timeUnit)
+        } catch (e) {
+          console.error("Erro ao ler rascunho")
+        }
       }
+      loadSavedProducts()
     }
-    loadSavedProducts()
     setIsLoaded(true)
     window.addEventListener("sync_gbo_products", loadSavedProducts)
     return () => window.removeEventListener("sync_gbo_products", loadSavedProducts)
-  }, [])
+  }, [user])
 
   useEffect(() => {
-    if (isLoaded) {
-      localStorage.setItem("gbo_active_session", JSON.stringify({ operations, productCode, productName, calcType, timeUnit }))
+    if (isLoaded && user) {
+      localStorage.setItem(`exata_session_${user.id}`, JSON.stringify({ operations, productCode, productName, calcType, timeUnit }))
     }
-  }, [operations, productCode, productName, calcType, timeUnit, isLoaded])
+  }, [operations, productCode, productName, calcType, timeUnit, isLoaded, user])
 
   const totalCycleTime = useMemo(() => {
     if (operations.length === 0) return 0
@@ -115,6 +172,38 @@ export default function GBOAnalysis() {
     if (calcType === "takt") return Math.max(...operations.map((op) => op.time))
     return 0
   }, [operations, calcType])
+
+  // Ações de login e logout
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setLoginError("")
+    setIsLoading(true)
+
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password })
+
+    if (error) {
+      setLoginError("Credenciais inválidas ou acesso não autorizado.")
+      setIsLoading(false)
+      return
+    }
+
+    // Validação imediata do status da mensalidade
+    const { data: perfil } = await supabase.from("perfis").select("status").eq("id", data.user?.id).single()
+    if (perfil && perfil.status === "inativo") {
+      setLoginError("Sua assinatura está suspensa. Entre em contato com o administrador.")
+      await supabase.auth.signOut()
+      setIsLoading(false)
+      return
+    }
+
+    setUser(data.user)
+    setIsLoading(false)
+  }
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut()
+    setUser(null)
+  }
 
   const addOperation = () => {
     const nameValidation = validateText(newOperationName)
@@ -141,7 +230,7 @@ export default function GBOAnalysis() {
   }
 
   const removeOperation = (id: string) => {
-    const operation = operations.find((op) => op.id === id)
+    const operation = operations.find((op) => op.id !== id)
     setOperations(operations.filter((op) => op.id !== id))
     if (operation) toast({ title: "Operação removida", description: `"${operation.name}" foi removida.` })
   }
@@ -170,16 +259,48 @@ export default function GBOAnalysis() {
     })),
   })
 
-  const commitSaveProduct = (product: ReturnType<typeof buildNewProduct>, existingIndex: number) => {
-    const existingData = localStorage.getItem("gbo_products")
-    let productsArray = existingData ? JSON.parse(existingData) : []
-    if (existingIndex >= 0) productsArray[existingIndex] = product
-    else productsArray.push(product)
-    localStorage.setItem("gbo_products", JSON.stringify(productsArray))
-    window.dispatchEvent(new Event("sync_gbo_products"))
-    loadSavedProducts()
-    setConfirmOverwrite(null)
-    toast({ title: "✅ Produto Salvo", description: "O roteiro foi sincronizado com o PCP Heijunka." })
+  // Sincronização robusta salvando na Nuvem do Supabase
+  const commitSaveProduct = async (product: ReturnType<typeof buildNewProduct>) => {
+    setIsLoading(true)
+    try {
+      const { data: prodData, error: prodError } = await supabase
+        .from("produtos")
+        .upsert({ user_id: user.id, codigo: product.code, descricao: product.description }, { onConflict: "user_id,codigo" })
+        .select()
+        .single()
+
+      if (prodError) throw prodError
+
+      await supabase.from("operacoes").delete().eq("produto_id", prodData.id)
+
+      const opsToInsert = operations.map((op, index) => ({
+        produto_id: prodData.id,
+        ordem: index + 1,
+        nome: op.name,
+        tempo: op.time,
+        unidade: op.unit
+      }))
+
+      const { error: opsError } = await supabase.from("operacoes").insert(opsToInsert)
+      if (opsError) throw opsError
+
+      // Sincroniza localmente para compatibilidade direta com a aba PCP Heijunka
+      const existingData = localStorage.getItem("gbo_products")
+      let productsArray = existingData ? JSON.parse(existingData) : []
+      const existingIndex = productsArray.findIndex((p: any) => p.code === product.code)
+      if (existingIndex >= 0) productsArray[existingIndex] = product
+      else productsArray.push(product)
+      localStorage.setItem("gbo_products", JSON.stringify(productsArray))
+
+      window.dispatchEvent(new Event("sync_gbo_products"))
+      await loadSavedProducts()
+      setConfirmOverwrite(null)
+      toast({ title: "✅ Sincronizado na Nuvem", description: "O roteiro está salvo e disponível no ecossistema Exata." })
+    } catch (err: any) {
+      toast({ title: "Erro ao salvar", description: err.message, variant: "destructive" })
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   const handleSaveProduct = () => {
@@ -192,40 +313,39 @@ export default function GBOAnalysis() {
       return
     }
     const newProduct = buildNewProduct()
-    const existingData = localStorage.getItem("gbo_products")
-    const productsArray = existingData ? JSON.parse(existingData) : []
-    const existingIndex = productsArray.findIndex((p: any) => p.code === newProduct.code)
+    const existingIndex = savedProducts.findIndex((p: any) => p.code === newProduct.code)
     if (existingIndex >= 0) {
-      // Conflito detectado — pede confirmação
       setConfirmOverwrite({ product: newProduct, index: existingIndex })
       return
     }
-    commitSaveProduct(newProduct, -1)
+    commitSaveProduct(newProduct)
   }
 
   const handleLoadProduct = (product: typeof savedProducts[0]) => {
     const ops = product.steps.map((step, i) => ({
       id: Date.now().toString() + i,
       name: step.name,
-      time: step.cycleTime / 60,
-      unit: "minutes" as const,
+      time: timeUnit === "minutes" ? step.cycleTime / 60 : step.cycleTime,
+      unit: timeUnit,
     }))
     setProductCode(product.code)
     setProductName(product.description)
     setOperations(ops)
-    setTimeUnit("minutes")
     setShowProductsPanel(false)
     toast({ title: "✅ Produto Carregado", description: `Roteiro "${product.description}" carregado para edição.` })
   }
 
-  const handleDeleteProduct = (code: string) => {
-    const data = localStorage.getItem("gbo_products")
-    if (!data) return
-    const updated = JSON.parse(data).filter((p: any) => p.code !== code)
-    localStorage.setItem("gbo_products", JSON.stringify(updated))
-    window.dispatchEvent(new Event("sync_gbo_products"))
-    loadSavedProducts()
-    toast({ title: "Produto Removido", description: `O roteiro "${code}" foi excluído.` })
+  const handleDeleteProduct = async (code: string) => {
+    try {
+      await supabase.from("produtos").delete().eq("codigo", code).eq("user_id", user.id)
+      const updated = savedProducts.filter((p: any) => p.code !== code)
+      setSavedProducts(updated)
+      localStorage.setItem("gbo_products", JSON.stringify(updated))
+      window.dispatchEvent(new Event("sync_gbo_products"))
+      toast({ title: "Produto Removido", description: `O roteiro "${code}" foi excluído da nuvem.` })
+    } catch (e: any) {
+      toast({ title: "Erro ao excluir", description: e.message, variant: "destructive" })
+    }
   }
 
   const handleExportExcel = async () => {
@@ -269,7 +389,6 @@ export default function GBOAnalysis() {
   }
 
   const allNavItems = [...NAV_ITEMS, ...NAV_BOTTOM]
-  const activeItem = allNavItems.find((i) => i.id === activeTab)
 
   const NavButton = ({ item, onClick }: { item: typeof allNavItems[0]; onClick: () => void }) => {
     const Icon = item.icon
@@ -294,6 +413,42 @@ export default function GBOAnalysis() {
           </div>
         )}
       </button>
+    )
+  }
+
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground animate-pulse">Carregando Exata...</p>
+      </div>
+    )
+  }
+
+  // TELA DE LOGIN CORPORATIVA DA EXATA
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4">
+        <div className="w-full max-w-sm border border-border/50 bg-card p-8 shadow-2xl rounded-2xl space-y-6">
+          <div className="text-center space-y-1">
+            <h1 className="text-3xl font-black tracking-tighter text-foreground uppercase">Exata</h1>
+            <p className="text-xs text-muted-foreground font-medium">Controle de acesso para contas cadastradas</p>
+          </div>
+          <form onSubmit={handleLogin} className="space-y-4">
+            <div className="space-y-1">
+              <label htmlFor="email" className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider pl-1">E-mail Corporativo</label>
+              <input id="email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} className="w-full h-12 px-4 rounded-xl border border-border bg-input text-foreground text-sm outline-none focus:ring-2 focus:ring-primary transition-all" placeholder="nome@empresa.com" />
+            </div>
+            <div className="space-y-1">
+              <label htmlFor="pass" className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider pl-1">Senha</label>
+              <input id="pass" type="password" required value={password} onChange={(e) => setPassword(e.target.value)} className="w-full h-12 px-4 rounded-xl border border-border bg-input text-foreground text-sm outline-none focus:ring-2 focus:ring-primary transition-all" placeholder="••••••••" />
+            </div>
+            {loginError && <p className="text-xs font-bold text-destructive text-center bg-destructive/10 p-2 rounded-lg">{loginError}</p>}
+            <button type="submit" disabled={isLoading} className="w-full h-12 flex items-center justify-center bg-primary text-primary-foreground font-bold uppercase tracking-widest text-xs rounded-xl shadow-md hover:opacity-90 transition-all">
+              {isLoading ? "Validando Acesso..." : "Entrar no Sistema"}
+            </button>
+          </form>
+        </div>
+      </div>
     )
   }
 
@@ -333,7 +488,7 @@ export default function GBOAnalysis() {
                 Cancelar
               </button>
               <button
-                onClick={() => commitSaveProduct(confirmOverwrite.product, confirmOverwrite.index)}
+                onClick={() => commitSaveProduct(confirmOverwrite.product)}
                 className="flex-1 h-10 rounded-xl bg-primary text-primary-foreground text-sm font-bold hover:opacity-90 transition-colors"
               >
                 Substituir
@@ -353,8 +508,8 @@ export default function GBOAnalysis() {
           <div className={`flex items-center border-b border-border h-[65px] px-3 ${collapsed ? "justify-center" : "justify-between px-4"}`}>
             {!collapsed && (
               <div>
-                <p className="text-sm font-bold text-foreground leading-tight whitespace-nowrap">Gerenciamento</p>
-                <p className="text-sm font-bold text-primary leading-tight whitespace-nowrap">Fácil</p>
+                <p className="text-sm font-black text-foreground tracking-tight leading-tight whitespace-nowrap uppercase">EXATA</p>
+                <p className="text-[10px] font-bold text-primary leading-none tracking-widest uppercase">Cloud</p>
               </div>
             )}
             <button
@@ -373,24 +528,28 @@ export default function GBOAnalysis() {
             ))}
           </nav>
 
-          {/* Nav inferior — Configurações */}
+          {/* Nav inferior — Configurações + Logout */}
           <div className="px-2 py-3 border-t border-border space-y-1">
             {NAV_BOTTOM.map((item) => (
               <NavButton key={item.id} item={item} onClick={() => setActiveTab(item.id)} />
             ))}
+            <button onClick={handleLogout} className={`w-full flex items-center rounded-xl text-destructive hover:bg-destructive/10 transition-all ${collapsed ? "justify-center h-10 w-10 mx-auto" : "gap-3 px-3 py-3"}`} title={collapsed ? "Sair do sistema" : undefined}>
+              <LogOut className="h-[18px] w-[18px] flex-shrink-0" />
+              {!collapsed && <span className="text-xs font-bold leading-tight">Sair do Sistema</span>}
+            </button>
             {!collapsed && (
-              <p className="text-[9px] text-muted-foreground/50 font-medium text-center pt-2 pb-1">v2.1.0</p>
+              <p className="text-[9px] text-muted-foreground/50 font-medium text-center pt-2 pb-1">v3.0.0 Cloud</p>
             )}
           </div>
         </aside>
 
-        {/* ── SIDEBAR MOBILE (drawer) ── */}
+        {/* ── SIDEBAR MOBILE ── */}
         {mobileOpen && <div className="fixed inset-0 z-30 bg-black/40 lg:hidden" onClick={() => setMobileOpen(false)} />}
         <aside className={`fixed inset-y-0 left-0 z-40 w-64 bg-card border-r border-border flex flex-col transition-transform duration-200 ease-in-out lg:hidden print:hidden ${mobileOpen ? "translate-x-0" : "-translate-x-full"}`}>
           <div className="flex items-center justify-between px-5 h-[65px] border-b border-border">
             <div>
-              <p className="text-sm font-bold text-foreground leading-tight">Gerenciamento</p>
-              <p className="text-sm font-bold text-primary leading-tight">Fácil</p>
+              <p className="text-sm font-black text-foreground tracking-tight uppercase">EXATA</p>
+              <p className="text-[10px] font-bold text-primary tracking-widest uppercase">Cloud</p>
             </div>
             <button onClick={() => setMobileOpen(false)} className="h-8 w-8 flex items-center justify-center rounded-lg text-muted-foreground hover:bg-muted transition-colors">
               <X className="h-4 w-4" />
@@ -427,14 +586,18 @@ export default function GBOAnalysis() {
                 </button>
               )
             })}
-            <p className="text-[9px] text-muted-foreground/50 font-medium text-center pt-2">v2.1.0</p>
+            <button onClick={handleLogout} className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left text-destructive hover:bg-destructive/10 transition-all">
+              <LogOut className="h-5 w-5 flex-shrink-0" />
+              <span className="text-sm font-bold">Sair do Sistema</span>
+            </button>
+            <p className="text-[9px] text-muted-foreground/50 font-medium text-center pt-2">v3.0.0 Cloud</p>
           </div>
         </aside>
 
         {/* ── MAIN ── */}
         <div className="flex-1 flex flex-col min-w-0 print:w-full overflow-hidden">
 
-          {/* Mobile: botão hamburguer flutuante no canto */}
+          {/* Mobile hamburger navigation trigger */}
           <div className="lg:hidden flex items-center px-4 pt-4 pb-0 print:hidden">
             <button onClick={() => setMobileOpen(true)} className="h-9 w-9 flex items-center justify-center rounded-xl text-muted-foreground hover:bg-muted transition-colors">
               <Menu className="h-5 w-5" />
@@ -509,7 +672,7 @@ export default function GBOAnalysis() {
                       <button onClick={() => setShowProductsPanel(!showProductsPanel)} className="w-full flex items-center justify-between px-6 py-4 hover:bg-muted/50 transition-colors">
                         <div className="flex items-center gap-2">
                           <BookOpen className="w-4 h-4 text-primary" />
-                          <span className="font-bold text-foreground text-sm">Produtos Salvos</span>
+                          <span className="font-bold text-foreground text-sm">Produtos na Nuvem</span>
                           <span className="text-[10px] bg-primary/10 text-primary font-bold px-2 py-0.5 rounded-full">{savedProducts.length}</span>
                         </div>
                         <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform ${showProductsPanel ? "rotate-180" : ""}`} />
@@ -611,8 +774,8 @@ export default function GBOAnalysis() {
                         <GBOChart operations={operations} timeUnit={timeUnit} taktTime={undefined} taktTimeUnit={undefined} demandUnit="un" />
                       </div>
                       <div className="flex justify-end mt-2 print:hidden">
-                        <Button onClick={handleSaveProduct} className="bg-primary hover:opacity-90 text-primary-foreground font-bold uppercase tracking-widest h-12 px-8 rounded-xl shadow-md transition-all">
-                          <Save className="h-5 w-5 mr-2" /> Salvar Produto e Sincronizar PCP
+                        <Button onClick={handleSaveProduct} disabled={isLoading} className="bg-primary hover:opacity-90 text-primary-foreground font-bold uppercase tracking-widest h-12 px-8 rounded-xl shadow-md transition-all">
+                          <Save className="h-5 w-5 mr-2" /> {isLoading ? "Sincronizando..." : "Salvar e Sincronizar Nuvem"}
                         </Button>
                       </div>
                     </>
@@ -635,18 +798,12 @@ export default function GBOAnalysis() {
             {/* ── CONFIGURAÇÕES ── */}
             {activeTab === "configuracoes" && (
               <div className="space-y-8 pb-12">
-
                 <div>
                   <h2 className="text-lg font-bold text-foreground">Configurações</h2>
                   <p className="text-sm text-muted-foreground mt-0.5">Preferências e personalização do sistema</p>
                 </div>
-
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
-
-                  {/* Coluna esquerda */}
                   <div className="space-y-6">
-
-                    {/* Aparência */}
                     <div className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden">
                       <div className="px-6 py-4 border-b border-border">
                         <h3 className="text-sm font-bold text-foreground">Aparência</h3>
@@ -660,15 +817,8 @@ export default function GBOAnalysis() {
                               { value: "dark", label: "Escuro", description: "Fundo escuro, reduz fadiga visual à noite", icon: Moon },
                               { value: "system", label: "Sistema", description: "Segue automaticamente as configurações do seu dispositivo", icon: Monitor },
                             ].map(({ value, label, description, icon: Icon }) => (
-                              <button
-                                key={value}
-                                onClick={() => setTheme(value)}
-                                className={`w-full flex items-center gap-4 px-4 py-4 rounded-xl border transition-all text-left ${
-                                  theme === value
-                                    ? "border-primary bg-primary/5 shadow-sm"
-                                    : "border-border hover:bg-muted/50"
-                                }`}
-                              >
+                              <button key={value} onClick={() => setTheme(value)}
+                                className={`w-full flex items-center gap-4 px-4 py-4 rounded-xl border transition-all text-left ${theme === value ? "border-primary bg-primary/5 shadow-sm" : "border-border hover:bg-muted/50"}`}>
                                 <div className={`h-9 w-9 flex items-center justify-center rounded-lg flex-shrink-0 ${theme === value ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"}`}>
                                   <Icon className="h-4 w-4" />
                                 </div>
@@ -676,57 +826,25 @@ export default function GBOAnalysis() {
                                   <p className={`text-sm font-bold ${theme === value ? "text-primary" : "text-foreground"}`}>{label}</p>
                                   <p className="text-[11px] text-muted-foreground mt-0.5">{description}</p>
                                 </div>
-                                <div className={`h-4 w-4 rounded-full border-2 flex-shrink-0 transition-all ${theme === value ? "border-primary bg-primary" : "border-muted-foreground/30"}`}>
-                                  {theme === value && <div className="h-full w-full rounded-full bg-primary-foreground scale-50" />}
-                                </div>
                               </button>
                             ))}
                           </>
                         )}
                       </div>
                     </div>
-
-                    {/* Perfil futuro */}
-                    <div className="bg-card border border-border border-dashed rounded-2xl px-6 py-5 flex items-center gap-4 opacity-50">
-                      <div className="h-9 w-9 flex items-center justify-center rounded-lg bg-muted flex-shrink-0">
-                        <Settings className="h-4 w-4 text-muted-foreground" />
-                      </div>
-                      <div>
-                        <p className="text-sm font-bold text-foreground">Perfil de Usuário</p>
-                        <p className="text-[11px] text-muted-foreground mt-0.5">Em breve — nome, empresa e preferências de acesso</p>
-                      </div>
-                    </div>
-
                   </div>
 
-                  {/* Coluna direita — Manual Técnico */}
                   <div className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden">
                     <div className="px-6 py-4 border-b border-border">
                       <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
-                        <BookText className="h-4 w-4 text-primary" /> Manual Técnico
+                        <BookText className="h-4 w-4 text-primary" /> Manual Técnico Cloud
                       </h3>
-                      <p className="text-[11px] text-muted-foreground mt-0.5">Protocolo de execução e instruções de uso</p>
                     </div>
-                    <div className="p-6 space-y-5 text-sm leading-relaxed text-foreground">
-                      <div className="space-y-2">
-                        <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">GBO — Gerenciamento Diário</p>
-                        <p className="text-sm text-foreground/80">O GBO é uma rotina estruturada de acompanhamento e tomada de decisões para monitorar indicadores, identificar desvios e garantir o alcance das metas da organização. Cadastre o produto, adicione as operações com seus tempos de ciclo e salve para sincronizar com o PCP.</p>
-                      </div>
-                      <div className="border-t border-border pt-4 space-y-2">
-                        <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">PCP — Programação de Produção</p>
-                        <p className="text-sm text-foreground/80">O módulo PCP utiliza a lógica Heijunka para nivelar a carga de produção. Após salvar um produto no GBO, crie ordens de produção, configure capacidades por turno e visualize o fluxo programado no quadro de nivelamento.</p>
-                      </div>
-                      <div className="border-t border-border pt-4 space-y-2">
-                        <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Exceções de Capacidade</p>
-                        <p className="text-sm text-foreground/80">Use o Gerenciamento de Exceções no PCP para configurar dias com capacidade diferenciada, como feriados, manutenções programadas ou turnos reduzidos. As exceções ficam listadas e podem ser removidas a qualquer momento.</p>
-                      </div>
-                      <div className="border-t border-border pt-4 space-y-2">
-                        <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Produtos Salvos</p>
-                        <p className="text-sm text-foreground/80">Produtos cadastrados no GBO ficam salvos e acessíveis pelo painel "Produtos Salvos". Use o lápis para carregar um roteiro existente para edição ou a lixeira para excluir. O código do produto é único — salvar com o mesmo código exige confirmação.</p>
-                      </div>
+                    <div className="p-6 space-y-4 text-sm leading-relaxed text-foreground/80">
+                      <p>Sua conta está integrada ao ecossistema centralizado da **Exata**. Toda alteração de roteiro feita no GBO e salva pelo painel é automaticamente armazenada no banco relacional seguro na nuvem.</p>
+                      <p>Isso garante que sua equipe acesse dados sincronizados em tempo real, eliminando perdas por armazenamento puramente local.</p>
                     </div>
                   </div>
-
                 </div>
               </div>
             )}
