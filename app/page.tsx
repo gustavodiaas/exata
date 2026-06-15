@@ -53,7 +53,6 @@ const NAV_BOTTOM: { id: TabId; label: string; sublabel: string; icon: React.Elem
 ]
 
 export default function GBOAnalysis() {
-  // Controle de Autenticação e Sessão Cloud
   const [user, setUser] = useState<any>(null)
   const [authLoading, setAuthLoading] = useState(true)
   const [email, setEmail] = useState("")
@@ -83,7 +82,6 @@ export default function GBOAnalysis() {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const { toast } = useToast()
 
-  // Escuta o estado do usuário logado no Supabase
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null)
@@ -97,7 +95,6 @@ export default function GBOAnalysis() {
     return () => subscription.unsubscribe()
   }, [])
 
-  // Carrega produtos vindos da nuvem (Supabase) ou fallback local
   const loadSavedProducts = async () => {
     if (!supabase) {
       const data = localStorage.getItem("gbo_products")
@@ -138,6 +135,12 @@ export default function GBOAnalysis() {
 
   useEffect(() => {
     setMounted(true)
+    
+    const savedTab = localStorage.getItem("exata_aba_ativa") as TabId
+    if (savedTab && ["gbo", "pcp", "configuracoes"].includes(savedTab)) {
+      setActiveTab(savedTab)
+    }
+
     if (user) {
       const savedSession = localStorage.getItem(`exata_session_${user.id}`)
       if (savedSession) {
@@ -160,6 +163,12 @@ export default function GBOAnalysis() {
   }, [user])
 
   useEffect(() => {
+    if (mounted) {
+      localStorage.setItem("exata_aba_ativa", activeTab)
+    }
+  }, [activeTab, mounted])
+
+  useEffect(() => {
     if (isLoaded && user) {
       localStorage.setItem(`exata_session_${user.id}`, JSON.stringify({ operations, productCode, productName, calcType, timeUnit }))
     }
@@ -173,7 +182,6 @@ export default function GBOAnalysis() {
     return 0
   }, [operations, calcType])
 
-  // Ações de login e logout
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoginError("")
@@ -187,7 +195,6 @@ export default function GBOAnalysis() {
       return
     }
 
-    // Validação imediata do status da mensalidade
     const { data: perfil } = await supabase.from("perfis").select("status").eq("id", data.user?.id).single()
     if (perfil && perfil.status === "inativo") {
       setLoginError("Sua assinatura está suspensa. Entre em contato com o administrador.")
@@ -259,7 +266,6 @@ export default function GBOAnalysis() {
     })),
   })
 
-  // Sincronização robusta salvando na Nuvem do Supabase
   const commitSaveProduct = async (product: ReturnType<typeof buildNewProduct>) => {
     setIsLoading(true)
     try {
@@ -284,7 +290,6 @@ export default function GBOAnalysis() {
       const { error: opsError } = await supabase.from("operacoes").insert(opsToInsert)
       if (opsError) throw opsError
 
-      // Sincroniza localmente para compatibilidade direta com a aba PCP Heijunka
       const existingData = localStorage.getItem("gbo_products")
       let productsArray = existingData ? JSON.parse(existingData) : []
       const existingIndex = productsArray.findIndex((p: any) => p.code === product.code)
@@ -424,7 +429,6 @@ export default function GBOAnalysis() {
     )
   }
 
-  // TELA DE LOGIN CORPORATIVA DA EXATA
   if (!user) {
     return (
       <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4">
@@ -465,7 +469,6 @@ export default function GBOAnalysis() {
         .sidebar-transition { transition: width 200ms cubic-bezier(0.4,0,0.2,1); }
       ` }} />
 
-      {/* Modal de confirmação de sobrescrita */}
       {confirmOverwrite && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
           <div className="bg-card border border-border rounded-2xl shadow-2xl w-full max-w-sm p-6 space-y-4">
@@ -501,10 +504,7 @@ export default function GBOAnalysis() {
       <div className="min-h-screen bg-background flex print:block">
         <input ref={fileInputRef} type="file" accept=".xlsx,.xls" onChange={handleFileChange} className="hidden" />
 
-        {/* ── SIDEBAR DESKTOP ── */}
         <aside className={`hidden lg:flex flex-col flex-shrink-0 bg-card border-r border-border sidebar-transition print:hidden ${collapsed ? "w-[68px]" : "w-60"}`}>
-
-          {/* Logo + toggle */}
           <div className={`flex items-center border-b border-border h-[65px] px-3 ${collapsed ? "justify-center" : "justify-between px-4"}`}>
             {!collapsed && (
               <div>
@@ -521,14 +521,12 @@ export default function GBOAnalysis() {
             </button>
           </div>
 
-          {/* Nav principal */}
           <nav className="flex-1 px-2 py-3 space-y-1">
             {NAV_ITEMS.map((item) => (
               <NavButton key={item.id} item={item} onClick={() => setActiveTab(item.id)} />
             ))}
           </nav>
 
-          {/* Nav inferior — Configurações + Logout */}
           <div className="px-2 py-3 border-t border-border space-y-1">
             {NAV_BOTTOM.map((item) => (
               <NavButton key={item.id} item={item} onClick={() => setActiveTab(item.id)} />
@@ -543,7 +541,6 @@ export default function GBOAnalysis() {
           </div>
         </aside>
 
-        {/* ── SIDEBAR MOBILE ── */}
         {mobileOpen && <div className="fixed inset-0 z-30 bg-black/40 lg:hidden" onClick={() => setMobileOpen(false)} />}
         <aside className={`fixed inset-y-0 left-0 z-40 w-64 bg-card border-r border-border flex flex-col transition-transform duration-200 ease-in-out lg:hidden print:hidden ${mobileOpen ? "translate-x-0" : "-translate-x-full"}`}>
           <div className="flex items-center justify-between px-5 h-[65px] border-b border-border">
@@ -594,24 +591,18 @@ export default function GBOAnalysis() {
           </div>
         </aside>
 
-        {/* ── MAIN ── */}
         <div className="flex-1 flex flex-col min-w-0 print:w-full overflow-hidden">
-
-          {/* Mobile hamburger navigation trigger */}
           <div className="lg:hidden flex items-center px-4 pt-4 pb-0 print:hidden">
             <button onClick={() => setMobileOpen(true)} className="h-9 w-9 flex items-center justify-center rounded-xl text-muted-foreground hover:bg-muted transition-colors">
               <Menu className="h-5 w-5" />
             </button>
           </div>
 
-          {/* Page content */}
           <main className="flex-1 overflow-auto px-4 lg:px-8 py-6 print:p-12">
-
-            {/* ── GBO ── */}
-            {activeTab === "gbo" && (
+            
+            <div className={activeTab === "gbo" ? "block" : "hidden"}>
               <div className="flex flex-col xl:flex-row gap-8 pb-12 print:p-0">
                 <div className="xl:w-[35%] flex flex-col gap-6 print:hidden">
-
                   <div className="bg-card p-6 rounded-2xl shadow-sm border border-border space-y-4">
                     <h3 className="font-bold text-foreground border-b border-border pb-2 flex items-center gap-2">
                       <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
@@ -790,13 +781,13 @@ export default function GBOAnalysis() {
                   )}
                 </div>
               </div>
-            )}
+            </div>
 
-            {/* ── PCP ── */}
-            {activeTab === "pcp" && <PCPTab />}
+            <div className={activeTab === "pcp" ? "block" : "hidden"}>
+              <PCPTab />
+            </div>
 
-            {/* ── CONFIGURAÇÕES ── */}
-            {activeTab === "configuracoes" && (
+            <div className={activeTab === "configuracoes" ? "block" : "hidden"}>
               <div className="space-y-8 pb-12">
                 <div>
                   <h2 className="text-lg font-bold text-foreground">Configurações</h2>
@@ -847,7 +838,7 @@ export default function GBOAnalysis() {
                   </div>
                 </div>
               </div>
-            )}
+            </div>
 
           </main>
         </div>
