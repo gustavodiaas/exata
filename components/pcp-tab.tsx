@@ -71,7 +71,7 @@ export function PCPTab() {
 
       if (!userId) return
 
-      const { data: prodsData } = await supabase.from("produtos").select("*, operacoes(*)")
+      const { data: prodsData } = await supabase.from("produtos").select("*, operacoes(*)").eq("user_id", userId)
       const formattedProducts = (prodsData || []).map((p: any) => ({
         code: p.codigo,
         description: p.descricao,
@@ -83,7 +83,7 @@ export function PCPTab() {
       }))
       setProducts(formattedProducts)
 
-      const { data: opsData } = await supabase.from("ordens_producao").select("*")
+      const { data: opsData } = await supabase.from("ordens_producao").select("*").eq("user_id", userId)
       const formattedOrders = (opsData || []).map((op: any) => ({
         id: op.id,
         opNumber: op.numero_op,
@@ -95,7 +95,7 @@ export function PCPTab() {
       }))
       setOrders(formattedOrders)
 
-      const { data: capData } = await supabase.from("capacidade_diaria").select("*")
+      const { data: capData } = await supabase.from("capacidade_diaria").select("*").eq("user_id", userId)
       const formattedCapacities = (capData || []).map((c: any) => ({
         id: c.id,
         date: c.data_excecao,
@@ -291,7 +291,11 @@ export function PCPTab() {
   }
 
   const handleRemoveCapacity = async (date: string) => {
-    const { error } = await supabase.from("capacidade_diaria").delete().eq("data_excecao", date)
+    const { data: userData } = await supabase.auth.getUser()
+    const userId = userData.user?.id
+    if (!userId) return
+
+    const { error } = await supabase.from("capacidade_diaria").delete().eq("data_excecao", date).eq("user_id", userId)
     if (!error) {
       setCapacities(capacities.filter((c) => c.date !== date))
       toast({ title: "Exceção Removida", description: `Configuração removida com sucesso.` })
