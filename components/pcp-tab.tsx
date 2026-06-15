@@ -9,7 +9,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch"
 import { Plus, Trash2, Calendar, ShieldAlert, TrendingUp, Columns3, CalendarDays, ListOrdered, GripVertical } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
-import { createClient } from "@supabase/supabase-js"
+import { supabase } from "@/components/supabase"
+
+const DEFAULT_SHIFT_CAPACITY_SECONDS = 29880
 
 interface RoutingStep {
   name: string
@@ -41,9 +43,6 @@ interface DailyCapacity {
 }
 
 export function PCPTab() {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL as string
-const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string
-const supabase = createClient(supabaseUrl, supabaseKey)
   const { toast } = useToast()
 
   const [products, setProducts] = useState<Product[]>([])
@@ -105,9 +104,12 @@ const supabase = createClient(supabaseUrl, supabaseKey)
       }))
       setCapacities(formattedCapacities)
 
-    } catch (error) {
+    } catch (error: any) {
       console.error("Erro ao carregar dados do Supabase:", error)
-    } finally {
+      if (error?.status === 401 || error?.message?.includes("JWT")) {
+        toast({ title: "Sessão expirada", description: "Por favor, realize o login novamente para sincronizar.", variant: "destructive" })
+      }
+    } declare {
       setLoading(false)
     }
   }
@@ -144,7 +146,7 @@ const supabase = createClient(supabaseUrl, supabaseKey)
 
     allDates.forEach((date) => {
       const dayCapacityConfig = capacities.find((c) => c.date === date)
-      const globalCap = dayCapacityConfig?.globalCapacity ?? 29880
+      const globalCap = dayCapacityConfig?.globalCapacity ?? DEFAULT_SHIFT_CAPACITY_SECONDS
       const downtime = dayCapacityConfig?.downtime ?? 0
       const realCapacity = Math.max(0, globalCap - downtime)
 
@@ -194,7 +196,7 @@ const supabase = createClient(supabaseUrl, supabaseKey)
     })
 
     const dayCapacityConfig = capacities.find((c) => c.date === opDate)
-    const globalCap = dayCapacityConfig?.globalCapacity ?? 29880
+    const globalCap = dayCapacityConfig?.globalCapacity ?? DEFAULT_SHIFT_CAPACITY_SECONDS
     const downtime = dayCapacityConfig?.downtime ?? 0
     const realCapacity = Math.max(0, globalCap - downtime)
     
@@ -250,7 +252,7 @@ const supabase = createClient(supabaseUrl, supabaseKey)
 
     const currentCapConfig = capacities.find((c) => c.date === selectedDate)
 
-    let capInSeconds = currentCapConfig?.globalCapacity ?? 29880
+    let capInSeconds = currentCapConfig?.globalCapacity ?? DEFAULT_SHIFT_CAPACITY_SECONDS
     if (capacityValue) {
       const val = parseFloat(capacityValue)
       capInSeconds = capacityUnit === "hours" ? val * 3600 : val * 60
@@ -270,7 +272,7 @@ const supabase = createClient(supabaseUrl, supabaseKey)
 
     const { data, error } = await supabase
       .from("capacidade_diaria")
-      .upsert(payload, { onConflict: "user_id, data_excecao" })
+      .upsert(payload, { onConflict: "user_id,data_excecao" })
       .select()
 
     if (!error && data) {
@@ -323,7 +325,7 @@ const supabase = createClient(supabaseUrl, supabaseKey)
 
     const requiredTime = calculateOPTime(opToMove)
     const dayCapacityConfig = capacities.find((c) => c.date === targetDate)
-    const globalCap = dayCapacityConfig?.globalCapacity ?? 29880
+    const globalCap = dayCapacityConfig?.globalCapacity ?? DEFAULT_SHIFT_CAPACITY_SECONDS
     const downtime = dayCapacityConfig?.downtime ?? 0
     const realCapacity = Math.max(0, globalCap - downtime)
     
@@ -461,8 +463,7 @@ const supabase = createClient(supabaseUrl, supabaseKey)
                         <span className={`text-2xl font-bold ${hasOverload ? "text-destructive" : "text-primary"}`}>{overloadedDays} <span className="text-sm font-medium text-muted-foreground">/ {totalDays}</span></span>
                       </div>
                       <div className="p-4 rounded-xl border border-border bg-card flex flex-col gap-1">
-                        <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Carga Total</span>
-                        <span className="text-2xl font-bold text-foreground">{(totalLoad / 3600).toFixed(1)}<span className="text-sm font-medium text-muted-foreground">h</span></span>
+                        <span className="text-xl font-bold text-foreground">{(totalLoad / 3600).toFixed(1)}<span className="text-sm font-medium text-muted-foreground">h</span></span>
                         <span className="text-[10px] text-muted-foreground mt-1">{totalDays} dia{totalDays !== 1 ? "s" : ""}</span>
                       </div>
                     </div>
