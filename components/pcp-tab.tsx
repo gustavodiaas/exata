@@ -77,7 +77,7 @@ export function PCPTab() {
         description: p.descricao,
         steps: (p.operacoes || []).map((op: any) => ({
           name: op.nome,
-          cycleTime: Number(op.tempo),
+          cycleTime: op.unidade === "minutes" ? Number(op.tempo) * 60 : Number(op.tempo),
           setupTime: 0 
         }))
       }))
