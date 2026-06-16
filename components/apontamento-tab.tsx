@@ -64,6 +64,20 @@ function badgeStatus(pct: number) {
   return { label: "Iniciada", classes: "bg-amber-500/10 text-amber-600 border border-amber-500/20" }
 }
 
+function formatTimeMask(value: string): string {
+  let v = value.replace(/\D/g, "")
+  if (v.length > 4) v = v.slice(0, 4)
+  if (v.length >= 3) return `${v.slice(0, 2)}:${v.slice(2)}`
+  return v
+}
+
+function isValidTime(value: string): boolean {
+  if (!value) return true
+  if (value.length !== 5) return false
+  const [h, m] = value.split(":").map(Number)
+  return h >= 0 && h <= 23 && m >= 0 && m <= 59
+}
+
 // ─── Componente principal ─────────────────────────────────────────────────────
 
 export function ApontamentoTab() {
@@ -163,9 +177,21 @@ export function ApontamentoTab() {
 
   // ─── Salvar apontamento ──────────────────────────────────────────────────────
 
+  const handleTimeBlur = (value: string, setter: (val: string) => void) => {
+    if (value && !isValidTime(value)) {
+      setter("")
+      toast({ title: "Horário inválido", description: "Use o formato correto (00:00 a 23:59).", variant: "destructive" })
+    }
+  }
+
   const handleSalvar = async () => {
     if (!ordemSelecionada || !dataApontamento || !horaInicio || !horaFim || !pecasProduzidas) {
       toast({ title: "Campos obrigatórios", description: "Preencha OP, data, horários e peças produzidas.", variant: "destructive" })
+      return
+    }
+
+    if (!isValidTime(horaInicio) || !isValidTime(horaFim)) {
+      toast({ title: "Horário inválido", description: "Verifique se os horários de início e fim estão corretos.", variant: "destructive" })
       return
     }
 
@@ -343,15 +369,31 @@ export function ApontamentoTab() {
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">Início</Label>
-                <Input type="time" value={horaInicio} onChange={(e) => setHoraInicio(e.target.value)} className="bg-input border-border h-10 text-sm" />
+                <Input 
+                  type="text" 
+                  placeholder="00:00" 
+                  maxLength={5}
+                  value={horaInicio} 
+                  onChange={(e) => setHoraInicio(formatTimeMask(e.target.value))} 
+                  onBlur={(e) => handleTimeBlur(e.target.value, setHoraInicio)}
+                  className="bg-input border-border h-10 text-sm font-medium" 
+                />
               </div>
               <div className="space-y-1.5">
                 <Label className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">Fim</Label>
-                <Input type="time" value={horaFim} onChange={(e) => setHoraFim(e.target.value)} className="bg-input border-border h-10 text-sm" />
+                <Input 
+                  type="text" 
+                  placeholder="00:00" 
+                  maxLength={5}
+                  value={horaFim} 
+                  onChange={(e) => setHoraFim(formatTimeMask(e.target.value))} 
+                  onBlur={(e) => handleTimeBlur(e.target.value, setHoraFim)}
+                  className="bg-input border-border h-10 text-sm font-medium" 
+                />
               </div>
             </div>
 
-            {horaInicio && horaFim && calcularTempoDecorrido(horaInicio, horaFim) > 0 && (
+            {horaInicio.length === 5 && horaFim.length === 5 && calcularTempoDecorrido(horaInicio, horaFim) > 0 && (
               <div className="flex items-center gap-2 px-3 py-2 bg-primary/5 border border-primary/20 rounded-lg">
                 <Clock className="h-3.5 w-3.5 text-primary flex-shrink-0" />
                 <span className="text-xs text-primary font-bold">
