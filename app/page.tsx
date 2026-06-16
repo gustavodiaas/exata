@@ -47,7 +47,7 @@ type CalcType = "takt" | "media" | "soma"
 
 const NAV_ITEMS: { id: TabId; label: string; sublabel: string; icon: React.ElementType }[] = [
   { id: "dashboard", label: "Dashboard", sublabel: "Visão geral da fábrica", icon: LayoutDashboard },
-  { id: "gbo", label: "GBO", sublabel: "Gerenciamento Diário", icon: BarChart2 },
+  { id: "gbo", label: "Produto/Roteiro", sublabel: "Gerenciamento Diário", icon: BarChart2 },
   { id: "pcp", label: "PCP", sublabel: "Programação de Produção", icon: CalendarClock },
   { id: "apontamento", label: "Apontamento", sublabel: "Registro de Produção", icon: ClipboardCheck },
 ]
@@ -483,7 +483,6 @@ export default function GBOAnalysis() {
             {!collapsed && (
               <div>
                 <p className="text-sm font-black text-foreground tracking-tight leading-tight whitespace-nowrap uppercase">EXATA</p>
-                <p className="text-[10px] font-bold text-primary leading-none tracking-widest uppercase">Cloud</p>
               </div>
             )}
             <button
