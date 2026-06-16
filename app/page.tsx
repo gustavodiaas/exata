@@ -149,6 +149,18 @@ export default function GBOAnalysis() {
 
       if (error) throw error
 
+      if (prods && prods.length === 0) {
+        const dadosLocais = localStorage.getItem("gbo_products")
+        if (dadosLocais) {
+          const produtosLocais = JSON.parse(dadosLocais)
+          if (produtosLocais.length > 0) {
+            setSavedProducts(produtosLocais)
+            toast({ title: "Migração Pendente", description: "Encontramos seus roteiros antigos. Carregue um por um e salve para jogar na nuvem de forma oficial." })
+            return
+          }
+        }
+      }
+
       if (prods) {
         const formatted = prods.map((p: any) => ({
           code: p.codigo,
