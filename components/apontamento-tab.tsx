@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast"
 import { supabase } from "@/components/supabase"
 import { Plus, Trash2, ClipboardList, TrendingUp, AlertTriangle, CheckCircle2, Clock, Package } from "lucide-react"
+import { DatePicker } from "@/components/date-picker"
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -336,7 +337,7 @@ export function ApontamentoTab() {
 
             <div className="space-y-1.5">
               <Label className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">Data do Apontamento</Label>
-              <Input type="date" value={dataApontamento} onChange={(e) => setDataApontamento(e.target.value)} className="bg-input border-border h-10 text-sm" />
+              <DatePicker value={dataApontamento} onChange={setDataApontamento} />
             </div>
 
             <div className="grid grid-cols-2 gap-3">
