@@ -10,13 +10,14 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 
 import { GBOChart } from "@/components/gbo-chart"
 import { PCPTab } from "@/components/pcp-tab"
+import { ApontamentoTab } from "@/components/apontamento-tab"
 import { useTheme } from "next-themes"
 import { supabase } from "@/components/supabase"
 import {
   Plus, Download, Upload, FileSpreadsheet, CheckCircle2,
   FileImage, ChevronDown, BarChart2, CalendarClock, Save, BookOpen,
   Pencil, Trash2, Menu, X, PanelLeftClose, PanelLeftOpen,
-  Settings, Sun, Moon, Monitor, BookText, LogOut
+  Settings, Sun, Moon, Monitor, BookText, LogOut, ClipboardCheck
 } from "lucide-react"
 
 interface Operation {
@@ -40,12 +41,13 @@ const validateText = (value: string): { isValid: boolean; error?: string } => {
   return { isValid: true }
 }
 
-type TabId = "gbo" | "pcp" | "configuracoes"
+type TabId = "gbo" | "pcp" | "apontamento" | "configuracoes"
 type CalcType = "takt" | "media" | "soma"
 
 const NAV_ITEMS: { id: TabId; label: string; sublabel: string; icon: React.ElementType }[] = [
   { id: "gbo", label: "GBO", sublabel: "Gerenciamento Diário", icon: BarChart2 },
   { id: "pcp", label: "PCP", sublabel: "Programação de Produção", icon: CalendarClock },
+  { id: "apontamento", label: "Apontamento", sublabel: "Registro de Produção", icon: ClipboardCheck },
 ]
 
 const NAV_BOTTOM: { id: TabId; label: string; sublabel: string; icon: React.ElementType }[] = [
@@ -132,7 +134,7 @@ export default function GBOAnalysis() {
     setMounted(true)
     
     const savedTab = localStorage.getItem("exata_aba_ativa") as TabId
-    if (savedTab && ["gbo", "pcp", "configuracoes"].includes(savedTab)) {
+    if (savedTab && ["gbo", "pcp", "apontamento", "configuracoes"].includes(savedTab)) {
       setActiveTab(savedTab)
     }
 
@@ -802,6 +804,12 @@ export default function GBOAnalysis() {
             {activeTab === "pcp" && (
               <div className="animate-in fade-in duration-300">
                 <PCPTab />
+              </div>
+            )}
+
+            {activeTab === "apontamento" && (
+              <div className="animate-in fade-in duration-300">
+                <ApontamentoTab />
               </div>
             )}
 
