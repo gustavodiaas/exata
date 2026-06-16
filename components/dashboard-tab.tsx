@@ -8,7 +8,8 @@ import {
 import { supabase } from "@/components/supabase"
 import {
   TrendingUp, TrendingDown, Package, AlertTriangle,
-  CheckCircle2, Clock, ChevronDown, RefreshCw, BarChart2
+  CheckCircle2, Clock, ChevronDown, RefreshCw, BarChart2,
+  Bell, X
 } from "lucide-react"
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
@@ -111,6 +112,7 @@ export function DashboardTab() {
   const [showPeriodMenu, setShowPeriodMenu] = useState(false)
   const [customStart, setCustomStart] = useState("")
   const [customEnd, setCustomEnd] = useState("")
+  const [dismissedAlerts, setDismissedAlerts] = useState<Set<string>>(new Set())
 
   // ─── Datas do período ─────────────────────────────────────────────────────
 
@@ -219,6 +221,70 @@ export function DashboardTab() {
 
     return { totalOPs, opsConcluidas, opsAtrasadas, totalProduzidas, totalRefugo, totalRetrabalho, taxaRefugo, ocupacaoMedia }
   }, [ordensFiltradas, apontamentosFiltrados, apontamentos, capacidades])
+
+
+  // ─── Alertas automáticos ─────────────────────────────────────────────────
+
+  const alertas = useMemo(() => {
+    const todayStr = toStr(new Date())
+    const lista: { id: string; tipo: "critico" | "atencao"; titulo: string; descricao: string }[] = []
+
+    // OPs atrasadas
+    if (kpis.opsAtrasadas.length > 0) {
+      lista.push({
+        id: "ops-atrasadas",
+        tipo: "critico",
+        titulo: `${kpis.opsAtrasadas.length} OP${kpis.opsAtrasadas.length > 1 ? "s" : ""} com prazo vencido`,
+        descricao: kpis.opsAtrasadas.slice(0, 3).map(op => op.opNumber).join(", ") + (kpis.opsAtrasadas.length > 3 ? ` e mais ${kpis.opsAtrasadas.length - 3}` : ""),
+      })
+    }
+
+    // Taxa de refugo acima de 5%
+    if (kpis.taxaRefugo > 5) {
+      lista.push({
+        id: "refugo-alto",
+        tipo: "critico",
+        titulo: `Taxa de refugo em ${kpis.taxaRefugo.toFixed(1)}%`,
+        descricao: "Acima do limite recomendado de 5%. Verifique os produtos com maior perda no gráfico abaixo.",
+      })
+    } else if (kpis.taxaRefugo > 2) {
+      lista.push({
+        id: "refugo-medio",
+        tipo: "atencao",
+        titulo: `Taxa de refugo em ${kpis.taxaRefugo.toFixed(1)}%`,
+        descricao: "Monitorar. Acima de 5% entra em zona crítica.",
+      })
+    }
+
+    // Dias sobrecarregados na semana atual
+    const monday = getMondayOfWeek()
+    const weekDays = Array.from({ length: 5 }, (_, i) => addDays(monday, i))
+    const diasSobrecarregados = weekDays.filter(date => {
+      const cap = capacidades.find(c => c.date === date)
+      const real = Math.max(0, (cap?.globalCapacity ?? DEFAULT_SHIFT_CAPACITY_SECONDS) - (cap?.downtime ?? 0))
+      const opsNoDia = ordens.filter(o => o.date === date)
+      const carga = opsNoDia.length * (real / Math.max(1, opsNoDia.length))
+      return opsNoDia.length > 0 && real > 0
+    })
+
+    const opsHoje = ordens.filter(o => o.date === todayStr)
+    if (opsHoje.length > 0) {
+      const naoIniciadas = opsHoje.filter(op => {
+        const total = apontamentos.filter(a => a.ordemId === op.id).reduce((s, a) => s + a.pecasProduzidas, 0)
+        return total === 0
+      })
+      if (naoIniciadas.length > 0) {
+        lista.push({
+          id: "ops-hoje-nao-iniciadas",
+          tipo: "atencao",
+          titulo: `${naoIniciadas.length} OP${naoIniciadas.length > 1 ? "s" : ""} programada${naoIniciadas.length > 1 ? "s" : ""} para hoje sem apontamento`,
+          descricao: naoIniciadas.slice(0, 3).map(op => op.opNumber).join(", ") + (naoIniciadas.length > 3 ? ` e mais ${naoIniciadas.length - 3}` : ""),
+        })
+      }
+    }
+
+    return lista.filter(a => !dismissedAlerts.has(a.id))
+  }, [kpis, ordens, apontamentos, capacidades, dismissedAlerts])
 
   // ─── Gráfico 1: Planejado x Realizado por OP ─────────────────────────────
 
@@ -377,6 +443,34 @@ export function DashboardTab() {
 
       {temDados && (
         <>
+          {/* Painel de Alertas */}
+          {alertas.length > 0 && (
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 mb-1">
+                <Bell className="h-3.5 w-3.5 text-destructive" />
+                <span className="text-xs font-bold uppercase tracking-widest text-destructive">Alertas do sistema</span>
+                <span className="text-[10px] font-bold px-2 py-0.5 bg-destructive/10 text-destructive rounded-full">{alertas.length}</span>
+              </div>
+              {alertas.map(alerta => (
+                <div key={alerta.id} className={`flex items-start gap-3 p-4 rounded-2xl border ${alerta.tipo === "critico" ? "bg-destructive/5 border-destructive/30" : "bg-amber-500/5 border-amber-500/30"}`}>
+                  <div className={`h-8 w-8 rounded-xl flex items-center justify-center flex-shrink-0 ${alerta.tipo === "critico" ? "bg-destructive/15" : "bg-amber-500/15"}`}>
+                    <AlertTriangle className={`h-4 w-4 ${alerta.tipo === "critico" ? "text-destructive" : "text-amber-500"}`} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className={`text-sm font-bold ${alerta.tipo === "critico" ? "text-destructive" : "text-amber-600"}`}>{alerta.titulo}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">{alerta.descricao}</p>
+                  </div>
+                  <button
+                    onClick={() => setDismissedAlerts(prev => new Set([...prev, alerta.id]))}
+                    className="h-6 w-6 flex items-center justify-center rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors flex-shrink-0 mt-0.5"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
           {/* KPIs */}
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
             {[
