@@ -9,17 +9,19 @@ import { PCPTab } from "@/components/pcp-tab"
 import { ApontamentoTab } from "@/components/apontamento-tab"
 import { DashboardTab } from "@/components/dashboard-tab"
 import { MaquinasTab } from "@/components/maquinas-tab"
+import { ManutencaoTab } from "@/components/manutencao-tab"
 import {
-  Settings, Sun, Moon, Monitor, BookText, LogOut, ClipboardCheck, LayoutDashboard, User, BarChart2, CalendarClock, Menu, X, PanelLeftClose, PanelLeftOpen, Factory
+  Settings, Sun, Moon, Monitor, BookText, LogOut, ClipboardCheck, LayoutDashboard, User, BarChart2, CalendarClock, Menu, X, PanelLeftClose, PanelLeftOpen, Factory, Wrench
 } from "lucide-react"
 
-type TabId = "dashboard" | "gbo" | "pcp" | "apontamento" | "maquinas" | "configuracoes"
+type TabId = "dashboard" | "gbo" | "pcp" | "apontamento" | "maquinas" | "manutencao" | "configuracoes"
 
 const NAV_ITEMS: { id: TabId; label: string; sublabel: string; icon: React.ElementType }[] = [
   { id: "dashboard", label: "Dashboard", sublabel: "Visão geral da fábrica", icon: LayoutDashboard },
   { id: "gbo", label: "Produto/Roteiro", sublabel: "Gerenciamento Diário", icon: BarChart2 },
   { id: "pcp", label: "PCP", sublabel: "Programação de Produção", icon: CalendarClock },
   { id: "maquinas", label: "Máquinas", sublabel: "Postos de Trabalho", icon: Factory },
+  { id: "manutencao", label: "Manutenção", sublabel: "Gestão de Ativos", icon: Wrench },
   { id: "apontamento", label: "Apontamento", sublabel: "Registro de Produção", icon: ClipboardCheck },
 ]
 
@@ -87,7 +89,7 @@ export default function ExataApp() {
   useEffect(() => {
     setMounted(true)
     const savedTab = localStorage.getItem("exata_aba_ativa") as TabId
-    if (savedTab && ["dashboard", "gbo", "pcp", "apontamento", "maquinas", "configuracoes"].includes(savedTab)) {
+    if (savedTab && ["dashboard", "gbo", "pcp", "apontamento", "maquinas", "manutencao", "configuracoes"].includes(savedTab)) {
       setActiveTab(savedTab)
     }
   }, [])
@@ -354,6 +356,12 @@ export default function ExataApp() {
             {activeTab === "maquinas" && (
               <div className="animate-in fade-in duration-300">
                 <MaquinasTab user={user} />
+              </div>
+            )}
+            
+            {activeTab === "manutencao" && (
+              <div className="animate-in fade-in duration-300">
+                <ManutencaoTab user={user} />
               </div>
             )}
 
