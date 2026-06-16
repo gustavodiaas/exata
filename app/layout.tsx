@@ -7,8 +7,8 @@ import { Toaster } from "@/components/ui/toaster"
 import { ThemeProvider } from "next-themes"
 
 export const metadata: Metadata = {
-  title: "Exata | GBO & PCP",
-  description: "Plataforma de análise de GBO e PCP com nivelamento de carga e sincronização em nuvem.",
+  title: "Exata | Gerenciamento & PCP",
+  description: "Plataforma de análise de Gerenciamento e PCP com nivelamento de carga e sincronização em nuvem.",
 }
 
 export default function RootLayout({
