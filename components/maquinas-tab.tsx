@@ -1,0 +1,268 @@
+"use client"
+
+import React, { useState, useEffect } from "react"
+import { supabase } from "@/components/supabase"
+import { useToast } from "@/hooks/use-toast"
+import { Plus, Trash2, Settings, Power, Wrench, Ban, Activity, Factory } from "lucide-react"
+
+interface Maquina {
+  id: string
+  codigo: string
+  nome: string
+  setor: string
+  capacidade_diaria: number
+  tempo_setup_padrao: number
+  status: "ativa" | "parada" | "manutencao" | "inativa"
+  observacao: string
+}
+
+export function MaquinasTab({ user }: { user: any }) {
+  const { toast } = useToast()
+  const [maquinas, setMaquinas] = useState<Maquina[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [isSaving, setIsSaving] = useState(false)
+
+  // Form states
+  const [codigo, setCodigo] = useState("")
+  const [nome, setNome] = useState("")
+  const [setor, setSetor] = useState("")
+  const [capacidade, setCapacidade] = useState("")
+  const [setup, setSetup] = useState("")
+  const [status, setStatus] = useState<Maquina["status"]>("ativa")
+  const [observacao, setObservacao] = useState("")
+
+  useEffect(() => {
+    if (user) {
+      loadMaquinas()
+    }
+  }, [user])
+
+  const loadMaquinas = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("maquinas")
+        .select("*")
+        .order("created_at", { ascending: false })
+
+      if (error) throw error
+      if (data) setMaquinas(data as Maquina[])
+    } catch (e: any) {
+      toast({ title: "Erro de conexão", description: "Não foi possível carregar o parque fabril.", variant: "destructive" })
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const handleSalvar = async () => {
+    if (!codigo.trim() || !nome.trim()) {
+      toast({ title: "Dados incompletos", description: "Código e Nome são obrigatórios.", variant: "destructive" })
+      return
+    }
+
+    setIsSaving(true)
+    try {
+      const payload = {
+        user_id: user.id,
+        codigo: codigo.trim(),
+        nome: nome.trim(),
+        setor: setor.trim(),
+        capacidade_diaria: parseFloat(capacidade) || 0,
+        tempo_setup_padrao: parseFloat(setup) || 0,
+        status,
+        observacao: observacao.trim()
+      }
+
+      const { data, error } = await supabase
+        .from("maquinas")
+        .insert([payload])
+        .select()
+        .single()
+
+      if (error) throw error
+
+      setMaquinas([data as Maquina, ...maquinas])
+      
+      // Reset form
+      setCodigo("")
+      setNome("")
+      setSetor("")
+      setCapacidade("")
+      setSetup("")
+      setStatus("ativa")
+      setObservacao("")
+
+      toast({ title: "✅ Máquina Cadastrada", description: "O recurso foi adicionado ao parque fabril." })
+    } catch (e: any) {
+      toast({ title: "Erro ao salvar", description: e.message, variant: "destructive" })
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  const handleExcluir = async (id: string) => {
+    try {
+      const { error } = await supabase.from("maquinas").delete().eq("id", id)
+      if (error) throw error
+      
+      setMaquinas(maquinas.filter(m => m.id !== id))
+      toast({ title: "Máquina removida", description: "O recurso foi excluído do sistema." })
+    } catch (e: any) {
+      toast({ title: "Erro ao excluir", description: "Não foi possível remover a máquina.", variant: "destructive" })
+    }
+  }
+
+  const getStatusConfig = (status: string) => {
+    switch (status) {
+      case "ativa": return { icon: Power, color: "text-green-500", bg: "bg-green-500/10", label: "Ativa" }
+      case "manutencao": return { icon: Wrench, color: "text-amber-500", bg: "bg-amber-500/10", label: "Manutenção" }
+      case "parada": return { icon: Ban, color: "text-destructive", bg: "bg-destructive/10", label: "Parada" }
+      case "inativa": return { icon: Settings, color: "text-muted-foreground", bg: "bg-muted", label: "Inativa" }
+      default: return { icon: Power, color: "text-primary", bg: "bg-primary/10", label: "Desconhecido" }
+    }
+  }
+
+  return (
+    <div className="flex flex-col xl:flex-row gap-8 pb-12">
+      
+      {/* Coluna Esquerda - Formulário */}
+      <div className="xl:w-[35%] flex flex-col gap-6">
+        <div className="bg-card p-6 rounded-2xl shadow-sm border border-border space-y-5">
+          <div className="border-b border-border pb-3">
+            <h3 className="font-bold text-foreground flex items-center gap-2">
+              <Factory className="h-4 w-4 text-primary" />
+              Novo Posto de Trabalho
+            </h3>
+            <p className="text-[11px] text-muted-foreground mt-1">Cadastre recursos produtivos para o PCP</p>
+          </div>
+
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest pl-1">Código</label>
+                <input type="text" placeholder="Ex: MAQ-01" value={codigo} onChange={(e) => setCodigo(e.target.value)} className="w-full h-11 px-4 rounded-xl border border-border bg-input text-foreground text-sm outline-none focus:ring-2 focus:ring-primary transition-all" />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest pl-1">Nome/Modelo</label>
+                <input type="text" placeholder="Ex: Torno CNC" value={nome} onChange={(e) => setNome(e.target.value)} className="w-full h-11 px-4 rounded-xl border border-border bg-input text-foreground text-sm outline-none focus:ring-2 focus:ring-primary transition-all" />
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest pl-1">Setor / Área</label>
+              <input type="text" placeholder="Ex: Usinagem Pesada" value={setor} onChange={(e) => setSetor(e.target.value)} className="w-full h-11 px-4 rounded-xl border border-border bg-input text-foreground text-sm outline-none focus:ring-2 focus:ring-primary transition-all" />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest pl-1">Capacidade (Horas/Dia)</label>
+                <input type="number" min="0" step="0.5" placeholder="Ex: 8.5" value={capacidade} onChange={(e) => setCapacidade(e.target.value)} className="w-full h-11 px-4 rounded-xl border border-border bg-input text-foreground text-sm outline-none focus:ring-2 focus:ring-primary transition-all" />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest pl-1">Setup Padrão (Min)</label>
+                <input type="number" min="0" placeholder="Ex: 45" value={setup} onChange={(e) => setSetup(e.target.value)} className="w-full h-11 px-4 rounded-xl border border-border bg-input text-foreground text-sm outline-none focus:ring-2 focus:ring-primary transition-all" />
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest pl-1">Status Operacional</label>
+              <select value={status} onChange={(e: any) => setStatus(e.target.value)} className="w-full h-11 px-3 rounded-xl border border-border bg-input text-foreground text-sm outline-none focus:ring-2 focus:ring-primary transition-all cursor-pointer">
+                <option value="ativa">🟢 Ativa e Operando</option>
+                <option value="manutencao">🟠 Em Manutenção</option>
+                <option value="parada">🔴 Parada (Falta O.P/Operador)</option>
+                <option value="inativa">⚪ Inativa / Desativada</option>
+              </select>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest pl-1">Observações Técnicas</label>
+              <input type="text" placeholder="Restrições ou detalhes da máquina" value={observacao} onChange={(e) => setObservacao(e.target.value)} className="w-full h-11 px-4 rounded-xl border border-border bg-input text-foreground text-sm outline-none focus:ring-2 focus:ring-primary transition-all" />
+            </div>
+
+            <button 
+              onClick={handleSalvar} 
+              disabled={isSaving}
+              className="w-full h-12 flex items-center justify-center bg-primary text-primary-foreground font-bold uppercase tracking-widest text-xs rounded-xl shadow-md hover:opacity-90 transition-all disabled:opacity-50 mt-2"
+            >
+              <Plus className="h-4 w-4 mr-2" /> {isSaving ? "Registrando..." : "Cadastrar Máquina"}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Coluna Direita - Parque Fabril */}
+      <div className="xl:w-[65%] flex flex-col">
+        <div className="bg-card rounded-3xl shadow-sm border border-border p-6 min-h-[500px]">
+          <div className="flex items-center justify-between border-b border-border pb-4 mb-4">
+            <div>
+              <h3 className="text-lg font-bold text-foreground flex items-center gap-2">
+                <Activity className="h-5 w-5 text-primary" /> Parque Fabril
+              </h3>
+              <p className="text-sm text-muted-foreground mt-1">Visão geral dos recursos produtivos cadastrados</p>
+            </div>
+            <div className="text-right">
+              <p className="text-2xl font-black text-foreground">{maquinas.length}</p>
+              <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest">Máquinas</p>
+            </div>
+          </div>
+
+          {isLoading ? (
+            <div className="flex h-40 items-center justify-center text-muted-foreground text-xs font-bold uppercase tracking-widest animate-pulse">
+              Carregando parque fabril...
+            </div>
+          ) : maquinas.length === 0 ? (
+            <div className="h-full flex flex-col items-center justify-center opacity-50 py-12">
+              <Factory className="h-12 w-12 text-muted-foreground mb-4" />
+              <p className="text-sm font-bold text-foreground">Nenhuma máquina cadastrada</p>
+              <p className="text-xs text-muted-foreground mt-1">Use o painel lateral para registrar seu primeiro recurso.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {maquinas.map((maq) => {
+                const config = getStatusConfig(maq.status)
+                const StatusIcon = config.icon
+                return (
+                  <div key={maq.id} className="border border-border rounded-2xl p-4 flex flex-col gap-3 hover:border-primary/50 transition-colors bg-background">
+                    <div className="flex items-start justify-between">
+                      <div className="min-w-0 pr-3">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="text-sm font-black text-foreground truncate">{maq.nome}</span>
+                        </div>
+                        <span className="text-[10px] font-bold px-2 py-0.5 bg-muted text-muted-foreground rounded-md">{maq.codigo}</span>
+                      </div>
+                      <div className={`h-8 w-8 flex-shrink-0 rounded-lg flex items-center justify-center ${config.bg}`}>
+                        <StatusIcon className={`h-4 w-4 ${config.color}`} />
+                      </div>
+                    </div>
+                    
+                    <div className="grid grid-cols-2 gap-2 text-xs border-t border-border pt-3 mt-1">
+                      <div>
+                        <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider mb-0.5">Capacidade</p>
+                        <p className="font-medium text-foreground">{maq.capacidade_diaria} h/dia</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider mb-0.5">Setup</p>
+                        <p className="font-medium text-foreground">{maq.tempo_setup_padrao} min</p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between pt-2">
+                      <span className="text-[11px] text-muted-foreground truncate">{maq.setor || "Sem setor definido"}</span>
+                      <button 
+                        onClick={() => handleExcluir(maq.id)}
+                        className="h-7 w-7 flex items-center justify-center rounded-lg text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors"
+                        title="Remover máquina"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+
+    </div>
+  )
+}
