@@ -188,12 +188,12 @@ export function DashboardTab() {
   const producaoPorMaquina = useMemo(() => {
     const map: Record<string, number> = {}
     apontamentosFiltrados.forEach(a => {
-      const maq = machines.find(m => m.id === a.maquina_id)
+      const maq = maquinas.find(m => m.id === a.maquina_id) // Corrigido aqui: de 'machines' para 'maquinas'
       const nome = maq ? maq.nome : "Manual / Sem Máquina"
       map[nome] = (map[nome] || 0) + a.pecasProduzidas
     })
     return Object.entries(map).map(([nome, qtd]) => ({ nome, qtd })).sort((a,b) => b.qtd - a.qtd)
-  }, [apontamentosFiltrados, machines])
+  }, [apontamentosFiltrados, maquinas]) // Corrigido aqui: de 'machines' para 'maquinas'
 
   const alertas = useMemo(() => {
     const lista: { id: string; tipo: "critico" | "atencao"; titulo: string; descricao: string }[] = []
