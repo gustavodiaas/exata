@@ -63,6 +63,9 @@ export default function GBOAnalysis() {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [loginError, setLoginError] = useState("")
+  
+  const [newPassword, setNewPassword] = useState("")
+  const [isUpdatingPassword, setIsUpdatingPassword] = useState(false)
 
   const [activeTab, setActiveTab] = useState<TabId>("gbo")
   const [collapsed, setCollapsed] = useState(false)
@@ -205,6 +208,23 @@ export default function GBOAnalysis() {
   const handleLogout = async () => {
     await supabase.auth.signOut()
     setUser(null)
+  }
+
+  const handleUpdatePassword = async () => {
+    if (newPassword.length < 6) {
+      toast({ title: "Senha fraca", description: "Use pelo menos 6 caracteres.", variant: "destructive" })
+      return
+    }
+    setIsUpdatingPassword(true)
+    const { error } = await supabase.auth.updateUser({ password: newPassword })
+    
+    if (error) {
+      toast({ title: "Erro", description: "Não foi possível salvar a senha.", variant: "destructive" })
+    } else {
+      toast({ title: "✅ Acesso Protegido", description: "Sua senha pessoal foi cadastrada com sucesso." })
+      setNewPassword("")
+    }
+    setIsUpdatingPassword(false)
   }
 
   const addOperation = () => {
@@ -838,6 +858,33 @@ export default function GBOAnalysis() {
 
                   {/* Coluna esquerda */}
                   <div className="space-y-6">
+
+                    {/* Segurança de Acesso */}
+                    <div className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden">
+                      <div className="px-6 py-4 border-b border-border">
+                        <h3 className="text-sm font-bold text-foreground">Segurança de Acesso</h3>
+                        <p className="text-[11px] text-muted-foreground mt-0.5">Defina ou altere sua senha de entrada no sistema</p>
+                      </div>
+                      <div className="p-6 space-y-4">
+                        <div className="space-y-1.5">
+                          <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest pl-1">Nova Senha</label>
+                          <input 
+                            type="password" 
+                            placeholder="Mínimo de 6 caracteres" 
+                            value={newPassword}
+                            onChange={(e) => setNewPassword(e.target.value)}
+                            className="w-full h-10 px-4 rounded-xl border border-border bg-input text-foreground text-sm outline-none focus:ring-2 focus:ring-primary transition-all" 
+                          />
+                        </div>
+                        <button 
+                          onClick={handleUpdatePassword} 
+                          disabled={isUpdatingPassword || newPassword.length < 6}
+                          className="w-full h-10 flex items-center justify-center bg-primary text-primary-foreground font-bold uppercase tracking-widest text-[10px] rounded-xl shadow-md hover:opacity-90 transition-all disabled:opacity-50"
+                        >
+                          {isUpdatingPassword ? "Salvando..." : "Gravar Nova Senha"}
+                        </button>
+                      </div>
+                    </div>
 
                     {/* Aparência */}
                     <div className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden">
