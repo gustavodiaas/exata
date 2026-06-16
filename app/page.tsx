@@ -525,6 +525,15 @@ export default function GBOAnalysis() {
           }
         }
         .sidebar-transition { transition: width 200ms cubic-bezier(0.4,0,0.2,1); }
+        
+        input::-webkit-outer-spin-button,
+        input::-webkit-inner-spin-button {
+          -webkit-appearance: none;
+          margin: 0;
+        }
+        input[type=number] {
+          -moz-appearance: textfield;
+        }
       ` }} />
 
       {confirmOverwrite && (
@@ -795,7 +804,7 @@ export default function GBOAnalysis() {
                         </div>
                       )}
                     </div>
-                  )}
+                  </div>
 
                   <div className="bg-card p-6 rounded-2xl shadow-sm border border-border space-y-4">
                     <div className="flex items-center justify-between border-b border-border pb-2">
@@ -1025,7 +1034,7 @@ export default function GBOAnalysis() {
                       <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
                         <BookText className="h-4 w-4 text-primary" /> Manual Técnico
                       </h3>
-                      <p className="text-[11px] text-muted-foreground mt-0.5">Protocolo de execução e instruções de uso</p>
+                      <p className="text-[11px] text-muted-foreground mt-0.5">Protocolo de execution e instruções de uso</p>
                     </div>
                     <div className="p-6 space-y-5 text-sm leading-relaxed text-foreground">
                       <div className="space-y-2">
