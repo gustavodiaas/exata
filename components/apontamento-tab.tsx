@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useToast } from "@/hooks/use-toast"
 import { supabase } from "@/components/supabase"
-import { Plus, Trash2, ClipboardList, TrendingUp, AlertTriangle, CheckCircle2, Clock, Package } from "lucide-react"
+import { Plus, Trash2, ClipboardList, TrendingUp, AlertTriangle, CheckCircle2, Clock, Package, Factory } from "lucide-react"
 import { DatePicker } from "@/components/date-picker"
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
@@ -31,6 +31,7 @@ interface Apontamento {
   pecasRefugo: number
   pecasRetrabalho: number
   observacao: string
+  maquinaNome: string
 }
 
 interface ResumoOP {
@@ -41,6 +42,11 @@ interface ResumoOP {
   totalRetrabalho: number
   percentualConclusao: number
   fechada: boolean
+}
+
+interface Maquina {
+  id: string
+  nome: string
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -85,10 +91,12 @@ export function ApontamentoTab() {
 
   const [ordens, setOrdens] = useState<OrdemProducao[]>([])
   const [apontamentos, setApontamentos] = useState<Apontamento[]>([])
+  const [maquinas, setMaquinas] = useState<Maquina[]>([])
   const [loading, setLoading] = useState(true)
 
   // Formulário
   const [ordemSelecionada, setOrdemSelecionada] = useState("")
+  const [maquinaSelecionada, setMaquinaSelecionada] = useState("none")
   const [dataApontamento, setDataApontamento] = useState("")
   const [horaInicio, setHoraInicio] = useState("")
   const [horaFim, setHoraFim] = useState("")
@@ -109,6 +117,14 @@ export function ApontamentoTab() {
       const userId = userData.user?.id
       if (!userId) return
 
+      const { data: maqData } = await supabase
+        .from("maquinas")
+        .select("id, nome")
+        .eq("user_id", userId)
+        .neq("status", "inativa")
+        
+      setMaquinas(maqData || [])
+
       const { data: opsData } = await supabase
         .from("ordens_producao")
         .select("*")
@@ -127,7 +143,7 @@ export function ApontamentoTab() {
 
       const { data: apData } = await supabase
         .from("apontamentos")
-        .select("*")
+        .select(`*, maquinas (nome)`)
         .eq("user_id", userId)
         .order("data_apontamento", { ascending: false })
 
@@ -141,6 +157,7 @@ export function ApontamentoTab() {
         pecasRefugo: a.pecas_refugo,
         pecasRetrabalho: a.pecas_retrabalho,
         observacao: a.observacao || "",
+        maquinaNome: a.maquinas?.nome || "Manual / Sem Máquina"
       }))
       setApontamentos(formattedAp)
     } catch (e) {
@@ -213,7 +230,6 @@ export function ApontamentoTab() {
       return
     }
 
-    // Verifica se OP já está fechada
     const resumoOp = resumos.find((r) => r.op.id === ordemSelecionada)
     if (resumoOp?.fechada) {
       toast({ title: "OP já concluída", description: "Esta ordem já atingiu a quantidade total planejada.", variant: "destructive" })
@@ -226,9 +242,12 @@ export function ApontamentoTab() {
       const userId = userData.user?.id
       if (!userId) return
 
+      const maqNome = maquinas.find(m => m.id === maquinaSelecionada)?.nome || "Manual / Sem Máquina"
+
       const payload = {
         user_id: userId,
         ordem_id: ordemSelecionada,
+        maquina_id: maquinaSelecionada === "none" ? null : maquinaSelecionada,
         data_apontamento: dataApontamento,
         hora_inicio: horaInicio,
         hora_fim: horaFim,
@@ -253,18 +272,19 @@ export function ApontamentoTab() {
           pecasRefugo: data[0].pecas_refugo,
           pecasRetrabalho: data[0].pecas_retrabalho,
           observacao: data[0].observacao || "",
+          maquinaNome: maqNome
         }
         setApontamentos((prev) => [novoAp, ...prev])
         setOpExpandida(ordemSelecionada)
       }
 
-      // Limpa formulário
       setPecasProduzidas("")
       setPecasRefugo("")
       setPecasRetrabalho("")
       setObservacao("")
       setHoraInicio("")
       setHoraFim("")
+      setMaquinaSelecionada("none")
 
       toast({ title: "✅ Apontamento registrado", description: "Produção sincronizada com sucesso." })
     } catch (e: any) {
@@ -357,6 +377,23 @@ export function ApontamentoTab() {
                       </SelectItem>
                     )
                   })}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">Máquina Utilizada</Label>
+              <Select value={maquinaSelecionada} onValueChange={setMaquinaSelecionada}>
+                <SelectTrigger className="bg-input border-border h-10 text-sm">
+                  <SelectValue placeholder="Selecione a Máquina" />
+                </SelectTrigger>
+                <SelectContent className="bg-card border-border">
+                  <SelectItem value="none">Manual / Sem Máquina</SelectItem>
+                  {maquinas.map((maq) => (
+                    <SelectItem key={maq.id} value={maq.id}>
+                      {maq.nome}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
@@ -528,13 +565,17 @@ export function ApontamentoTab() {
                               <span className="font-bold text-foreground">
                                 {ap.dataApontamento.split("-").reverse().join("/")} · {ap.horaInicio} — {ap.horaFim}
                               </span>
-                              <span className="text-muted-foreground">
+                              <div className="flex items-center gap-1.5 mt-0.5">
+                                <Factory className="h-3 w-3 text-muted-foreground" />
+                                <span className="text-[10px] text-muted-foreground font-medium uppercase">{ap.maquinaNome}</span>
+                              </div>
+                              <span className="text-muted-foreground mt-0.5">
                                 {ap.pecasProduzidas} pç produzidas
                                 {ap.pecasRefugo > 0 ? ` · ${ap.pecasRefugo} refugo` : ""}
                                 {ap.pecasRetrabalho > 0 ? ` · ${ap.pecasRetrabalho} retrabalho` : ""}
                               </span>
                               {ap.observacao && (
-                                <span className="text-muted-foreground/70 italic">{ap.observacao}</span>
+                                <span className="text-muted-foreground/70 italic mt-0.5">{ap.observacao}</span>
                               )}
                             </div>
                             <button
