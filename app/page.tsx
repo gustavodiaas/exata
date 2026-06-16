@@ -18,7 +18,7 @@ import {
   Plus, Download, Upload, FileSpreadsheet, CheckCircle2,
   FileImage, ChevronDown, BarChart2, CalendarClock, Save, BookOpen,
   Pencil, Trash2, Menu, X, PanelLeftClose, PanelLeftOpen,
-  Settings, Sun, Moon, Monitor, BookText, LogOut, ClipboardCheck, LayoutDashboard
+  Settings, Sun, Moon, Monitor, BookText, LogOut, ClipboardCheck, LayoutDashboard, User
 } from "lucide-react"
 
 interface Operation {
@@ -64,8 +64,11 @@ export default function GBOAnalysis() {
   const [password, setPassword] = useState("")
   const [loginError, setLoginError] = useState("")
   
+  const [empresaName, setEmpresaName] = useState("")
+  const [defaultTime, setDefaultTime] = useState("")
+  const [defaultTimeUnit, setDefaultTimeUnit] = useState<"hours" | "minutes" | "seconds">("hours")
   const [newPassword, setNewPassword] = useState("")
-  const [isUpdatingPassword, setIsUpdatingPassword] = useState(false)
+  const [isSavingProfile, setIsSavingProfile] = useState(false)
 
   const [activeTab, setActiveTab] = useState<TabId>("gbo")
   const [collapsed, setCollapsed] = useState(false)
@@ -91,14 +94,42 @@ export default function GBOAnalysis() {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const { toast } = useToast()
 
+  const loadUserProfile = async (userId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from("perfis")
+        .select("empresa, tempo_padrao, unidade_tempo")
+        .eq("id", userId)
+        .single()
+        
+      if (data) {
+        setEmpresaName(data.empresa || "")
+        setDefaultTime(data.tempo_padrao ? data.tempo_padrao.toString() : "")
+        setDefaultTimeUnit(data.unidade_tempo || "hours")
+      }
+    } catch (e) {
+      console.error("Erro ao carregar perfil")
+    }
+  }
+
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null)
+      if (session?.user) {
+        setUser(session.user)
+        loadUserProfile(session.user.id)
+      } else {
+        setUser(null)
+      }
       setAuthLoading(false)
     })
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null)
+      if (session?.user) {
+        setUser(session.user)
+        loadUserProfile(session.user.id)
+      } else {
+        setUser(null)
+      }
     })
 
     return () => subscription.unsubscribe()
@@ -210,21 +241,37 @@ export default function GBOAnalysis() {
     setUser(null)
   }
 
-  const handleUpdatePassword = async () => {
-    if (newPassword.length < 6) {
-      toast({ title: "Senha fraca", description: "Use pelo menos 6 caracteres.", variant: "destructive" })
-      return
+  const handleSaveProfile = async () => {
+    setIsSavingProfile(true)
+    try {
+      const { error: profileError } = await supabase
+        .from("perfis")
+        .upsert({
+          id: user.id,
+          empresa: empresaName.trim(),
+          tempo_padrao: defaultTime ? parseFloat(defaultTime) : null,
+          unidade_tempo: defaultTimeUnit
+        }, { onConflict: "id" })
+
+      if (profileError) throw profileError
+
+      if (newPassword.trim().length > 0) {
+        if (newPassword.length < 6) {
+          toast({ title: "Senha fraca", description: "Use pelo menos 6 caracteres.", variant: "destructive" })
+          setIsSavingProfile(false)
+          return
+        }
+        const { error: authError } = await supabase.auth.updateUser({ password: newPassword })
+        if (authError) throw authError
+        setNewPassword("")
+      }
+
+      toast({ title: "✅ Perfil Atualizado", description: "Seus dados foram gravados na nuvem." })
+    } catch (err: any) {
+      toast({ title: "Erro ao salvar", description: err.message, variant: "destructive" })
+    } finally {
+      setIsSavingProfile(false)
     }
-    setIsUpdatingPassword(true)
-    const { error } = await supabase.auth.updateUser({ password: newPassword })
-    
-    if (error) {
-      toast({ title: "Erro", description: "Não foi possível salvar a senha.", variant: "destructive" })
-    } else {
-      toast({ title: "✅ Acesso Protegido", description: "Sua senha pessoal foi cadastrada com sucesso." })
-      setNewPassword("")
-    }
-    setIsUpdatingPassword(false)
   }
 
   const addOperation = () => {
@@ -859,29 +906,67 @@ export default function GBOAnalysis() {
                   {/* Coluna esquerda */}
                   <div className="space-y-6">
 
-                    {/* Segurança de Acesso */}
+                    {/* Perfil de Usuário Unificado */}
                     <div className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden">
-                      <div className="px-6 py-4 border-b border-border">
-                        <h3 className="text-sm font-bold text-foreground">Segurança de Acesso</h3>
-                        <p className="text-[11px] text-muted-foreground mt-0.5">Defina ou altere sua senha de entrada no sistema</p>
+                      <div className="px-6 py-4 border-b border-border flex items-center gap-2">
+                        <User className="h-4 w-4 text-primary" />
+                        <div>
+                          <h3 className="text-sm font-bold text-foreground">Perfil da Conta</h3>
+                          <p className="text-[11px] text-muted-foreground mt-0.5">Identificação e regras operacionais padrão</p>
+                        </div>
                       </div>
-                      <div className="p-6 space-y-4">
+                      <div className="p-6 space-y-5">
+                        
                         <div className="space-y-1.5">
-                          <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest pl-1">Nova Senha</label>
+                          <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest pl-1">Empresa / Empresário</label>
+                          <input 
+                            type="text" 
+                            placeholder="Nome do seu negócio ou responsável" 
+                            value={empresaName}
+                            onChange={(e) => setEmpresaName(e.target.value)}
+                            className="w-full h-10 px-4 rounded-xl border border-border bg-input text-foreground text-sm outline-none focus:ring-2 focus:ring-primary transition-all" 
+                          />
+                        </div>
+
+                        <div className="space-y-1.5">
+                          <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest pl-1">Tempo Operacional Padrão</label>
+                          <div className="flex gap-2">
+                            <input 
+                              type="number" 
+                              placeholder="Ex: 8" 
+                              value={defaultTime}
+                              onChange={(e) => setDefaultTime(e.target.value)}
+                              className="flex-1 h-10 px-4 rounded-xl border border-border bg-input text-foreground text-sm outline-none focus:ring-2 focus:ring-primary transition-all" 
+                            />
+                            <select 
+                              value={defaultTimeUnit} 
+                              onChange={(e: any) => setDefaultTimeUnit(e.target.value)}
+                              className="w-32 h-10 px-3 rounded-xl border border-border bg-input text-foreground text-sm outline-none focus:ring-2 focus:ring-primary transition-all cursor-pointer"
+                            >
+                              <option value="hours">Horas</option>
+                              <option value="minutes">Minutos</option>
+                              <option value="seconds">Segundos</option>
+                            </select>
+                          </div>
+                        </div>
+
+                        <div className="pt-2 border-t border-border space-y-1.5">
+                          <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest pl-1">Nova Senha de Acesso</label>
                           <input 
                             type="password" 
-                            placeholder="Mínimo de 6 caracteres" 
+                            placeholder="Deixe em branco para manter a atual (Mín. 6 caracteres)" 
                             value={newPassword}
                             onChange={(e) => setNewPassword(e.target.value)}
                             className="w-full h-10 px-4 rounded-xl border border-border bg-input text-foreground text-sm outline-none focus:ring-2 focus:ring-primary transition-all" 
                           />
                         </div>
+
                         <button 
-                          onClick={handleUpdatePassword} 
-                          disabled={isUpdatingPassword || newPassword.length < 6}
-                          className="w-full h-10 flex items-center justify-center bg-primary text-primary-foreground font-bold uppercase tracking-widest text-[10px] rounded-xl shadow-md hover:opacity-90 transition-all disabled:opacity-50"
+                          onClick={handleSaveProfile} 
+                          disabled={isSavingProfile}
+                          className="w-full h-11 flex items-center justify-center bg-primary text-primary-foreground font-bold uppercase tracking-widest text-[11px] rounded-xl shadow-md hover:opacity-90 transition-all disabled:opacity-50 mt-2"
                         >
-                          {isUpdatingPassword ? "Salvando..." : "Gravar Nova Senha"}
+                          {isSavingProfile ? "Gravando Dados..." : "Salvar Configurações da Conta"}
                         </button>
                       </div>
                     </div>
@@ -916,17 +1001,6 @@ export default function GBOAnalysis() {
                             ))}
                           </React.Fragment>
                         )}
-                      </div>
-                    </div>
-
-                    {/* Perfil futuro */}
-                    <div className="bg-card border border-border border-dashed rounded-2xl px-6 py-5 flex items-center gap-4 opacity-50">
-                      <div className="h-9 w-9 flex items-center justify-center rounded-lg bg-muted flex-shrink-0">
-                        <Settings className="h-4 w-4 text-muted-foreground" />
-                      </div>
-                      <div>
-                        <p className="text-sm font-bold text-foreground">Perfil de Usuário</p>
-                        <p className="text-[11px] text-muted-foreground mt-0.5">Em breve — nome, empresa e preferências de acesso</p>
                       </div>
                     </div>
 
