@@ -8,16 +8,18 @@ import { GBOTab } from "@/components/gbo-tab"
 import { PCPTab } from "@/components/pcp-tab"
 import { ApontamentoTab } from "@/components/apontamento-tab"
 import { DashboardTab } from "@/components/dashboard-tab"
+import { MaquinasTab } from "@/components/maquinas-tab"
 import {
-  Settings, Sun, Moon, Monitor, BookText, LogOut, ClipboardCheck, LayoutDashboard, User, BarChart2, CalendarClock, Menu, X, PanelLeftClose, PanelLeftOpen
+  Settings, Sun, Moon, Monitor, BookText, LogOut, ClipboardCheck, LayoutDashboard, User, BarChart2, CalendarClock, Menu, X, PanelLeftClose, PanelLeftOpen, Factory
 } from "lucide-react"
 
-type TabId = "dashboard" | "gbo" | "pcp" | "apontamento" | "configuracoes"
+type TabId = "dashboard" | "gbo" | "pcp" | "apontamento" | "maquinas" | "configuracoes"
 
 const NAV_ITEMS: { id: TabId; label: string; sublabel: string; icon: React.ElementType }[] = [
   { id: "dashboard", label: "Dashboard", sublabel: "Visão geral da fábrica", icon: LayoutDashboard },
   { id: "gbo", label: "Produto/Roteiro", sublabel: "Gerenciamento Diário", icon: BarChart2 },
   { id: "pcp", label: "PCP", sublabel: "Programação de Produção", icon: CalendarClock },
+  { id: "maquinas", label: "Máquinas", sublabel: "Postos de Trabalho", icon: Factory },
   { id: "apontamento", label: "Apontamento", sublabel: "Registro de Produção", icon: ClipboardCheck },
 ]
 
@@ -85,7 +87,7 @@ export default function ExataApp() {
   useEffect(() => {
     setMounted(true)
     const savedTab = localStorage.getItem("exata_aba_ativa") as TabId
-    if (savedTab && ["dashboard", "gbo", "pcp", "apontamento", "configuracoes"].includes(savedTab)) {
+    if (savedTab && ["dashboard", "gbo", "pcp", "apontamento", "maquinas", "configuracoes"].includes(savedTab)) {
       setActiveTab(savedTab)
     }
   }, [])
@@ -233,7 +235,7 @@ export default function ExataApp() {
               const Icon = item.icon
               const isActive = activeTab === item.id
               return (
-                <button key={item.id} onClick={() => setActiveTab(item.id)} title={collapsed ? item.sublabel : undefined}
+                <button key={item.id} onClick={() => { setActiveTab(item.id); localStorage.setItem("exata_aba_ativa", item.id) }} title={collapsed ? item.sublabel : undefined}
                   className={`w-full flex items-center rounded-xl transition-all text-left ${collapsed ? "justify-center h-10 w-10 mx-auto" : "gap-3 px-3 py-3"} ${isActive ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:bg-muted hover:text-foreground"}`}>
                   <Icon className="h-[18px] w-[18px] flex-shrink-0" />
                   {!collapsed && (
@@ -252,7 +254,7 @@ export default function ExataApp() {
               const Icon = item.icon
               const isActive = activeTab === item.id
               return (
-                <button key={item.id} onClick={() => setActiveTab(item.id)} title={collapsed ? item.sublabel : undefined}
+                <button key={item.id} onClick={() => { setActiveTab(item.id); localStorage.setItem("exata_aba_ativa", item.id) }} title={collapsed ? item.sublabel : undefined}
                   className={`w-full flex items-center rounded-xl transition-all text-left ${collapsed ? "justify-center h-10 w-10 mx-auto" : "gap-3 px-3 py-3"} ${isActive ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:bg-muted hover:text-foreground"}`}>
                   <Icon className="h-[18px] w-[18px] flex-shrink-0" />
                   {!collapsed && (
@@ -288,7 +290,7 @@ export default function ExataApp() {
               const Icon = item.icon
               const isActive = activeTab === item.id
               return (
-                <button key={item.id} onClick={() => { setActiveTab(item.id); setMobileOpen(false) }}
+                <button key={item.id} onClick={() => { setActiveTab(item.id); localStorage.setItem("exata_aba_ativa", item.id); setMobileOpen(false) }}
                   className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left transition-all ${isActive ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:bg-muted hover:text-foreground"}`}>
                   <Icon className="h-5 w-5 flex-shrink-0" />
                   <div className="flex flex-col min-w-0">
@@ -304,7 +306,7 @@ export default function ExataApp() {
               const Icon = item.icon
               const isActive = activeTab === item.id
               return (
-                <button key={item.id} onClick={() => { setActiveTab(item.id); setMobileOpen(false) }}
+                <button key={item.id} onClick={() => { setActiveTab(item.id); localStorage.setItem("exata_aba_ativa", item.id); setMobileOpen(false) }}
                   className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left transition-all ${isActive ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:bg-muted hover:text-foreground"}`}>
                   <Icon className="h-5 w-5 flex-shrink-0" />
                   <div className="flex flex-col min-w-0">
@@ -346,6 +348,12 @@ export default function ExataApp() {
             {activeTab === "pcp" && (
               <div className="animate-in fade-in duration-300">
                 <PCPTab />
+              </div>
+            )}
+
+            {activeTab === "maquinas" && (
+              <div className="animate-in fade-in duration-300">
+                <MaquinasTab user={user} />
               </div>
             )}
 
