@@ -17,6 +17,8 @@ interface Operation {
   time: number
   setupTime: number
   unit: "minutes" | "seconds"
+  maquina_id?: string
+  maquina_nome?: string
 }
 
 const validateNumber = (value: string, min = 0): { isValid: boolean; error?: string } => {
@@ -44,36 +46,36 @@ export function GBOTab({ user }: { user: any }) {
   const [newOperationName, setNewOperationName] = useState("")
   const [newOperationTime, setNewOperationTime] = useState("")
   const [newOperationSetup, setNewOperationSetup] = useState("")
+  const [newOperationMaquinaId, setNewOperationMaquinaId] = useState("")
+  const [maquinasGlobais, setMaquinasGlobais] = useState<any[]>([])
+  
   const [errors, setErrors] = useState<{ operationName?: string; operationTime?: string; operationSetup?: string }>({})
   const [isLoading, setIsLoading] = useState(false)
   const [isLoaded, setIsLoaded] = useState(false)
-  const [savedProducts, setSavedProducts] = useState<Array<{ code: string; description: string; steps: Array<{ name: string; cycleTime: number; setupTime: number }> }>>([])
+  const [savedProducts, setSavedProducts] = useState<Array<{ code: string; description: string; steps: Array<{ name: string; cycleTime: number; setupTime: number; maquina_id?: string }> }>>([])
   const [showProductsPanel, setShowProductsPanel] = useState(false)
   const [confirmOverwrite, setConfirmOverwrite] = useState<{ product: any; index: number } | null>(null)
 
   const fileInputRef = useRef<HTMLInputElement>(null)
   const { toast } = useToast()
 
+  const loadMaquinas = async () => {
+    try {
+      const { data } = await supabase.from("maquinas").select("id, nome, tempo_setup_padrao").neq("status", "inativa")
+      if (data) setMaquinasGlobais(data)
+    } catch (e) {
+      console.error("Erro ao carregar máquinas")
+    }
+  }
+
   const loadSavedProducts = async () => {
     try {
       const { data: prods, error } = await supabase
         .from("produtos")
-        .select(`id, codigo, descricao, operacoes (nome, tempo, unidade, ordem)`)
+        .select(`id, codigo, descricao, operacoes (nome, tempo, unidade, ordem, setup_time, maquina_id)`)
         .order("ordem", { foreignTable: "operacoes" })
 
       if (error) throw error
-
-      if (prods && prods.length === 0) {
-        const dadosLocais = localStorage.getItem("gbo_products")
-        if (dadosLocais) {
-          const produtosLocais = JSON.parse(dadosLocais)
-          if (produtosLocais.length > 0) {
-            setSavedProducts(produtosLocais)
-            toast({ title: "Migração Pendente", description: "Encontramos seus roteiros antigos. Carregue um por um e salve para jogar na nuvem de forma oficial." })
-            return
-          }
-        }
-      }
 
       if (prods) {
         const formatted = prods.map((p: any) => ({
@@ -82,7 +84,8 @@ export function GBOTab({ user }: { user: any }) {
           steps: (p.operacoes || []).sort((a: any, b: any) => (a.ordem ?? 0) - (b.ordem ?? 0)).map((o: any) => ({
             name: o.nome,
             cycleTime: o.unidade === "minutes" ? o.tempo * 60 : o.tempo,
-            setupTime: 0 
+            setupTime: o.unidade === "minutes" ? (o.setup_time || 0) * 60 : (o.setup_time || 0),
+            maquina_id: o.maquina_id
           }))
         }))
         setSavedProducts(formatted)
@@ -96,6 +99,7 @@ export function GBOTab({ user }: { user: any }) {
 
   useEffect(() => {
     if (user) {
+      loadMaquinas()
       const savedSession = localStorage.getItem(`exata_session_${user.id}`)
       if (savedSession) {
         try {
@@ -130,6 +134,15 @@ export function GBOTab({ user }: { user: any }) {
     return 0
   }, [operations, calcType])
 
+  const handleMaquinaChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const val = e.target.value
+    setNewOperationMaquinaId(val)
+    const maq = maquinasGlobais.find(m => m.id === val)
+    if (maq && maq.tempo_setup_padrao !== undefined) {
+      setNewOperationSetup(maq.tempo_setup_padrao.toString())
+    }
+  }
+
   const addOperation = () => {
     const nameValidation = validateText(newOperationName)
     const timeValidation = validateNumber(newOperationTime)
@@ -147,19 +160,24 @@ export function GBOTab({ user }: { user: any }) {
       return
     }
     
+    const maq = maquinasGlobais.find(m => m.id === newOperationMaquinaId)
     const token = `${Date.now()}-${Math.random().toString(36).substring(2, 7)}`
+    
     const newOperation: Operation = {
       id: token,
       name: newOperationName.trim(),
       time: Number.parseFloat(newOperationTime),
       setupTime: Number.parseFloat(newOperationSetup),
       unit: timeUnit,
+      maquina_id: newOperationMaquinaId || undefined,
+      maquina_nome: maq ? maq.nome : undefined
     }
     
     setOperations([...operations, newOperation])
     setNewOperationName("")
     setNewOperationTime("")
     setNewOperationSetup("")
+    setNewOperationMaquinaId("")
     setErrors({})
     toast({ title: "✅ Operação adicionada", description: `"${newOperation.name}" foi adicionada.` })
   }
@@ -191,6 +209,7 @@ export function GBOTab({ user }: { user: any }) {
       name: op.name,
       cycleTime: timeUnit === "minutes" ? op.time * 60 : op.time,
       setupTime: timeUnit === "minutes" ? (op.setupTime || 0) * 60 : (op.setupTime || 0),
+      maquina_id: op.maquina_id
     })),
   })
 
@@ -212,7 +231,9 @@ export function GBOTab({ user }: { user: any }) {
         ordem: index + 1,
         nome: op.name,
         tempo: op.time,
-        unidade: op.unit
+        unidade: op.unit,
+        setup_time: op.setupTime,
+        maquina_id: op.maquina_id || null
       }))
 
       const { error: opsError } = await supabase.from("operacoes").insert(opsToInsert)
@@ -256,13 +277,18 @@ export function GBOTab({ user }: { user: any }) {
 
   const handleLoadProduct = (product: typeof savedProducts[0]) => {
     const seed = Date.now()
-    const ops = product.steps.map((step, i) => ({
-      id: `${seed}-${Math.random().toString(36).substring(2, 7)}-${i}`,
-      name: step.name,
-      time: timeUnit === "minutes" ? step.cycleTime / 60 : step.cycleTime,
-      setupTime: timeUnit === "minutes" ? step.setupTime / 60 : step.setupTime,
-      unit: timeUnit,
-    }))
+    const ops = product.steps.map((step, i) => {
+      const maq = maquinasGlobais.find(m => m.id === step.maquina_id)
+      return {
+        id: `${seed}-${Math.random().toString(36).substring(2, 7)}-${i}`,
+        name: step.name,
+        time: timeUnit === "minutes" ? step.cycleTime / 60 : step.cycleTime,
+        setupTime: timeUnit === "minutes" ? step.setupTime / 60 : step.setupTime,
+        unit: timeUnit,
+        maquina_id: step.maquina_id,
+        maquina_nome: maq ? maq.nome : undefined
+      }
+    })
     setProductCode(product.code)
     setProductName(product.description)
     setOperations(ops)
@@ -471,6 +497,10 @@ export function GBOTab({ user }: { user: any }) {
               </DropdownMenu>
             </div>
             <div className="space-y-3">
+              <select value={newOperationMaquinaId} onChange={handleMaquinaChange} className="w-full h-12 px-4 rounded-xl border border-border bg-input text-foreground text-sm outline-none focus:ring-2 focus:ring-primary transition-all">
+                <option value="">Sem máquina específica</option>
+                {maquinasGlobais.map(m => <option key={m.id} value={m.id}>{m.nome}</option>)}
+              </select>
               <input placeholder="Nome da Operação" value={newOperationName} onKeyPress={handleKeyPress}
                 onChange={(e) => { setNewOperationName(e.target.value); if (errors.operationName) setErrors((p) => ({ ...p, operationName: undefined })) }}
                 className="w-full h-12 px-4 rounded-xl border border-border bg-input text-foreground text-sm outline-none focus:ring-2 focus:ring-primary transition-all" />
