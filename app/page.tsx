@@ -565,8 +565,9 @@ export default function GBOAnalysis() {
         <aside className={`hidden lg:flex flex-col flex-shrink-0 bg-card border-r border-border sidebar-transition print:hidden ${collapsed ? "w-[68px]" : "w-60"}`}>
           <div className={`flex items-center border-b border-border h-[65px] px-3 ${collapsed ? "justify-center" : "justify-between px-4"}`}>
             {!collapsed && (
-              <div>
+              <div className="min-w-0 pr-2">
                 <p className="text-sm font-black text-foreground tracking-tight leading-tight whitespace-nowrap uppercase">EXATA</p>
+                <p className="text-[10px] text-muted-foreground truncate">Olá, <span className="font-bold text-primary">{empresaName || "Operador"}</span></p>
               </div>
             )}
             <button
@@ -647,9 +648,9 @@ export default function GBOAnalysis() {
         {mobileOpen && <div className="fixed inset-0 z-30 bg-black/40 lg:hidden" onClick={() => setMobileOpen(false)} />}
         <aside className={`fixed inset-y-0 left-0 z-40 w-64 bg-card border-r border-border flex flex-col transition-transform duration-200 ease-in-out lg:hidden print:hidden ${mobileOpen ? "translate-x-0" : "-translate-x-full"}`}>
           <div className="flex items-center justify-between px-5 h-[65px] border-b border-border">
-            <div>
+            <div className="min-w-0 pr-2">
               <p className="text-sm font-black text-foreground tracking-tight uppercase">EXATA</p>
-              <p className="text-[10px] font-bold text-primary tracking-widest uppercase">Cloud</p>
+              <p className="text-[10px] text-muted-foreground truncate">Olá, <span className="font-bold text-primary">{empresaName || "Operador"}</span></p>
             </div>
             <button onClick={() => setMobileOpen(false)} className="h-8 w-8 flex items-center justify-center rounded-lg text-muted-foreground hover:bg-muted transition-colors">
               <X className="h-4 w-4" />
