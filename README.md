@@ -1,137 +1,170 @@
-Exata | Gestão Industrial & PCP Inteligente
+<div align="center">
+<img src="public/placeholder-logo.svg" alt="Exata Logo" width="120" />
 
-O Exata é uma plataforma moderna de Gerenciamento de Operações e Planejamento e Controle de Produção (PCP), desenvolvida para transformar a eficiência do chão de fábrica através de dados em tempo real e algoritmos de nivelamento de carga.
+EXATA
 
-🚀 Visão Geral
-
-Diferente dos sistemas legados, o Exata foca em uma interface minimalista e de alta performance, permitindo que gestores de produção visualizem gargalos, distribuam ordens de produção e monitorem indicadores de desempenho (KPIs) com precisão matemática.
-
-Principais Módulos
-
-Módulo
-Descrição
-Dashboard Operacional
-Visão consolidada de OPs, taxas de refugo e produtividade por máquina.
-PCP & Heijunka
-Algoritmo de nivelamento de carga que distribui automaticamente a produção entre os postos de trabalho.
-Produto & Roteiro (GBO)
-Gestão de tempos e métodos, cálculo de Takt Time e definição de sequenciamento operacional.
-Gestão de Ativos
-Controle de máquinas, postos de trabalho e cronograma de manutenção preventiva/corretiva.
-Apontamento
-Registro simplificado da produção real para fechamento de ordens e análise de desvios.
+A Ciência da Produção Industrial
 
 
 
 
-🛠️ Stack Tecnológica
 
-O sistema utiliza o que há de mais moderno no ecossistema de desenvolvimento web:
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Uma plataforma de PCP inteligente projetada para máxima eficiência e clareza operacional.
+
+</div>
+
+
+
+
+🎯 O que é o Exata?
+
+O Exata redefine a gestão de chão de fábrica ao eliminar a complexidade dos ERPs tradicionais. Ele oferece uma interface focada, cálculos precisos de nivelamento de carga e visibilidade total do processo produtivo em uma única tela.
+
+<div align="center">
+<img src="public/placeholder.svg" alt="Exata Dashboard Preview" width="100%" style="border-radius: 10px; border: 1px solid #252525;" />
+</div>
+
+
+
+
+🛠️ Diferenciais Técnicos
+
+Funcionalidade
+Descrição Visionária
+Heijunka Engine
+Algoritmo proprietário para nivelamento de carga e transbordo automático de OPs.
+PCP em Tempo Real
+Sincronização instantânea entre planejamento e apontamento de produção.
+Dark-First Design
+Interface otimizada para ambientes industriais, reduzindo a fadiga visual.
+Cloud-Native
+Acesso seguro de qualquer lugar, com persistência robusta via Supabase.
+
+
+
+
+
+
+
+📦 Estrutura do Ecossistema
 
 •
-Framework: Next.js 15+ (App Router)
+/app: Rotas e layout principal utilizando Next.js App Router.
 
 •
-Linguagem: TypeScript
+/components: Biblioteca de componentes modulares (Dashboard, PCP, GBO).
 
 •
-Estilização: Tailwind CSS 4
+/lib: Lógica de cálculos matemáticos e utilitários do sistema.
 
 •
-Banco de Dados & Auth: Supabase
+/public: Ativos visuais e modelos de exportação (Excel/PDF).
 
-•
-Componentes UI: Radix UI & shadcn/ui
 
-•
-Gráficos: Recharts
 
-⚙️ Configuração do Ambiente
 
-Pré-requisitos
-
-•
-Node.js 20+
-
-•
-Conta no Supabase com as tabelas de perfis, maquinas, produtos, operacoes e ordens_producao configuradas.
-
-Instalação
+🚀 Começando Agora
 
 1.
-Clone o repositório:
+Instalação Ágil
 
 Bash
 
 
-git clone https://github.com/seu-usuario/exata.git
-cd exata
+pnpm install
 
 
 
 
 
 2.
-Instale as dependências:
+Configuração de Ambiente
+Crie um arquivo .env.local com suas credenciais do Supabase:
 
-Bash
+Plain Text
 
 
-npm install
+NEXT_PUBLIC_SUPABASE_URL=...
+NEXT_PUBLIC_SUPABASE_ANON_KEY=...
 
 
 
 
 
 3.
-Configure as variáveis de ambiente (.env.local ):
-
-Plain Text
-
-
-NEXT_PUBLIC_SUPABASE_URL=sua_url_do_supabase
-NEXT_PUBLIC_SUPABASE_ANON_KEY=sua_chave_anonima
-
-
-
-
-
-4.
-Inicie o servidor de desenvolvimento:
+Lançamento
 
 Bash
 
 
-npm run dev
+pnpm dev
 
 
 
 
 
-📈 Roadmap de Evolução
+
+
+
+🗺️ Visão de Futuro
 
 
 
 
-Migração total para Server Actions para maior segurança de dados.
+Nivelamento de carga por máquina.
 
 
 
 
-Implementação de notificações push para alertas de manutenção.
+Exportação para Excel e PDF.
 
 
 
 
-Módulo de análise preditiva de demanda baseado em histórico.
+IA de Previsão: Sugestão automática de prazos baseada em histórico.
 
 
 
 
-Integração direta com sensores IoT via Webhooks.
+Mobile App: Apontamento direto via QR Code no posto de trabalho.
 
 
 
 
-Desenvolvido com foco em precisão e clareza. Exata — A ciência da produção.
+<div align="center">
+<sub>Construído para quem valoriza a precisão. <b>Exata © 2026</b></sub>
+</div>
 
