@@ -1,30 +1,137 @@
-# GBO analysis site
+Exata | Gestão Industrial & PCP Inteligente
 
-*Automatically synced with your [v0.app](https://v0.app) deployments*
+O Exata é uma plataforma moderna de Gerenciamento de Operações e Planejamento e Controle de Produção (PCP), desenvolvida para transformar a eficiência do chão de fábrica através de dados em tempo real e algoritmos de nivelamento de carga.
 
-[![Deployed on Vercel](https://img.shields.io/badge/Deployed%20on-Vercel-black?style=for-the-badge&logo=vercel)](https://vercel.com/gustavos-projects-03108ae2/v0-gbo-analysis-site)
-[![Built with v0](https://img.shields.io/badge/Built%20with-v0.app-black?style=for-the-badge)](https://v0.app/chat/projects/bUdWeStKJyp)
+🚀 Visão Geral
 
-## Overview
+Diferente dos sistemas legados, o Exata foca em uma interface minimalista e de alta performance, permitindo que gestores de produção visualizem gargalos, distribuam ordens de produção e monitorem indicadores de desempenho (KPIs) com precisão matemática.
 
-This repository will stay in sync with your deployed chats on [v0.app](https://v0.app).
-Any changes you make to your deployed app will be automatically pushed to this repository from [v0.app](https://v0.app).
+Principais Módulos
 
-## Deployment
+Módulo
+Descrição
+Dashboard Operacional
+Visão consolidada de OPs, taxas de refugo e produtividade por máquina.
+PCP & Heijunka
+Algoritmo de nivelamento de carga que distribui automaticamente a produção entre os postos de trabalho.
+Produto & Roteiro (GBO)
+Gestão de tempos e métodos, cálculo de Takt Time e definição de sequenciamento operacional.
+Gestão de Ativos
+Controle de máquinas, postos de trabalho e cronograma de manutenção preventiva/corretiva.
+Apontamento
+Registro simplificado da produção real para fechamento de ordens e análise de desvios.
 
-Your project is live at:
 
-**[https://vercel.com/gustavos-projects-03108ae2/v0-gbo-analysis-site](https://vercel.com/gustavos-projects-03108ae2/v0-gbo-analysis-site)**
 
-## Build your app
 
-Continue building your app on:
+🛠️ Stack Tecnológica
 
-**[https://v0.app/chat/projects/bUdWeStKJyp](https://v0.app/chat/projects/bUdWeStKJyp)**
+O sistema utiliza o que há de mais moderno no ecossistema de desenvolvimento web:
 
-## How It Works
+•
+Framework: Next.js 15+ (App Router)
 
-1. Create and modify your project using [v0.app](https://v0.app)
-2. Deploy your chats from the v0 interface
-3. Changes are automatically pushed to this repository
-4. Vercel deploys the latest version from this repository
+•
+Linguagem: TypeScript
+
+•
+Estilização: Tailwind CSS 4
+
+•
+Banco de Dados & Auth: Supabase
+
+•
+Componentes UI: Radix UI & shadcn/ui
+
+•
+Gráficos: Recharts
+
+⚙️ Configuração do Ambiente
+
+Pré-requisitos
+
+•
+Node.js 20+
+
+•
+Conta no Supabase com as tabelas de perfis, maquinas, produtos, operacoes e ordens_producao configuradas.
+
+Instalação
+
+1.
+Clone o repositório:
+
+Bash
+
+
+git clone https://github.com/seu-usuario/exata.git
+cd exata
+
+
+
+
+
+2.
+Instale as dependências:
+
+Bash
+
+
+npm install
+
+
+
+
+
+3.
+Configure as variáveis de ambiente (.env.local ):
+
+Plain Text
+
+
+NEXT_PUBLIC_SUPABASE_URL=sua_url_do_supabase
+NEXT_PUBLIC_SUPABASE_ANON_KEY=sua_chave_anonima
+
+
+
+
+
+4.
+Inicie o servidor de desenvolvimento:
+
+Bash
+
+
+npm run dev
+
+
+
+
+
+📈 Roadmap de Evolução
+
+
+
+
+Migração total para Server Actions para maior segurança de dados.
+
+
+
+
+Implementação de notificações push para alertas de manutenção.
+
+
+
+
+Módulo de análise preditiva de demanda baseado em histórico.
+
+
+
+
+Integração direta com sensores IoT via Webhooks.
+
+
+
+
+Desenvolvido com foco em precisão e clareza. Exata — A ciência da produção.
+
