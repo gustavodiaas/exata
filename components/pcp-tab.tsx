@@ -14,6 +14,7 @@ import {
 } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { supabase } from "@/components/supabase"
+import { DatePicker } from "@/components/date-picker"
 
 // ─── Constantes ───────────────────────────────────────────────────────────────
 
@@ -453,7 +454,7 @@ export function PCPTab() {
           <CardContent className="space-y-3">
             <div className="space-y-1">
               <Label className="text-[10px] uppercase font-bold text-muted-foreground">Data da Exceção</Label>
-              <Input type="date" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} className="h-9 text-xs bg-input border-border" />
+              <DatePicker value={selectedDate} onChange={setSelectedDate} className="h-9 text-xs" />
             </div>
             <div className="space-y-1">
               <Label className="text-[10px] uppercase font-bold text-muted-foreground">Tempo Disponível</Label>
@@ -734,7 +735,7 @@ export function PCPTab() {
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Data de Início</Label>
-              <Input type="date" value={opDate} onChange={(e) => setOpDate(e.target.value)} className="bg-input border-border h-10" />
+              <DatePicker value={opDate} onChange={setOpDate} />
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Produto / Roteiro</Label>
