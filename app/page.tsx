@@ -25,6 +25,7 @@ interface Operation {
   id: string
   name: string
   time: number
+  setupTime: number
   unit: "minutes" | "seconds"
 }
 
@@ -32,7 +33,7 @@ const validateNumber = (value: string, min = 0): { isValid: boolean; error?: str
   if (!value.trim()) return { isValid: false, error: "Campo obrigatório" }
   const num = Number.parseFloat(value)
   if (isNaN(num)) return { isValid: false, error: "Deve ser um número válido" }
-  if (num <= min) return { isValid: false, error: `Deve ser maior que ${min}` }
+  if (num < min) return { isValid: false, error: `Deve ser maior ou igual a ${min}` }
   return { isValid: true }
 }
 
@@ -76,7 +77,8 @@ export default function GBOAnalysis() {
   const [calcType, setCalcType] = useState<CalcType>("takt")
   const [newOperationName, setNewOperationName] = useState("")
   const [newOperationTime, setNewOperationTime] = useState("")
-  const [errors, setErrors] = useState<{ operationName?: string; operationTime?: string }>({})
+  const [newOperationSetup, setNewOperationSetup] = useState("")
+  const [errors, setErrors] = useState<{ operationName?: string; operationTime?: string; operationSetup?: string }>({})
   const [isLoading, setIsLoading] = useState(false)
   const [isLoaded, setIsLoaded] = useState(false)
   const [savedProducts, setSavedProducts] = useState<Array<{ code: string; description: string; steps: Array<{ name: string; cycleTime: number; setupTime: number }> }>>([])
@@ -120,7 +122,7 @@ export default function GBOAnalysis() {
           steps: (p.operacoes || []).sort((a: any, b: any) => (a.ordem ?? 0) - (b.ordem ?? 0)).map((o: any) => ({
             name: o.nome,
             cycleTime: o.unidade === "minutes" ? o.tempo * 60 : o.tempo,
-            setupTime: 0
+            setupTime: 0 
           }))
         }))
         setSavedProducts(formatted)
@@ -160,12 +162,6 @@ export default function GBOAnalysis() {
     window.addEventListener("sync_gbo_products", loadSavedProducts)
     return () => window.removeEventListener("sync_gbo_products", loadSavedProducts)
   }, [user])
-
-  useEffect(() => {
-    if (mounted) {
-      localStorage.setItem("exata_aba_ativa", activeTab)
-    }
-  }, [activeTab, mounted])
 
   useEffect(() => {
     if (isLoaded && user) {
@@ -214,11 +210,16 @@ export default function GBOAnalysis() {
   const addOperation = () => {
     const nameValidation = validateText(newOperationName)
     const timeValidation = validateNumber(newOperationTime)
+    const setupValidation = validateNumber(newOperationSetup)
     const newErrors: typeof errors = {}
+    
     if (!nameValidation.isValid) newErrors.operationName = nameValidation.error
     if (!timeValidation.isValid) newErrors.operationTime = timeValidation.error
+    if (!setupValidation.isValid) newErrors.operationSetup = setupValidation.error
+    
     setErrors(newErrors)
-    if (!nameValidation.isValid || !timeValidation.isValid) {
+    
+    if (!nameValidation.isValid || !timeValidation.isValid || !setupValidation.isValid) {
       toast({ title: "Dados inválidos", description: "Verifique os campos destacados.", variant: "destructive" })
       return
     }
@@ -228,11 +229,14 @@ export default function GBOAnalysis() {
       id: token,
       name: newOperationName.trim(),
       time: Number.parseFloat(newOperationTime),
+      setupTime: Number.parseFloat(newOperationSetup),
       unit: timeUnit,
     }
+    
     setOperations([...operations, newOperation])
     setNewOperationName("")
     setNewOperationTime("")
+    setNewOperationSetup("")
     setErrors({})
     toast({ title: "✅ Operação adicionada", description: `"${newOperation.name}" foi adicionada.` })
   }
@@ -263,7 +267,7 @@ export default function GBOAnalysis() {
     steps: operations.map((op) => ({
       name: op.name,
       cycleTime: timeUnit === "minutes" ? op.time * 60 : op.time,
-      setupTime: 0,
+      setupTime: timeUnit === "minutes" ? (op.setupTime || 0) * 60 : (op.setupTime || 0),
     })),
   })
 
@@ -333,6 +337,7 @@ export default function GBOAnalysis() {
       id: `${seed}-${Math.random().toString(36).substring(2, 7)}-${i}`,
       name: step.name,
       time: timeUnit === "minutes" ? step.cycleTime / 60 : step.cycleTime,
+      setupTime: timeUnit === "minutes" ? step.setupTime / 60 : step.setupTime,
       unit: timeUnit,
     }))
     setProductCode(product.code)
@@ -735,10 +740,13 @@ export default function GBOAnalysis() {
                       <input placeholder="Nome da Operação" value={newOperationName} onKeyPress={handleKeyPress}
                         onChange={(e) => { setNewOperationName(e.target.value); if (errors.operationName) setErrors((p) => ({ ...p, operationName: undefined })) }}
                         className="w-full h-12 px-4 rounded-xl border border-border bg-input text-foreground text-sm outline-none focus:ring-2 focus:ring-primary transition-all" />
-                      <input type="number" step="0.01" min="0" placeholder="Tempo" value={newOperationTime} onKeyPress={handleKeyPress}
+                      <input type="number" step="0.01" min="0" placeholder="Tempo de Ciclo" value={newOperationTime} onKeyPress={handleKeyPress}
                         onChange={(e) => { setNewOperationTime(e.target.value); if (errors.operationTime) setErrors((p) => ({ ...p, operationTime: undefined })) }}
                         className="w-full h-12 px-4 rounded-xl border border-border bg-input text-foreground text-sm outline-none focus:ring-2 focus:ring-primary transition-all" />
-                      <button onClick={addOperation} disabled={!newOperationName.trim() || !newOperationTime.trim() || isLoading}
+                      <input type="number" step="0.01" min="0" placeholder="Tempo de Setup" value={newOperationSetup} onKeyPress={handleKeyPress}
+                        onChange={(e) => { setNewOperationSetup(e.target.value); if (errors.operationSetup) setErrors((p) => ({ ...p, operationSetup: undefined })) }}
+                        className="w-full h-12 px-4 rounded-xl border border-border bg-input text-foreground text-sm outline-none focus:ring-2 focus:ring-primary transition-all" />
+                      <button onClick={addOperation} disabled={!newOperationName.trim() || !newOperationTime.trim() || !newOperationSetup.trim() || isLoading}
                         className="w-full h-12 flex items-center justify-center bg-primary text-primary-foreground rounded-xl font-bold text-xs uppercase tracking-widest shadow-md hover:opacity-90 transition-all disabled:opacity-50 disabled:cursor-not-allowed mt-2">
                         <Plus className="h-4 w-4 mr-2" /> Adicionar
                       </button>
