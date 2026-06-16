@@ -895,8 +895,8 @@ export default function GBOAnalysis() {
                     </div>
                     <div className="p-6 space-y-5 text-sm leading-relaxed text-foreground">
                       <div className="space-y-2">
-                        <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">GBO — Gerenciamento Diário</p>
-                        <p className="text-sm text-foreground/80">O GBO é uma rotina estruturada de acompanhamento e tomada de decisões para monitorar indicadores, identificar desvios e garantir o alcance das metas da organização. Cadastre o produto, adicione as operações com seus tempos de ciclo e salve para sincronizar com o PCP.</p>
+                        <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Produto/Roteiro — Gerenciamento Diário</p>
+                        <p className="text-sm text-foreground/80">O Gerenciamento Diário é uma rotina estruturada de acompanhamento e tomada de decisões para monitorar indicadores, identificar desvios e garantir o alcance das metas da organização. Cadastre o produto, adicione as operações com seus tempos de ciclo e salve para sincronizar com o PCP.</p>
                       </div>
                       <div className="border-t border-border pt-4 space-y-2">
                         <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">PCP — Programação de Produção</p>
