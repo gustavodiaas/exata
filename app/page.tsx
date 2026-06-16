@@ -272,7 +272,7 @@ export default function ExataApp() {
               <LogOut className="h-[18px] w-[18px] flex-shrink-0" />
               {!collapsed && <span className="text-xs font-bold leading-tight">Sair do Sistema</span>}
             </button>
-            {!collapsed && <p className="text-[9px] text-muted-foreground/50 font-medium text-center pt-2 pb-1">v3.0.0 Cloud</p>}
+            {!collapsed && <p className="text-[9px] text-muted-foreground/50 font-medium text-center pt-2 pb-1">Construído para quem valoriza a precisão. Exata © 2026</p>}
           </div>
         </aside>
 
