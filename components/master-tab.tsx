@@ -9,6 +9,12 @@ export function MasterTab() {
   const [isAdding, setIsAdding] = useState(false)
   const [clientes, setClientes] = useState<any[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  
+  // Estados para o novo cliente
+  const [novaEmpresa, setNovaEmpresa] = useState("")
+  const [novoEmail, setNovoEmail] = useState("")
+  const [isCreating, setIsCreating] = useState(false)
+
   const { toast } = useToast()
 
   const carregarClientes = async () => {
@@ -31,6 +37,34 @@ export function MasterTab() {
   useEffect(() => {
     carregarClientes()
   }, [])
+
+  const toggleStatus = async (id: string, currentStatus: string) => {
+    const novoStatus = currentStatus === "inativo" ? "ativo" : "inativo"
+    try {
+      const { error } = await supabase
+        .from("perfis")
+        .update({ status: novoStatus })
+        .eq("id", id)
+
+      if (error) throw error
+      
+      toast({ 
+        title: "Comando executado", 
+        description: `O acesso da fábrica foi alterado para ${novoStatus.toUpperCase()}.` 
+      })
+      carregarClientes()
+    } catch (error: any) {
+      toast({ title: "Falha na execução", description: error.message, variant: "destructive" })
+    }
+  }
+
+  const handleCriarConvite = () => {
+    // Essa função será conectada à API Route no próximo passo
+    toast({ 
+      title: "Função em espera", 
+      description: "A interface está pronta. Precisamos plugar a rota do servidor para não deslogar a sua conta Master.", 
+    })
+  }
 
   return (
     <div className="space-y-6">
@@ -63,18 +97,33 @@ export function MasterTab() {
               <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest pl-1">Nome da Empresa</label>
               <div className="relative">
                 <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <input type="text" placeholder="Indústria Exemplo Ltda" className="w-full h-10 pl-10 pr-4 rounded-xl border border-border bg-input text-foreground text-sm outline-none focus:ring-2 focus:ring-primary transition-all" />
+                <input 
+                  type="text" 
+                  value={novaEmpresa}
+                  onChange={(e) => setNovaEmpresa(e.target.value)}
+                  placeholder="Indústria Exemplo Ltda" 
+                  className="w-full h-10 pl-10 pr-4 rounded-xl border border-border bg-input text-foreground text-sm outline-none focus:ring-2 focus:ring-primary transition-all" 
+                />
               </div>
             </div>
             <div className="space-y-1.5">
               <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest pl-1">E-mail do Administrador</label>
               <div className="relative">
                 <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <input type="email" placeholder="admin@industria.com" className="w-full h-10 pl-10 pr-4 rounded-xl border border-border bg-input text-foreground text-sm outline-none focus:ring-2 focus:ring-primary transition-all" />
+                <input 
+                  type="email" 
+                  value={novoEmail}
+                  onChange={(e) => setNovoEmail(e.target.value)}
+                  placeholder="admin@industria.com" 
+                  className="w-full h-10 pl-10 pr-4 rounded-xl border border-border bg-input text-foreground text-sm outline-none focus:ring-2 focus:ring-primary transition-all" 
+                />
               </div>
             </div>
           </div>
-          <button className="mt-4 h-10 w-full bg-foreground text-background font-bold text-xs uppercase tracking-widest rounded-xl shadow-md hover:opacity-90 transition-all">
+          <button 
+            onClick={handleCriarConvite}
+            className="mt-4 h-10 w-full bg-foreground text-background font-bold text-xs uppercase tracking-widest rounded-xl shadow-md hover:opacity-90 transition-all"
+          >
             Gerar Convite de Acesso
           </button>
         </div>
@@ -126,7 +175,11 @@ export function MasterTab() {
                         </span>
                       </td>
                       <td className="px-6 py-4 text-right">
-                        <button className="p-2 text-destructive hover:bg-destructive/10 rounded-lg transition-colors" title={cliente.status === 'inativo' ? 'Reativar Acesso' : 'Suspender Acesso'}>
+                        <button 
+                          onClick={() => toggleStatus(cliente.id, cliente.status)}
+                          className={`p-2 rounded-lg transition-colors ${cliente.status === 'inativo' ? 'text-green-500 hover:bg-green-500/10' : 'text-destructive hover:bg-destructive/10'}`} 
+                          title={cliente.status === 'inativo' ? 'Reativar Acesso' : 'Suspender Acesso'}
+                        >
                           <Power className="h-4 w-4" />
                         </button>
                       </td>
