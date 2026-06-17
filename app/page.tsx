@@ -44,6 +44,7 @@ export default function ExataApp() {
   const [newPassword, setNewPassword] = useState("")
   const [isSavingProfile, setIsSavingProfile] = useState(false)
   const [isLoadingAuth, setIsLoadingAuth] = useState(false)
+  const [showSetupModal, setShowSetupModal] = useState(false)
 
   const [activeTab, setActiveTab] = useState<TabId>("gbo")
   const [collapsed, setCollapsed] = useState(false)
@@ -59,6 +60,10 @@ export default function ExataApp() {
         setEmpresaName(perfil.empresa || "")
         setDefaultTime(perfil.tempo_padrao ? perfil.tempo_padrao.toString() : "")
         setDefaultTimeUnit(perfil.unidade_tempo || "hours")
+        
+        if (!perfil.empresa || perfil.empresa.trim() === "") {
+            setShowSetupModal(true)
+        }
       }
 
       const { data: acesso } = await supabase.from("controle_acesso").select("nivel").eq("user_id", userId).single()
@@ -519,6 +524,50 @@ export default function ExataApp() {
           </main>
         </div>
       </div>
+
+      {showSetupModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm p-4 animate-in fade-in duration-300">
+          <div className="w-full max-w-sm bg-card border border-border p-8 rounded-2xl shadow-2xl space-y-6">
+            <div className="text-center space-y-1">
+              <h2 className="text-xl font-black uppercase tracking-tight text-foreground">Bem-vindo à Exata</h2>
+              <p className="text-xs text-muted-foreground">Complete seu perfil para começar.</p>
+            </div>
+            <div className="space-y-4">
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest pl-1">Nome da Empresa</label>
+                <input 
+                    type="text" 
+                    value={empresaName} 
+                    onChange={(e) => setEmpresaName(e.target.value)} 
+                    className="w-full h-10 px-4 rounded-xl border border-border bg-input text-sm text-foreground outline-none focus:ring-2 focus:ring-primary transition-all" 
+                    placeholder="Ex: Indústria Ltda" 
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest pl-1">Definir Nova Senha</label>
+                <input 
+                    type="password" 
+                    value={newPassword} 
+                    onChange={(e) => setNewPassword(e.target.value)} 
+                    className="w-full h-10 px-4 rounded-xl border border-border bg-input text-sm text-foreground outline-none focus:ring-2 focus:ring-primary transition-all" 
+                    placeholder="••••••••" 
+                />
+              </div>
+              <button 
+                onClick={async () => { 
+                    await handleSaveProfile(); 
+                    if(empresaName.trim() !== "") {
+                        setShowSetupModal(false);
+                    }
+                }} 
+                className="w-full h-11 bg-primary text-primary-foreground font-bold text-xs uppercase tracking-widest rounded-xl hover:opacity-90 transition-all shadow-md mt-2"
+              >
+                Salvar e Iniciar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </React.Fragment>
   )
 }
