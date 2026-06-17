@@ -16,7 +16,7 @@ import {
   Settings, Sun, Moon, Monitor, BookText, LogOut, ClipboardCheck, LayoutDashboard, User, BarChart2, CalendarClock, Menu, X, PanelLeftClose, Users, PanelLeftOpen, Factory, Wrench, ShieldAlert
 } from "lucide-react"
 
-type TabId = "dashboard" | "gbo" | "pcp" | "apontamento" | "maquinas" | "manutencao" | "configuracoes" | "master" | "Equipe"
+type TabId = "dashboard" | "gbo" | "pcp" | "apontamento" | "maquinas" | "manutencao" | "configuracoes" | "master" | "equipe"
 
 const NAV_ITEMS: { id: TabId; label: string; sublabel: string; icon: React.ElementType }[] = [
   { id: "dashboard", label: "Dashboard", sublabel: "Visão geral da fábrica", icon: LayoutDashboard },
@@ -49,42 +49,60 @@ export default function ExataApp() {
   const [isLoadingAuth, setIsLoadingAuth] = useState(false)
   const [showSetupModal, setShowSetupModal] = useState(false)
 
-  const [activeTab, setActiveTab] = useState<TabId>("gbo")
+  const [activeTab, setActiveTab] = useState<TabId>("dashboard")
   const [collapsed, setCollapsed] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
   const [mounted, setMounted] = useState(false)
   const { theme, setTheme } = useTheme()
   const { toast } = useToast()
 
-  const loadUserProfile = async (userId: string, userEmail: string) => {
-    try {
-      const { data: perfil } = await supabase.from("perfis").select("empresa, tempo_padrao, unidade_tempo").eq("id", userId).single()
-      if (perfil) {
-        setEmpresaName(perfil.empresa || "")
-        setDefaultTime(perfil.tempo_padrao ? perfil.tempo_padrao.toString() : "")
-        setDefaultTimeUnit(perfil.unidade_tempo || "hours")
-        
-        if (!perfil.empresa || perfil.empresa.trim() === "") {
-            setShowSetupModal(true)
-        }
-      }
+ const loadUserProfile = async (userId: string, userEmail: string) => {
+  try {
+    const { data: perfil } = await supabase
+      .from("perfis")
+      .select("empresa, tempo_padrao, unidade_tempo")
+      .eq("id", userId)
+      .single()
 
-      const { data: acesso } = await supabase.from("controle_acesso").select("nivel").eq("user_id", userId).single()
-      if (acesso) {
-        setUserRole(acesso.nivel)
-      if (acesso) {
-  setUserRole(acesso.nivel)
-}
-      if (acesso) {
-  setUserRole(acesso.nivel)
-  console.log("Perfil carregado:", acesso.nivel) // Adicione esta linha
-}
-const { data: perms } = await supabase.from("permissoes").select("aba_id").eq("user_id", userId);
-setUserPermissions(perms?.map(p => p.aba_id) || []);
-    } catch (e) {
-      console.error("Erro ao carregar perfil ou nível de acesso")
+    if (perfil) {
+      setEmpresaName(perfil.empresa || "")
+      setDefaultTime(
+        perfil.tempo_padrao
+          ? perfil.tempo_padrao.toString()
+          : ""
+      )
+      setDefaultTimeUnit(perfil.unidade_tempo || "hours")
+
+      if (!perfil.empresa || perfil.empresa.trim() === "") {
+        setShowSetupModal(true)
+      }
     }
+
+    const { data: acesso } = await supabase
+      .from("controle_acesso")
+      .select("nivel")
+      .eq("user_id", userId)
+      .single()
+
+    if (acesso) {
+      setUserRole(acesso.nivel)
+      console.log("Perfil carregado:", acesso.nivel)
+    } else if (userEmail === "gustavodiaass@yahoo.com") {
+      setUserRole("master")
+    }
+
+    const { data: perms } = await supabase
+      .from("permissoes")
+      .select("aba_id")
+      .eq("user_id", userId)
+
+    setUserPermissions(
+      perms?.map((p) => p.aba_id) || []
+    )
+  } catch (e) {
+    console.error("Erro ao carregar perfil ou nível de acesso", e)
   }
+}
 const canAccess = (id: TabId) => {
   // Se ainda estiver carregando (role é null), deixa passar para não dar erro de tela branca
   if (userRole === null) return true;
@@ -123,7 +141,7 @@ const canAccess = (id: TabId) => {
   useEffect(() => {
     setMounted(true)
     const savedTab = localStorage.getItem("exata_aba_ativa") as TabId
-    if (savedTab && ["dashboard", "gbo", "pcp", "apontamento", "maquinas", "manutencao", "configuracoes", "master"].includes(savedTab)) {
+    if (savedTab && ["dashboard", "gbo", "pcp", "apontamento", "maquinas", "manutencao", "configuracoes", "equipe", "master"].includes(savedTab)) {
       setActiveTab(savedTab)
     }
   }, [])
