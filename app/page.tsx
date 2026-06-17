@@ -10,11 +10,12 @@ import { ApontamentoTab } from "@/components/apontamento-tab"
 import { DashboardTab } from "@/components/dashboard-tab"
 import { MaquinasTab } from "@/components/maquinas-tab"
 import { ManutencaoTab } from "@/components/manutencao-tab"
+import { MasterTab } from "@/components/master-tab"
 import {
-  Settings, Sun, Moon, Monitor, BookText, LogOut, ClipboardCheck, LayoutDashboard, User, BarChart2, CalendarClock, Menu, X, PanelLeftClose, PanelLeftOpen, Factory, Wrench
+  Settings, Sun, Moon, Monitor, BookText, LogOut, ClipboardCheck, LayoutDashboard, User, BarChart2, CalendarClock, Menu, X, PanelLeftClose, PanelLeftOpen, Factory, Wrench, ShieldAlert
 } from "lucide-react"
 
-type TabId = "dashboard" | "gbo" | "pcp" | "apontamento" | "maquinas" | "manutencao" | "configuracoes"
+type TabId = "dashboard" | "gbo" | "pcp" | "apontamento" | "maquinas" | "manutencao" | "configuracoes" | "master"
 
 const NAV_ITEMS: { id: TabId; label: string; sublabel: string; icon: React.ElementType }[] = [
   { id: "dashboard", label: "Dashboard", sublabel: "Visão geral da fábrica", icon: LayoutDashboard },
@@ -99,7 +100,7 @@ export default function ExataApp() {
   useEffect(() => {
     setMounted(true)
     const savedTab = localStorage.getItem("exata_aba_ativa") as TabId
-    if (savedTab && ["dashboard", "gbo", "pcp", "apontamento", "maquinas", "manutencao", "configuracoes"].includes(savedTab)) {
+    if (savedTab && ["dashboard", "gbo", "pcp", "apontamento", "maquinas", "manutencao", "configuracoes", "master"].includes(savedTab)) {
       setActiveTab(savedTab)
     }
   }, [])
@@ -263,6 +264,19 @@ export default function ExataApp() {
           </nav>
 
           <div className="px-2 py-3 border-t border-border space-y-1">
+            {userRole === "master" && (
+              <button onClick={() => { setActiveTab("master"); localStorage.setItem("exata_aba_ativa", "master") }} title={collapsed ? "Painel Master" : undefined}
+                className={`w-full flex items-center rounded-xl transition-all text-left ${collapsed ? "justify-center h-10 w-10 mx-auto" : "gap-3 px-3 py-3"} ${activeTab === "master" ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:bg-muted hover:text-foreground"}`}>
+                <ShieldAlert className="h-[18px] w-[18px] flex-shrink-0" />
+                {!collapsed && (
+                  <div className="flex flex-col min-w-0">
+                    <span className="text-xs font-bold leading-tight">Painel Master</span>
+                    <span className={`text-[10px] leading-tight truncate ${activeTab === "master" ? "text-primary-foreground/70" : "text-muted-foreground"}`}>Gestão de Clientes</span>
+                  </div>
+                )}
+              </button>
+            )}
+            
             {NAV_BOTTOM.map((item) => {
               const Icon = item.icon
               const isActive = activeTab === item.id
@@ -315,6 +329,17 @@ export default function ExataApp() {
             })}
           </nav>
           <div className="px-3 py-3 border-t border-border space-y-1">
+            {userRole === "master" && (
+              <button onClick={() => { setActiveTab("master"); localStorage.setItem("exata_aba_ativa", "master"); setMobileOpen(false) }}
+                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left transition-all ${activeTab === "master" ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:bg-muted hover:text-foreground"}`}>
+                <ShieldAlert className="h-5 w-5 flex-shrink-0" />
+                <div className="flex flex-col min-w-0">
+                  <span className="text-sm font-bold leading-tight">Painel Master</span>
+                  <span className={`text-[10px] leading-tight truncate ${activeTab === "master" ? "text-primary-foreground/70" : "text-muted-foreground"}`}>Gestão de Clientes</span>
+                </div>
+              </button>
+            )}
+
             {NAV_BOTTOM.map((item) => {
               const Icon = item.icon
               const isActive = activeTab === item.id
@@ -346,6 +371,12 @@ export default function ExataApp() {
 
           <main className="flex-1 overflow-auto px-4 lg:px-8 py-6 print:p-12">
             
+            {activeTab === "master" && userRole === "master" && (
+              <div className="animate-in fade-in duration-300">
+                <MasterTab />
+              </div>
+            )}
+
             {activeTab === "gbo" && (
               <div className="animate-in fade-in duration-300">
                 <GBOTab user={user} />
