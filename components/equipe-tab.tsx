@@ -1,13 +1,14 @@
 "use client"
 
 import React, { useState, useEffect } from "react"
-import { Users, Plus, Loader2 } from "lucide-react"
+import { Users, Plus, Loader2, ShieldCheck } from "lucide-react"
 import { supabase } from "@/components/supabase"
 import { useToast } from "@/hooks/use-toast"
 
 export function EquipeTab({ user }: { user: any }) {
   const [equipe, setEquipe] = useState<any[]>([])
   const [permissoes, setPermissoes] = useState<any[]>([])
+  const [niveisAcesso, setNiveisAcesso] = useState<any[]>([])
   const [isAdding, setIsAdding] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [email, setEmail] = useState("")
@@ -38,15 +39,26 @@ export function EquipeTab({ user }: { user: any }) {
 
         if (equipeData && equipeData.length > 0) {
           const userIds = equipeData.map((m: any) => m.id)
+          
+          // Busca permissões
           const { data: permData, error: permError } = await supabase
             .from("permissoes")
             .select("*")
             .in("user_id", userIds)
-
           if (permError) throw permError
           setPermissoes(permData || [])
+
+          // Busca níveis de acesso para identificar quem é master/admin de forma segura (sem join)
+          const { data: acessoData, error: acessoError } = await supabase
+            .from("controle_acesso")
+            .select("*")
+            .in("user_id", userIds)
+          if (acessoError) throw acessoError
+          setNiveisAcesso(acessoData || [])
+
         } else {
           setPermissoes([])
+          setNiveisAcesso([])
         }
         setEquipe(equipeData || [])
       } else {
@@ -157,33 +169,47 @@ export function EquipeTab({ user }: { user: any }) {
                   </td>
                 </tr>
               ) : (
-                equipe.map((membro) => (
-                  <tr key={membro.id} className="hover:bg-muted/5 transition-colors">
-                    <td className="px-6 py-4 font-bold text-foreground">{membro.email}</td>
-                    <td className="px-6 py-4">
-                      <span className={`inline-flex items-center px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider ${membro.status === 'inativo' ? 'bg-destructive/10 text-destructive' : 'bg-green-500/10 text-green-500'}`}>
-                        {membro.status || "Ativo"}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex flex-wrap gap-2">
-                        {abasDisponiveis.map((aba) => {
-                          const temPermissao = permissoes.some((p: any) => p.user_id === membro.id && p.aba_id === aba)
-                          return (
-                            <button
-                              key={aba}
-                              onClick={() => togglePermissao(membro.id, aba)}
-                              className={`px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all ${temPermissao ? "bg-primary text-primary-foreground shadow-sm hover:bg-destructive hover:text-destructive-foreground" : "bg-muted text-muted-foreground hover:bg-primary/20 hover:text-primary"}`}
-                              title={temPermissao ? "Clique para revogar acesso" : "Clique para conceder acesso"}
-                            >
-                              {aba}
-                            </button>
-                          )
-                        })}
-                      </div>
-                    </td>
-                  </tr>
-                ))
+                equipe.map((membro) => {
+                  const nivelUsuario = niveisAcesso.find(n => n.user_id === membro.id)?.nivel || "operador"
+                  const isPrivilegiado = nivelUsuario === "master" || nivelUsuario === "admin"
+
+                  return (
+                    <tr key={membro.id} className="hover:bg-muted/5 transition-colors">
+                      <td className="px-6 py-4 font-bold text-foreground">{membro.email}</td>
+                      <td className="px-6 py-4">
+                        <span className={`inline-flex items-center px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider ${membro.status === 'inativo' ? 'bg-destructive/10 text-destructive' : 'bg-green-500/10 text-green-500'}`}>
+                          {membro.status || "Ativo"}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4">
+                        {isPrivilegiado ? (
+                          <div className="flex items-center gap-2 px-3 py-1.5 bg-primary/10 text-primary rounded-lg border border-primary/20 w-fit">
+                            <ShieldCheck className="h-4 w-4" />
+                            <span className="text-[10px] font-black uppercase tracking-widest">
+                              Acesso Total ({nivelUsuario})
+                            </span>
+                          </div>
+                        ) : (
+                          <div className="flex flex-wrap gap-2">
+                            {abasDisponiveis.map((aba) => {
+                              const temPermissao = permissoes.some((p: any) => p.user_id === membro.id && p.aba_id === aba)
+                              return (
+                                <button
+                                  key={aba}
+                                  onClick={() => togglePermissao(membro.id, aba)}
+                                  className={`px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all ${temPermissao ? "bg-primary text-primary-foreground shadow-sm hover:bg-destructive hover:text-destructive-foreground" : "bg-muted text-muted-foreground hover:bg-primary/20 hover:text-primary"}`}
+                                  title={temPermissao ? "Clique para revogar acesso" : "Clique para conceder acesso"}
+                                >
+                                  {aba}
+                                </button>
+                              )
+                            })}
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  )
+                })
               )}
             </tbody>
           </table>
