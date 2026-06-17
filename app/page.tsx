@@ -256,22 +256,29 @@ const canAccess = (id: TabId) => {
           </div>
 
           <nav className="flex-1 px-2 py-3 space-y-1">
-            {{NAV_ITEMS.filter(item => canAccess(item.id)).map((item)((item) => {
-              const Icon = item.icon
-              const isActive = activeTab === item.id
-              return (
-                <button key={item.id} onClick={() => { setActiveTab(item.id); localStorage.setItem("exata_aba_ativa", item.id) }} title={collapsed ? item.sublabel : undefined}
-                  className={`w-full flex items-center rounded-xl transition-all text-left ${collapsed ? "justify-center h-10 w-10 mx-auto" : "gap-3 px-3 py-3"} ${isActive ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:bg-muted hover:text-foreground"}`}>
-                  <Icon className="h-[18px] w-[18px] flex-shrink-0" />
-                  {!collapsed && (
-                    <div className="flex flex-col min-w-0">
-                      <span className="text-xs font-bold leading-tight">{item.label}</span>
-                      <span className={`text-[10px] leading-tight truncate ${isActive ? "text-primary-foreground/70" : "text-muted-foreground"}`}>{item.sublabel}</span>
-                    </div>
-                  )}
-                </button>
-              )
-            })}
+            {NAV_ITEMS.filter(item => canAccess(item.id)).map((item) => {
+  const Icon = item.icon
+  const isActive = activeTab === item.id
+  return (
+    <button 
+      key={item.id} 
+      onClick={() => { 
+        setActiveTab(item.id); 
+        localStorage.setItem("exata_aba_ativa", item.id); 
+      }} 
+      title={collapsed ? item.sublabel : undefined}
+      className={`w-full flex items-center rounded-xl transition-all text-left ${collapsed ? "justify-center h-10 w-10 mx-auto" : "gap-3 px-3 py-3"} ${isActive ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:bg-muted hover:text-foreground"}`}
+    >
+      <Icon className="h-[18px] w-[18px] flex-shrink-0" />
+      {!collapsed && (
+        <div className="flex flex-col min-w-0">
+          <span className="text-xs font-bold leading-tight">{item.label}</span>
+          <span className={`text-[10px] leading-tight truncate ${isActive ? "text-primary-foreground/70" : "text-muted-foreground"}`}>{item.sublabel}</span>
+        </div>
+      )}
+    </button>
+  )
+})}
           </nav>
 
           <div className="px-2 py-3 border-t border-border space-y-1">
