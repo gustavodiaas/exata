@@ -75,6 +75,10 @@ export default function ExataApp() {
       } else if (userEmail === "gustavodiaass@yahoo.com") {
         setUserRole("master")
       }
+      if (acesso) {
+  setUserRole(acesso.nivel)
+  console.log("Perfil carregado:", acesso.nivel) // Adicione esta linha
+}
 const { data: perms } = await supabase.from("permissoes").select("aba_id").eq("user_id", userId);
 setUserPermissions(perms?.map(p => p.aba_id) || []);
     } catch (e) {
