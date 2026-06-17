@@ -1,7 +1,7 @@
 "use client"
 
 import React, { useState, useEffect } from "react"
-import { ShieldAlert, Users, Plus, Building2, Mail, Power, RefreshCw } from "lucide-react"
+import { ShieldAlert, Users, Plus, Building2, Mail, Power, RefreshCw, Loader2 } from "lucide-react"
 import { supabase } from "@/components/supabase"
 import { useToast } from "@/hooks/use-toast"
 
@@ -10,7 +10,6 @@ export function MasterTab() {
   const [clientes, setClientes] = useState<any[]>([])
   const [isLoading, setIsLoading] = useState(true)
   
-  // Estados para o novo cliente
   const [novaEmpresa, setNovaEmpresa] = useState("")
   const [novoEmail, setNovoEmail] = useState("")
   const [isCreating, setIsCreating] = useState(false)
@@ -48,22 +47,45 @@ export function MasterTab() {
 
       if (error) throw error
       
-      toast({ 
-        title: "Comando executado", 
-        description: `O acesso da fábrica foi alterado para ${novoStatus.toUpperCase()}.` 
-      })
+      toast({ title: "Comando executado", description: `O acesso da fábrica foi alterado para ${novoStatus.toUpperCase()}.` })
       carregarClientes()
     } catch (error: any) {
       toast({ title: "Falha na execução", description: error.message, variant: "destructive" })
     }
   }
 
-  const handleCriarConvite = () => {
-    // Essa função será conectada à API Route no próximo passo
-    toast({ 
-      title: "Função em espera", 
-      description: "A interface está pronta. Precisamos plugar a rota do servidor para não deslogar a sua conta Master.", 
-    })
+  const handleCriarConvite = async () => {
+    if (!novaEmpresa.trim() || !novoEmail.trim()) {
+      toast({ title: "Dados incompletos", description: "Preencha o nome da empresa e o e-mail.", variant: "destructive" })
+      return
+    }
+
+    setIsCreating(true)
+    try {
+      const response = await fetch('/api/admin/invite', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          email: novoEmail.trim(), 
+          empresa: novaEmpresa.trim(), 
+          password: 'Exata@123' 
+        })
+      })
+
+      const result = await response.json()
+      
+      if (!response.ok) throw new Error(result.error || "Erro desconhecido ao criar acesso.")
+
+      toast({ title: "Fábrica Operacional", description: "Acesso gerado com sucesso. Senha padrão: Exata@123" })
+      setNovaEmpresa("")
+      setNovoEmail("")
+      setIsAdding(false)
+      carregarClientes()
+    } catch (error: any) {
+      toast({ title: "Falha ao credenciar", description: error.message, variant: "destructive" })
+    } finally {
+      setIsCreating(false)
+    }
   }
 
   return (
@@ -122,9 +144,10 @@ export function MasterTab() {
           </div>
           <button 
             onClick={handleCriarConvite}
-            className="mt-4 h-10 w-full bg-foreground text-background font-bold text-xs uppercase tracking-widest rounded-xl shadow-md hover:opacity-90 transition-all"
+            disabled={isCreating}
+            className="mt-4 h-10 w-full flex items-center justify-center bg-foreground text-background font-bold text-xs uppercase tracking-widest rounded-xl shadow-md hover:opacity-90 transition-all disabled:opacity-50"
           >
-            Gerar Convite de Acesso
+            {isCreating ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Gerando Acesso...</> : "Gerar Convite de Acesso"}
           </button>
         </div>
       )}
