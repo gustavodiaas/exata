@@ -19,6 +19,7 @@ export function MasterTab() {
   const carregarClientes = async () => {
     setIsLoading(true)
     try {
+      // Ajustado para buscar controle_acesso relacionado
       const { data, error } = await supabase
         .from("perfis")
         .select("*, controle_acesso(nivel)")
@@ -51,6 +52,21 @@ export function MasterTab() {
       carregarClientes()
     } catch (error: any) {
       toast({ title: "Falha na execução", description: error.message, variant: "destructive" })
+    }
+  }
+
+  const toggleAdminStatus = async (userId: string, isCurrentlyAdmin: boolean) => {
+    try {
+      if (isCurrentlyAdmin) {
+        await supabase.from("controle_acesso").delete().eq("user_id", userId)
+        toast({ title: "Acesso removido", description: "O usuário não é mais administrador." })
+      } else {
+        await supabase.from("controle_acesso").upsert({ user_id: userId, nivel: "admin" })
+        toast({ title: "Acesso concedido", description: "O usuário agora é administrador." })
+      }
+      carregarClientes()
+    } catch (error: any) {
+      toast({ title: "Erro", description: error.message, variant: "destructive" })
     }
   }
 
@@ -87,20 +103,7 @@ export function MasterTab() {
       setIsCreating(false)
     }
   }
-const toggleAdminStatus = async (userId: string, isCurrentlyAdmin: boolean) => {
-  try {
-    if (isCurrentlyAdmin) {
-      await supabase.from("controle_acesso").delete().eq("user_id", userId)
-      toast({ title: "Acesso removido", description: "O usuário não é mais administrador." })
-    } else {
-      await supabase.from("controle_acesso").upsert({ user_id: userId, nivel: "admin" })
-      toast({ title: "Acesso concedido", description: "O usuário agora é administrador." })
-    }
-    carregarClientes()
-  } catch (error: any) {
-    toast({ title: "Erro", description: error.message, variant: "destructive" })
-  }
-}
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -184,20 +187,20 @@ const toggleAdminStatus = async (userId: string, isCurrentlyAdmin: boolean) => {
                   <th className="px-6 py-3">Empresa</th>
                   <th className="px-6 py-3">ID de Registro</th>
                   <th className="px-6 py-3">Status</th>
+                  <th className="px-6 py-3 text-center">Admin</th>
                   <th className="px-6 py-3 text-right">Controle</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                <th className="px-6 py-3 text-center">Admin</th>
                 {isLoading ? (
                   <tr>
-                    <td colSpan={4} className="px-6 py-8 text-center text-xs text-muted-foreground font-bold uppercase tracking-widest">
+                    <td colSpan={5} className="px-6 py-8 text-center text-xs text-muted-foreground font-bold uppercase tracking-widest">
                       Buscando banco de dados...
                     </td>
                   </tr>
                 ) : clientes.length === 0 ? (
                   <tr>
-                    <td colSpan={4} className="px-6 py-8 text-center text-xs text-muted-foreground font-bold uppercase tracking-widest">
+                    <td colSpan={5} className="px-6 py-8 text-center text-xs text-muted-foreground font-bold uppercase tracking-widest">
                       Nenhuma fábrica encontrada
                     </td>
                   </tr>
@@ -210,6 +213,15 @@ const toggleAdminStatus = async (userId: string, isCurrentlyAdmin: boolean) => {
                         <span className={`inline-flex items-center px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider ${cliente.status === 'inativo' ? 'bg-destructive/10 text-destructive' : 'bg-green-500/10 text-green-500'}`}>
                           {cliente.status || "Ativo"}
                         </span>
+                      </td>
+                      <td className="px-6 py-4 text-center">
+                        <button 
+                          onClick={() => toggleAdminStatus(cliente.id, cliente.controle_acesso?.length > 0)}
+                          className={`p-2 rounded-lg transition-colors ${cliente.controle_acesso?.length > 0 ? 'bg-green-500/10 text-green-500' : 'bg-muted text-muted-foreground hover:bg-muted-foreground/20'}`}
+                          title={cliente.controle_acesso?.length > 0 ? "Remover status de Admin" : "Tornar Admin"}
+                        >
+                          <ShieldAlert className="h-4 w-4" />
+                        </button>
                       </td>
                       <td className="px-6 py-4 text-right">
                         <button 
@@ -224,16 +236,6 @@ const toggleAdminStatus = async (userId: string, isCurrentlyAdmin: boolean) => {
                   ))
                 )}
               </tbody>
-              // Onde "cliente" é a variável do seu .map()
-<td className="px-6 py-4 text-center">
-  <button 
-    onClick={() => toggleAdminStatus(cliente.id, cliente.controle_acesso?.length > 0)}
-    className={`p-2 rounded-lg transition-colors ${cliente.controle_acesso?.length > 0 ? 'bg-green-500/10 text-green-500' : 'bg-muted text-muted-foreground hover:bg-muted-foreground/20'}`}
-    title={cliente.controle_acesso?.length > 0 ? "Remover status de Admin" : "Tornar Admin"}
-  >
-    <ShieldAlert className="h-4 w-4" />
-  </button>
-</td>
             </table>
           </div>
         </div>
