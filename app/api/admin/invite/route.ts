@@ -26,7 +26,7 @@ export async function POST(request: Request) {
 
     if (authError) throw authError
 
-    const { error: profileError } = await supabaseAdmin.from('perfis').insert({
+    const { error: profileError } = await supabaseAdmin.from('perfis').upsert({
       id: authData.user.id,
       empresa: empresa,
       status: 'ativo'
