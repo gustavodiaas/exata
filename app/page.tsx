@@ -31,6 +31,7 @@ const NAV_BOTTOM: { id: TabId; label: string; sublabel: string; icon: React.Elem
 
 export default function ExataApp() {
   const [user, setUser] = useState<any>(null)
+  const [userRole, setUserRole] = useState<string | null>(null)
   const [authLoading, setAuthLoading] = useState(true)
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
@@ -50,16 +51,23 @@ export default function ExataApp() {
   const { theme, setTheme } = useTheme()
   const { toast } = useToast()
 
-  const loadUserProfile = async (userId: string) => {
+  const loadUserProfile = async (userId: string, userEmail: string) => {
     try {
-      const { data } = await supabase.from("perfis").select("empresa, tempo_padrao, unidade_tempo").eq("id", userId).single()
-      if (data) {
-        setEmpresaName(data.empresa || "")
-        setDefaultTime(data.tempo_padrao ? data.tempo_padrao.toString() : "")
-        setDefaultTimeUnit(data.unidade_tempo || "hours")
+      const { data: perfil } = await supabase.from("perfis").select("empresa, tempo_padrao, unidade_tempo").eq("id", userId).single()
+      if (perfil) {
+        setEmpresaName(perfil.empresa || "")
+        setDefaultTime(perfil.tempo_padrao ? perfil.tempo_padrao.toString() : "")
+        setDefaultTimeUnit(perfil.unidade_tempo || "hours")
+      }
+
+      const { data: acesso } = await supabase.from("controle_acesso").select("nivel").eq("user_id", userId).single()
+      if (acesso) {
+        setUserRole(acesso.nivel)
+      } else if (userEmail === "gustavodiaass@yahoo.com") {
+        setUserRole("master")
       }
     } catch (e) {
-      console.error("Erro ao carregar perfil")
+      console.error("Erro ao carregar perfil ou nível de acesso")
     }
   }
 
@@ -67,9 +75,10 @@ export default function ExataApp() {
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session?.user) {
         setUser(session.user)
-        loadUserProfile(session.user.id)
+        loadUserProfile(session.user.id, session.user.email || "")
       } else {
         setUser(null)
+        setUserRole(null)
       }
       setAuthLoading(false)
     })
@@ -77,9 +86,10 @@ export default function ExataApp() {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       if (session?.user) {
         setUser(session.user)
-        loadUserProfile(session.user.id)
+        loadUserProfile(session.user.id, session.user.email || "")
       } else {
         setUser(null)
+        setUserRole(null)
       }
     })
 
@@ -122,6 +132,7 @@ export default function ExataApp() {
   const handleLogout = async () => {
     await supabase.auth.signOut()
     setUser(null)
+    setUserRole(null)
   }
 
   const handleSaveProfile = async () => {
