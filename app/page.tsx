@@ -82,7 +82,7 @@ setUserPermissions(perms?.map(p => p.aba_id) || []);
     }
   }
 const canAccess = (id: TabId) => {
-  if (userRole === "master" || userRole === "adm") return true
+  if (userRole === "master" || userRole === "admin") return true
   return userPermissions.includes(id)
 }
   useEffect(() => {
