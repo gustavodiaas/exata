@@ -82,8 +82,14 @@ setUserPermissions(perms?.map(p => p.aba_id) || []);
     }
   }
 const canAccess = (id: TabId) => {
-  if (userRole === "master" || userRole === "admin") return true
-  return userPermissions.includes(id)
+  // Se ainda estiver carregando (role é null), deixa passar para não dar erro de tela branca
+  if (userRole === null) return true;
+  
+  // Verifica se é master ou admin (ajustado para 'admin' conforme seu banco)
+  if (userRole === "master" || userRole === "admin") return true;
+  
+  // Se for operador, verifica a permissão específica
+  return userPermissions.includes(id);
 }
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
