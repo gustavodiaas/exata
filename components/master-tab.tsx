@@ -1,10 +1,36 @@
 "use client"
 
-import React, { useState } from "react"
-import { ShieldAlert, Users, Plus, Building2, Mail, Power } from "lucide-react"
+import React, { useState, useEffect } from "react"
+import { ShieldAlert, Users, Plus, Building2, Mail, Power, RefreshCw } from "lucide-react"
+import { supabase } from "@/components/supabase"
+import { useToast } from "@/hooks/use-toast"
 
 export function MasterTab() {
   const [isAdding, setIsAdding] = useState(false)
+  const [clientes, setClientes] = useState<any[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const { toast } = useToast()
+
+  const carregarClientes = async () => {
+    setIsLoading(true)
+    try {
+      const { data, error } = await supabase
+        .from("perfis")
+        .select("*")
+        .order("empresa", { ascending: true })
+
+      if (error) throw error
+      setClientes(data || [])
+    } catch (error: any) {
+      toast({ title: "Erro de conexão", description: "Não foi possível carregar as fábricas.", variant: "destructive" })
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    carregarClientes()
+  }, [])
 
   return (
     <div className="space-y-6">
@@ -16,12 +42,17 @@ export function MasterTab() {
           </h2>
           <p className="text-sm text-muted-foreground mt-1">Gestão absoluta de clientes, assinaturas e níveis de acesso.</p>
         </div>
-        <button 
-          onClick={() => setIsAdding(!isAdding)}
-          className="h-10 px-4 bg-primary text-primary-foreground font-bold text-xs uppercase tracking-widest rounded-xl flex items-center gap-2 shadow-md hover:opacity-90 transition-all"
-        >
-          {isAdding ? "Cancelar" : <><Plus className="h-4 w-4" /> Novo Cliente</>}
-        </button>
+        <div className="flex gap-2">
+          <button onClick={carregarClientes} className="h-10 w-10 flex items-center justify-center bg-muted text-foreground rounded-xl shadow-sm hover:opacity-90 transition-all" title="Atualizar lista">
+            <RefreshCw className={`h-4 w-4 ${isLoading ? "animate-spin" : ""}`} />
+          </button>
+          <button 
+            onClick={() => setIsAdding(!isAdding)}
+            className="h-10 px-4 bg-primary text-primary-foreground font-bold text-xs uppercase tracking-widest rounded-xl flex items-center gap-2 shadow-md hover:opacity-90 transition-all"
+          >
+            {isAdding ? "Cancelar" : <><Plus className="h-4 w-4" /> Novo Cliente</>}
+          </button>
+        </div>
       </div>
 
       {isAdding && (
@@ -50,9 +81,14 @@ export function MasterTab() {
       )}
 
       <div className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden">
-        <div className="px-6 py-4 border-b border-border flex items-center gap-2">
-          <Users className="h-4 w-4 text-muted-foreground" />
-          <h3 className="text-sm font-bold text-foreground">Fábricas Operando</h3>
+        <div className="px-6 py-4 border-b border-border flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Users className="h-4 w-4 text-muted-foreground" />
+            <h3 className="text-sm font-bold text-foreground">Fábricas Operando</h3>
+          </div>
+          <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground bg-muted px-2 py-1 rounded-md">
+            {clientes.length} {clientes.length === 1 ? 'Registro' : 'Registros'}
+          </span>
         </div>
         
         <div className="p-0">
@@ -61,27 +97,42 @@ export function MasterTab() {
               <thead className="bg-muted/30 border-b border-border text-[10px] uppercase tracking-widest text-muted-foreground font-bold">
                 <tr>
                   <th className="px-6 py-3">Empresa</th>
-                  <th className="px-6 py-3">Admin</th>
+                  <th className="px-6 py-3">ID de Registro</th>
                   <th className="px-6 py-3">Status</th>
                   <th className="px-6 py-3 text-right">Controle</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {/* Linha de exemplo estática para visualizar o design */}
-                <tr className="hover:bg-muted/10 transition-colors">
-                  <td className="px-6 py-4 font-bold text-foreground">Sua Empresa Teste</td>
-                  <td className="px-6 py-4 text-muted-foreground">gustavodiaass@yahoo.com</td>
-                  <td className="px-6 py-4">
-                    <span className="inline-flex items-center px-2 py-1 rounded-md bg-green-500/10 text-green-500 text-[10px] font-bold uppercase tracking-wider">
-                      Ativo
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 text-right">
-                    <button className="p-2 text-destructive hover:bg-destructive/10 rounded-lg transition-colors" title="Suspender Acesso">
-                      <Power className="h-4 w-4" />
-                    </button>
-                  </td>
-                </tr>
+                {isLoading ? (
+                  <tr>
+                    <td colSpan={4} className="px-6 py-8 text-center text-xs text-muted-foreground font-bold uppercase tracking-widest">
+                      Buscando banco de dados...
+                    </td>
+                  </tr>
+                ) : clientes.length === 0 ? (
+                  <tr>
+                    <td colSpan={4} className="px-6 py-8 text-center text-xs text-muted-foreground font-bold uppercase tracking-widest">
+                      Nenhuma fábrica encontrada
+                    </td>
+                  </tr>
+                ) : (
+                  clientes.map((cliente) => (
+                    <tr key={cliente.id} className="hover:bg-muted/10 transition-colors">
+                      <td className="px-6 py-4 font-bold text-foreground">{cliente.empresa || "Sem nome definido"}</td>
+                      <td className="px-6 py-4 text-muted-foreground text-[11px] font-mono">{cliente.id}</td>
+                      <td className="px-6 py-4">
+                        <span className={`inline-flex items-center px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider ${cliente.status === 'inativo' ? 'bg-destructive/10 text-destructive' : 'bg-green-500/10 text-green-500'}`}>
+                          {cliente.status || "Ativo"}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        <button className="p-2 text-destructive hover:bg-destructive/10 rounded-lg transition-colors" title={cliente.status === 'inativo' ? 'Reativar Acesso' : 'Suspender Acesso'}>
+                          <Power className="h-4 w-4" />
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>
