@@ -72,9 +72,9 @@ export default function ExataApp() {
       const { data: acesso } = await supabase.from("controle_acesso").select("nivel").eq("user_id", userId).single()
       if (acesso) {
         setUserRole(acesso.nivel)
-      } else if (userEmail === "gustavodiaass@yahoo.com") {
-        setUserRole("master")
-      }
+      if (acesso) {
+  setUserRole(acesso.nivel)
+}
       if (acesso) {
   setUserRole(acesso.nivel)
   console.log("Perfil carregado:", acesso.nivel) // Adicione esta linha
