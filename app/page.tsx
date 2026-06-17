@@ -11,8 +11,9 @@ import { DashboardTab } from "@/components/dashboard-tab"
 import { MaquinasTab } from "@/components/maquinas-tab"
 import { ManutencaoTab } from "@/components/manutencao-tab"
 import { MasterTab } from "@/components/master-tab"
+import { EquipeTab } from "@/components/equipe-tab"
 import {
-  Settings, Sun, Moon, Monitor, BookText, LogOut, ClipboardCheck, LayoutDashboard, User, BarChart2, CalendarClock, Menu, X, PanelLeftClose, PanelLeftOpen, Factory, Wrench, ShieldAlert
+  Settings, Sun, Moon, Monitor, BookText, LogOut, ClipboardCheck, LayoutDashboard, User, BarChart2, CalendarClock, Menu, X, PanelLeftClose, Users, PanelLeftOpen, Factory, Wrench, ShieldAlert
 } from "lucide-react"
 
 type TabId = "dashboard" | "gbo" | "pcp" | "apontamento" | "maquinas" | "manutencao" | "configuracoes" | "master"
@@ -32,6 +33,7 @@ const NAV_BOTTOM: { id: TabId; label: string; sublabel: string; icon: React.Elem
 
 export default function ExataApp() {
   const [user, setUser] = useState<any>(null)
+  const [userPermissions, setUserPermissions] = useState<string[]>([])
   const [userRole, setUserRole] = useState<string | null>(null)
   const [authLoading, setAuthLoading] = useState(true)
   const [email, setEmail] = useState("")
@@ -72,11 +74,15 @@ export default function ExataApp() {
       } else if (userEmail === "gustavodiaass@yahoo.com") {
         setUserRole("master")
       }
+const { data: perms } = await supabase.from("permissoes").select("aba_id").eq("user_id", userId);
+setUserPermissions(perms?.map(p => p.aba_id) || []);
     } catch (e) {
       console.error("Erro ao carregar perfil ou nível de acesso")
     }
-  }
-
+const canAccess = (id: TabId) => {
+  if (userRole === "master" || userRole === "adm") return true
+  return userPermissions.includes(id)
+}
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session?.user) {
@@ -250,7 +256,7 @@ export default function ExataApp() {
           </div>
 
           <nav className="flex-1 px-2 py-3 space-y-1">
-            {NAV_ITEMS.map((item) => {
+            {{NAV_ITEMS.filter(item => canAccess(item.id)).map((item)((item) => {
               const Icon = item.icon
               const isActive = activeTab === item.id
               return (
@@ -381,6 +387,11 @@ export default function ExataApp() {
                 <MasterTab />
               </div>
             )}
+            {activeTab === "equipe" && (
+  <div className="animate-in fade-in duration-300">
+    <EquipeTab user={user} />
+  </div>
+)}
 
             {activeTab === "gbo" && (
               <div className="animate-in fade-in duration-300">
