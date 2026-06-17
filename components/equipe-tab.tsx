@@ -19,29 +19,39 @@ export function EquipeTab({ user }: { user: any }) {
   const carregarDados = async () => {
     setIsLoading(true)
     try {
-      // 1. Carrega a equipe (apenas perfis vinculados ao gerente logado)
-      const { data: equipeData, error: equipeError } = await supabase
+      const { data: adminPerfil, error: adminError } = await supabase
         .from("perfis")
-        .select("*")
-        .eq("gerente_id", user.id)
+        .select("empresa_id")
+        .eq("id", user.id)
+        .single()
 
-      if (equipeError) throw equipeError
+      if (adminError) throw adminError
 
-      // 2. Carrega as permissões de TODOS os usuários da equipe de uma vez
-      if (equipeData && equipeData.length > 0) {
-        const userIds = equipeData.map(m => m.id)
-        const { data: permData, error: permError } = await supabase
-          .from("permissoes")
+      if (adminPerfil && adminPerfil.empresa_id) {
+        const { data: equipeData, error: equipeError } = await supabase
+          .from("perfis")
           .select("*")
-          .in("user_id", userIds)
+          .eq("empresa_id", adminPerfil.empresa_id)
+          .neq("id", user.id)
 
-        if (permError) throw permError
-        setPermissoes(permData || [])
+        if (equipeError) throw equipeError
+
+        if (equipeData && equipeData.length > 0) {
+          const userIds = equipeData.map((m: any) => m.id)
+          const { data: permData, error: permError } = await supabase
+            .from("permissoes")
+            .select("*")
+            .in("user_id", userIds)
+
+          if (permError) throw permError
+          setPermissoes(permData || [])
+        } else {
+          setPermissoes([])
+        }
+        setEquipe(equipeData || [])
       } else {
-        setPermissoes([])
+        setEquipe([])
       }
-
-      setEquipe(equipeData || [])
     } catch (error: any) {
       toast({ title: "Erro", description: error.message, variant: "destructive" })
     } finally {
@@ -59,11 +69,11 @@ export function EquipeTab({ user }: { user: any }) {
       const res = await fetch('/api/admin/invite', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          email: email.trim(), 
-          password: "Exata@123", 
-          gerenteId: user.id, 
-          nivel: "operador" // Define como operador por padrão
+        body: JSON.stringify({
+          email: email.trim(),
+          password: "Exata@123",
+          gerenteId: user.id,
+          nivel: "operador"
         })
       })
 
@@ -84,7 +94,7 @@ export function EquipeTab({ user }: { user: any }) {
   }
 
   const togglePermissao = async (userId: string, aba: string) => {
-    const temPermissao = permissoes.some(p => p.user_id === userId && p.aba_id === aba)
+    const temPermissao = permissoes.some((p: any) => p.user_id === userId && p.aba_id === aba)
 
     try {
       if (temPermissao) {
@@ -92,7 +102,6 @@ export function EquipeTab({ user }: { user: any }) {
       } else {
         await supabase.from("permissoes").insert({ user_id: userId, aba_id: aba })
       }
-      // Recarrega silenciosamente para atualizar a UI
       carregarDados()
     } catch (error: any) {
       toast({ title: "Erro ao atualizar permissão", description: error.message, variant: "destructive" })
@@ -131,7 +140,7 @@ export function EquipeTab({ user }: { user: any }) {
               <tr>
                 <th className="px-6 py-4">Usuário / E-mail</th>
                 <th className="px-6 py-4">Status</th>
-                <th className="px-6 py-4">Controle de Menus (Clique para liberar/bloquear)</th>
+                <th className="px-6 py-4">Controle de Menus (Clique para alternar)</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
@@ -159,10 +168,10 @@ export function EquipeTab({ user }: { user: any }) {
                     <td className="px-6 py-4">
                       <div className="flex flex-wrap gap-2">
                         {abasDisponiveis.map((aba) => {
-                          const temPermissao = permissoes.some(p => p.user_id === membro.id && p.aba_id === aba)
+                          const temPermissao = permissoes.some((p: any) => p.user_id === membro.id && p.aba_id === aba)
                           return (
-                            <button 
-                              key={aba} 
+                            <button
+                              key={aba}
                               onClick={() => togglePermissao(membro.id, aba)}
                               className={`px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all ${temPermissao ? "bg-primary text-primary-foreground shadow-sm hover:bg-destructive hover:text-destructive-foreground" : "bg-muted text-muted-foreground hover:bg-primary/20 hover:text-primary"}`}
                               title={temPermissao ? "Clique para revogar acesso" : "Clique para conceder acesso"}
