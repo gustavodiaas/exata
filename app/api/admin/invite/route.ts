@@ -46,13 +46,14 @@ export async function POST(request: Request) {
 
     // Cria perfil vinculado à MESMA empresa do admin
     const { error: perfilError } = await supabaseAdmin
-      .from('perfis')
-      .insert({
-        id: authData.user.id,
-        status: 'ativo',
-        gerente_id: gerenteId,
-        empresa_id: gerentePerfil.empresa_id,
-      })
+  .from('perfis')
+  .insert({
+    id: authData.user.id,
+    email,
+    status: 'ativo',
+    gerente_id: gerenteId,
+    empresa_id: gerentePerfil.empresa_id,
+  })
 
     if (perfilError) throw perfilError
 
