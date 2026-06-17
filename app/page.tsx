@@ -278,7 +278,7 @@ const canAccess = (id: TabId) => {
       )}
     </button>
   )
-})}
+}) }
           </nav>
 
           <div className="px-2 py-3 border-t border-border space-y-1">
