@@ -25,6 +25,7 @@ const NAV_ITEMS: { id: TabId; label: string; sublabel: string; icon: React.Eleme
   { id: "maquinas", label: "Máquinas", sublabel: "Postos de Trabalho", icon: Factory },
   { id: "manutencao", label: "Manutenção", sublabel: "Gestão de Ativos", icon: Wrench },
   { id: "apontamento", label: "Apontamento", sublabel: "Registro de Produção", icon: ClipboardCheck },
+  { id: "equipe", label: "Equipe", sublabel: "Gestão de acessos", icon: Users },
 ]
 
 const NAV_BOTTOM: { id: TabId; label: string; sublabel: string; icon: React.ElementType }[] = [
