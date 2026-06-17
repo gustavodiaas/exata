@@ -16,7 +16,7 @@ import {
   Settings, Sun, Moon, Monitor, BookText, LogOut, ClipboardCheck, LayoutDashboard, User, BarChart2, CalendarClock, Menu, X, PanelLeftClose, Users, PanelLeftOpen, Factory, Wrench, ShieldAlert
 } from "lucide-react"
 
-type TabId = "dashboard" | "gbo" | "pcp" | "apontamento" | "maquinas" | "manutencao" | "configuracoes" | "master"
+type TabId = "dashboard" | "gbo" | "pcp" | "apontamento" | "maquinas" | "manutencao" | "configuracoes" | "master" | "Equipe"
 
 const NAV_ITEMS: { id: TabId; label: string; sublabel: string; icon: React.ElementType }[] = [
   { id: "dashboard", label: "Dashboard", sublabel: "Visão geral da fábrica", icon: LayoutDashboard },
@@ -79,6 +79,7 @@ setUserPermissions(perms?.map(p => p.aba_id) || []);
     } catch (e) {
       console.error("Erro ao carregar perfil ou nível de acesso")
     }
+  }
 const canAccess = (id: TabId) => {
   if (userRole === "master" || userRole === "adm") return true
   return userPermissions.includes(id)
