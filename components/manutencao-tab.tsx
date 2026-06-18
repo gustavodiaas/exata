@@ -10,6 +10,7 @@ interface Manutencao {
   id: string
   maquina_id: string
   maquina_nome: string
+  maquina_codigo?: string
   tipo: "preventiva" | "corretiva"
   status: "pendente" | "em_execucao" | "concluida"
   data_programada: string
@@ -37,12 +38,16 @@ export function ManutencaoTab({ user }: { user: any }) {
   const loadData = async () => {
     try {
       const [maq, man] = await Promise.all([
-        supabase.from("maquinas").select("id, nome").eq("user_id", user.id),
-        supabase.from("manutencao").select("*, maquinas(nome)").eq("user_id", user.id).order("data_programada", { ascending: true })
+        supabase.from("maquinas").select("id, nome, codigo").eq("user_id", user.id),
+        supabase.from("manutencao").select("*, maquinas(nome, codigo)").eq("user_id", user.id).order("data_programada", { ascending: true })
       ])
 
       setMaquinas(maq.data || [])
-      setRegistros((man.data || []).map((m: any) => ({ ...m, maquina_nome: m.maquinas?.nome })))
+      setRegistros((man.data || []).map((m: any) => ({ 
+        ...m, 
+        maquina_nome: m.maquinas?.nome,
+        maquina_codigo: m.maquinas?.codigo
+      })))
     } catch (e) {
       toast({ title: "Erro", description: "Falha ao carregar dados.", variant: "destructive" })
     } finally {
@@ -96,7 +101,7 @@ export function ManutencaoTab({ user }: { user: any }) {
             <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest pl-1">Máquina</label>
             <select value={maquinaId} onChange={(e) => setMaquinaId(e.target.value)} className="w-full h-11 px-3 rounded-xl border border-border bg-input text-foreground text-sm outline-none">
               <option value="">Selecione o equipamento</option>
-              {maquinas.map(m => <option key={m.id} value={m.id}>{m.nome}</option>)}
+              {maquinas.map(m => <option key={m.id} value={m.id}>{m.codigo} - {m.nome}</option>)}
             </select>
           </div>
           <div className="space-y-1.5">
@@ -128,8 +133,8 @@ export function ManutencaoTab({ user }: { user: any }) {
                   {m.tipo === "preventiva" ? <CheckCircle2 className="h-5 w-5" /> : <AlertTriangle className="h-5 w-5" />}
                 </div>
                 <div>
-                  <p className="font-bold text-sm text-foreground">{m.maquina_nome}</p>
-                  <p className="text-[10px] text-muted-foreground uppercase font-bold">{m.descricao} · {m.data_programada.split("-").reverse().join("/")}</p>
+                  <p className="font-bold text-sm text-foreground">{m.maquina_codigo}</p>
+                  <p className="text-[10px] text-muted-foreground uppercase font-bold">{m.maquina_nome} · {m.descricao} · {m.data_programada.split("-").reverse().join("/")}</p>
                 </div>
               </div>
               <div className="flex gap-2">
