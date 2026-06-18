@@ -1,14 +1,15 @@
 "use client"
 
 import React, { useState, useEffect } from "react"
-import { Users, Plus, Loader2, ShieldCheck } from "lucide-react"
+import { Users, Plus, Loader2, ShieldCheck, Mail } from "lucide-react"
 import { supabase } from "@/components/supabase"
 import { useToast } from "@/hooks/use-toast"
 
 export function EquipeTab({ user }: { user: any }) {
   const [equipe, setEquipe] = useState<any[]>([])
   const [permissoes, setPermissoes] = useState<any[]>([])
-  const [niveisAcesso, setNiveisAcesso] = useState<any[]>([])
+  const [minhaEmpresaId, setMinhaEmpresaId] = useState<string | null>(null)
+  
   const [isAdding, setIsAdding] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [email, setEmail] = useState("")
@@ -20,70 +21,67 @@ export function EquipeTab({ user }: { user: any }) {
   const carregarDados = async () => {
     setIsLoading(true)
     try {
-      const { data: adminPerfil, error: adminError } = await supabase
-        .from("perfis")
+      // 1. Descobre a fábrica do usuário logado
+      const { data: meuAcesso, error: acessoError } = await supabase
+        .from("controle_acesso")
         .select("empresa_id")
-        .eq("id", user.id)
+        .eq("user_id", user.id)
         .single()
 
-      if (adminError) throw adminError
+      if (acessoError) throw acessoError
+      setMinhaEmpresaId(meuAcesso.empresa_id)
 
-      if (adminPerfil && adminPerfil.empresa_id) {
+      if (meuAcesso && meuAcesso.empresa_id) {
+        // 2. Busca a equipe da MESMA fábrica, ignorando o próprio usuário
         const { data: equipeData, error: equipeError } = await supabase
-          .from("perfis")
-          .select("*")
-          .eq("empresa_id", adminPerfil.empresa_id)
-          .neq("id", user.id)
+          .from("controle_acesso")
+          .select("*, perfis(email, nome)")
+          .eq("empresa_id", meuAcesso.empresa_id)
+          .neq("user_id", user.id)
 
         if (equipeError) throw equipeError
 
         if (equipeData && equipeData.length > 0) {
-          const userIds = equipeData.map((m: any) => m.id)
+          const userIds = equipeData.map((m: any) => m.user_id)
           
+          // 3. Busca as permissões específicas atreladas a essa equipe
           const { data: permData, error: permError } = await supabase
             .from("permissoes")
             .select("*")
             .in("user_id", userIds)
+            
           if (permError) throw permError
           setPermissoes(permData || [])
-
-          const { data: acessoData, error: acessoError } = await supabase
-            .from("controle_acesso")
-            .select("*")
-            .in("user_id", userIds)
-          if (acessoError) throw acessoError
-          setNiveisAcesso(acessoData || [])
-
         } else {
           setPermissoes([])
-          setNiveisAcesso([])
         }
         setEquipe(equipeData || [])
       } else {
         setEquipe([])
       }
     } catch (error: any) {
-      toast({ title: "Erro", description: error.message, variant: "destructive" })
+      toast({ title: "Erro", description: "Não foi possível carregar a equipe.", variant: "destructive" })
     } finally {
       setIsLoading(false)
     }
   }
 
-  useEffect(() => { carregarDados() }, [user.id])
+  useEffect(() => { 
+    if (user) carregarDados() 
+  }, [user])
 
   const handleInvite = async () => {
-    if (!email.trim()) return
+    if (!email.trim() || !minhaEmpresaId) return
 
     setIsCreating(true)
     try {
-      const res = await fetch('/api/admin/invite', {
+      const res = await fetch('/api/equipe/convite', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           email: email.trim(),
-          password: "Exata@123",
-          gerenteId: user.id,
-          nivel: "operador"
+          nivel: "operador",
+          empresa_id: minhaEmpresaId
         })
       })
 
@@ -92,7 +90,7 @@ export function EquipeTab({ user }: { user: any }) {
         throw new Error(errorData.error || "Falha ao convidar")
       }
 
-      toast({ title: "Sucesso", description: "Funcionário cadastrado." })
+      toast({ title: "Sucesso", description: "Convite formal enviado por e-mail." })
       setEmail("")
       setIsAdding(false)
       carregarDados()
@@ -114,7 +112,7 @@ export function EquipeTab({ user }: { user: any }) {
       }
       carregarDados()
     } catch (error: any) {
-      toast({ title: "Erro ao atualizar permissão", description: error.message, variant: "destructive" })
+      toast({ title: "Erro", description: "Falha ao atualizar permissão.", variant: "destructive" })
     }
   }
 
@@ -128,17 +126,22 @@ export function EquipeTab({ user }: { user: any }) {
           </h2>
           <p className="text-sm text-muted-foreground mt-1">Gerencie os acessos dos seus operadores.</p>
         </div>
-        <button onClick={() => setIsAdding(!isAdding)} className="bg-primary text-primary-foreground px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-widest flex items-center gap-2 hover:opacity-90 transition-all">
-          <Plus className="h-4 w-4" /> Novo Membro
+        <button onClick={() => setIsAdding(!isAdding)} className="bg-primary text-primary-foreground px-4 h-10 rounded-xl text-xs font-bold uppercase tracking-widest flex items-center gap-2 hover:opacity-90 transition-all shadow-md">
+          {isAdding ? "Cancelar" : <><Plus className="h-4 w-4" /> Novo Membro</>}
         </button>
       </div>
 
       {isAdding && (
         <div className="bg-card border border-border p-6 rounded-2xl space-y-4 max-w-md animate-in fade-in slide-in-from-top-2">
-          <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest pl-1">E-mail do Operador</label>
-          <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="operador@industria.com" className="w-full h-10 px-4 rounded-xl border border-border bg-input outline-none focus:ring-2 focus:ring-primary" />
-          <button onClick={handleInvite} disabled={isCreating} className="w-full h-10 flex items-center justify-center bg-foreground text-background font-bold text-xs uppercase tracking-widest rounded-xl hover:opacity-90 transition-all disabled:opacity-50">
-             {isCreating ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Convidando...</> : "Gerar Acesso (Senha: Exata@123)"}
+          <div className="space-y-1.5">
+            <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest pl-1">E-mail do Operador</label>
+            <div className="relative">
+              <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="operador@industria.com" className="w-full h-11 pl-10 pr-4 rounded-xl border border-border bg-input outline-none focus:ring-2 focus:ring-primary text-sm transition-all" />
+            </div>
+          </div>
+          <button onClick={handleInvite} disabled={isCreating} className="w-full h-11 flex items-center justify-center bg-foreground text-background font-bold text-xs uppercase tracking-widest rounded-xl hover:opacity-90 transition-all shadow-md disabled:opacity-50">
+             {isCreating ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Convidando...</> : "Disparar Convite Oficial"}
           </button>
         </div>
       )}
@@ -168,15 +171,16 @@ export function EquipeTab({ user }: { user: any }) {
                 </tr>
               ) : (
                 equipe.map((membro) => {
-                  const nivelUsuario = niveisAcesso.find(n => n.user_id === membro.id)?.nivel || "operador"
-                  const isPrivilegiado = nivelUsuario === "master" || nivelUsuario === "admin"
+                  const isPrivilegiado = membro.nivel === "master" || membro.nivel === "admin"
 
                   return (
                     <tr key={membro.id} className="hover:bg-muted/5 transition-colors">
-                      <td className="px-6 py-4 font-bold text-foreground">{membro.email}</td>
+                      <td className="px-6 py-4 font-bold text-foreground">
+                        {membro.perfis?.email || "Convite Pendente"}
+                      </td>
                       <td className="px-6 py-4">
-                        <span className={`inline-flex items-center px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider ${membro.status === 'inativo' ? 'bg-destructive/10 text-destructive' : 'bg-green-500/10 text-green-500'}`}>
-                          {membro.status || "Ativo"}
+                        <span className="inline-flex items-center px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider bg-green-500/10 text-green-500">
+                          Ativo
                         </span>
                       </td>
                       <td className="px-6 py-4">
@@ -184,17 +188,17 @@ export function EquipeTab({ user }: { user: any }) {
                           <div className="flex items-center gap-2 px-3 py-1.5 bg-primary/10 text-primary rounded-lg border border-primary/20 w-fit">
                             <ShieldCheck className="h-4 w-4" />
                             <span className="text-[10px] font-black uppercase tracking-widest">
-                              Acesso Total ({nivelUsuario})
+                              Acesso Total ({membro.nivel})
                             </span>
                           </div>
                         ) : (
                           <div className="flex flex-wrap gap-2">
                             {abasDisponiveis.map((aba) => {
-                              const temPermissao = permissoes.some((p: any) => p.user_id === membro.id && p.aba_id === aba)
+                              const temPermissao = permissoes.some((p: any) => p.user_id === membro.user_id && p.aba_id === aba)
                               return (
                                 <button
                                   key={aba}
-                                  onClick={() => togglePermissao(membro.id, aba)}
+                                  onClick={() => togglePermissao(membro.user_id, aba)}
                                   className={`px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all ${temPermissao ? "bg-primary text-primary-foreground shadow-sm hover:bg-destructive hover:text-destructive-foreground" : "bg-muted text-muted-foreground hover:bg-primary/20 hover:text-primary"}`}
                                   title={temPermissao ? "Clique para revogar acesso" : "Clique para conceder acesso"}
                                 >
