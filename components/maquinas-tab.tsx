@@ -82,7 +82,7 @@ export function MaquinasTab({ user }: { user: any }) {
         setMaquinas(maquinas.map(m => m.id === editingId ? { ...m, ...payload } : m))
         toast({ title: "✅ Máquina Atualizada", description: "Os dados foram alterados com sucesso." })
       } else {
-        const newPayload = { ...payload, status: "ativa", user_id: user.id }
+        const newPayload = { ...payload, status: "ativa" }
         const { data, error } = await supabase
           .from("maquinas")
           .insert([newPayload])
