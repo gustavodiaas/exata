@@ -60,13 +60,12 @@ interface DailyCapacity {
   downtime: number
 }
 
-// Sub-card gerado quando uma OP transborda dias
 interface OPSlice {
   op: ProductionOrder
   sliceDate: string
-  sliceSeconds: number       // carga alocada neste dia (soma de todas as máquinas)
-  machineLoads: Record<string, number> // carga por máquina neste dia
-  totalSeconds: number       // carga total da OP
+  sliceSeconds: number
+  machineLoads: Record<string, number>
+  totalSeconds: number
   isFirst: boolean
   isLast: boolean
   partIndex: number
@@ -120,7 +119,7 @@ function formatMinutes(sec: number): string {
 
 // ─── Componente ───────────────────────────────────────────────────────────────
 
-export function PCPTab() {
+export function PCPTab({ empresaAtivaId }: { empresaAtivaId?: string | null }) {
   const { toast } = useToast()
 
   const [products, setProducts] = useState<Product[]>([])
@@ -134,7 +133,6 @@ export function PCPTab() {
   const [currentMonday, setCurrentMonday] = useState<string>(() => getMondayOfWeek(toStr(new Date())))
   const weekDays = useMemo(() => getWeekDays(currentMonday), [currentMonday])
 
-  // Formulário nova OP
   const [opNumber, setOpNumber] = useState("")
   const [opDate, setOpDate] = useState("")
   const [opProductCode, setOpProductCode] = useState("")
@@ -142,27 +140,36 @@ export function PCPTab() {
   const [opRule, setOpRule] = useState<"soma" | "media" | "gargalo">("soma")
   const [opGroupSetup, setOpGroupSetup] = useState(false)
 
-  // Exceções de capacidade
   const [selectedDate, setSelectedDate] = useState("")
   const [capacityValue, setCapacityValue] = useState("")
   const [capacityUnit, setCapacityUnit] = useState<"hours" | "minutes">("hours")
   const [downtimeValue, setDowntimeValue] = useState("")
 
-  // Drag state
   const [draggingId, setDraggingId] = useState<string | null>(null)
 
-  // ─── Carga de dados ──────────────────────────────────────────────────────────
+  // ─── Carga de dados com filtro Mestre ────────────────────────────────────────
 
   const loadData = async () => {
+    setLoading(true)
     try {
-      const { data: userResponse } = await supabase.auth.getUser()
-      const userId = userResponse.user?.id
-      if (!userId) return
+      let qMaquinas = supabase.from("maquinas").select("*")
+      let qProdutos = supabase.from("produtos").select("*, operacoes(*)")
+      let qOrdens = supabase.from("ordens_producao").select("*")
+      let qCapacidade = supabase.from("capacidade_diaria").select("*")
 
-      const { data: maqData } = await supabase.from("maquinas").select("*")
+      if (empresaAtivaId) {
+        qMaquinas = qMaquinas.eq("empresa_id", empresaAtivaId)
+        qProdutos = qProdutos.eq("empresa_id", empresaAtivaId)
+        qOrdens = qOrdens.eq("empresa_id", empresaAtivaId)
+        qCapacidade = qCapacidade.eq("empresa_id", empresaAtivaId)
+      }
+
+      const [{ data: maqData }, { data: prodsData }, { data: opsData }, { data: capData }] = await Promise.all([
+        qMaquinas, qProdutos, qOrdens, qCapacidade
+      ])
+
       setMachines(maqData || [])
 
-      const { data: prodsData } = await supabase.from("produtos").select("*, operacoes(*)")
       setProducts((prodsData || []).map((p: any) => ({
         code: p.codigo,
         description: p.descricao,
@@ -174,7 +181,6 @@ export function PCPTab() {
         }))
       })))
 
-      const { data: opsData } = await supabase.from("ordens_producao").select("*")
       setOrders((opsData || []).map((op: any) => ({
         id: op.id,
         opNumber: op.numero_op,
@@ -185,7 +191,6 @@ export function PCPTab() {
         groupSetup: op.agrupar_setup
       })))
 
-      const { data: capData } = await supabase.from("capacidade_diaria").select("*")
       setCapacities((capData || []).map((c: any) => ({
         id: c.id,
         date: c.data_excecao,
@@ -199,9 +204,9 @@ export function PCPTab() {
     }
   }
 
-  useEffect(() => { loadData() }, [])
+  useEffect(() => { loadData() }, [empresaAtivaId])
 
-  // ─── Cálculo de carga da OP (Global) ─────────────────────────────────────────
+  // ─── Lógica interna ──────────────────────────────────────────────────────────
 
   const calculateOPTime = (op: ProductionOrder): number => {
     const product = products.find((p) => p.code === op.productCode)
@@ -222,8 +227,6 @@ export function PCPTab() {
     const down = globalCap?.downtime ?? 0
     return Math.max(0, base - down)
   }
-
-  // ─── Lógica de sub-cards (Transbordo por Máquina) ────────────────────────────
 
   const computeSlices = useMemo((): OPSlice[] => {
     const slices: OPSlice[] = []
@@ -292,8 +295,6 @@ export function PCPTab() {
     return slices
   }, [orders, capacities, products, machines])
 
-  // ─── Dados do dashboard (Agregação por Máquina) ──────────────────────────────
-
   const allDates = useMemo(() => {
     const dates = new Set([
       ...orders.map((o) => o.date),
@@ -352,24 +353,22 @@ export function PCPTab() {
 
   const dashboardArray = Object.values(heijunkaDashboard)
 
-  // ─── Handlers ────────────────────────────────────────────────────────────────
+  // ─── Handlers de gravação com injeção de ID ──────────────────────────────────
 
   const handleAddOP = async () => {
     if (!opNumber || !opDate || !opProductCode || !opQuantity) {
       toast({ title: "Erro", description: "Preencha todos os campos da OP.", variant: "destructive" })
       return
     }
-    const { data: userData } = await supabase.auth.getUser()
-    const userId = userData.user?.id
-    if (!userId) return
 
-   const newOP = {
-  numero_op: opNumber.trim(),
-  data_programacao: opDate,
-  produto_codigo: opProductCode,
-  quantidade: parseInt(opQuantity),
-  regra_calculo: opRule,
-  agrupar_setup: opGroupSetup,
+    const newOP = {
+      numero_op: opNumber.trim(),
+      data_programacao: opDate,
+      produto_codigo: opProductCode,
+      quantidade: parseInt(opQuantity),
+      regra_calculo: opRule,
+      agrupar_setup: opGroupSetup,
+      ...(empresaAtivaId && { empresa_id: empresaAtivaId })
     }
 
     const { data, error } = await supabase.from("ordens_producao").insert([newOP]).select()
@@ -394,9 +393,6 @@ export function PCPTab() {
 
   const handleSaveDowntime = async () => {
     if (!selectedDate) { toast({ title: "Erro", description: "Selecione uma data.", variant: "destructive" }); return }
-    const { data: userData } = await supabase.auth.getUser()
-    const userId = userData.user?.id
-    if (!userId) return
 
     const existing = capacities.find((c) => c.date === selectedDate)
     let capInSeconds = existing?.globalCapacity ?? DEFAULT_SHIFT_CAPACITY_SECONDS
@@ -406,7 +402,12 @@ export function PCPTab() {
     }
     const downtimeInSeconds = downtimeValue ? parseFloat(downtimeValue) * 60 : (existing?.downtime ?? 0)
 
-    const payload = { data_excecao: selectedDate, capacidade_global: capInSeconds, tempo_parada: downtimeInSeconds }
+    const payload = { 
+      data_excecao: selectedDate, 
+      capacidade_global: capInSeconds, 
+      tempo_parada: downtimeInSeconds,
+      ...(empresaAtivaId && { empresa_id: empresaAtivaId })
+    }
 
     if (existing?.id) {
       await supabase.from("capacidade_diaria").update(payload).eq("id", existing.id)
@@ -421,9 +422,6 @@ export function PCPTab() {
   }
 
   const handleRemoveCapacity = async (date: string) => {
-    const { data: userData } = await supabase.auth.getUser()
-    const userId = userData.user?.id
-    if (!userId) return
     const { error } = await supabase.from("capacidade_diaria").delete().eq("data_excecao", date)
     if (!error) { setCapacities(capacities.filter((c) => c.date !== date)); toast({ title: "Exceção Removida" }) }
   }
