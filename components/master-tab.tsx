@@ -20,9 +20,9 @@ export function MasterTab() {
     setIsLoading(true)
     try {
       const { data, error } = await supabase
-        .from("perfis")
+        .from("empresas")
         .select("*")
-        .order("empresa", { ascending: true })
+        .order("created_at", { ascending: false })
 
       if (error) throw error
       setClientes(data || [])
@@ -41,7 +41,7 @@ export function MasterTab() {
     const novoStatus = currentStatus === "inativo" ? "ativo" : "inativo"
     try {
       const { error } = await supabase
-        .from("perfis")
+        .from("empresas")
         .update({ status: novoStatus })
         .eq("id", id)
 
@@ -62,13 +62,12 @@ export function MasterTab() {
 
     setIsCreating(true)
     try {
-      const response = await fetch('/api/admin/invite', {
+      const response = await fetch('/api/admin/nova-fabrica', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           email: novoEmail.trim(), 
-          empresa: novaEmpresa.trim(), 
-          password: 'Exata@123' 
+          nomeFabrica: novaEmpresa.trim()
         })
       })
 
@@ -76,7 +75,7 @@ export function MasterTab() {
       
       if (!response.ok) throw new Error(result.error || "Erro desconhecido ao criar acesso.")
 
-      toast({ title: "Fábrica Operacional", description: "Acesso gerado com sucesso. Senha padrão: Exata@123" })
+      toast({ title: "Fábrica Operacional", description: "O ambiente foi isolado e o link de acesso foi enviado ao e-mail do cliente." })
       setNovaEmpresa("")
       setNovoEmail("")
       setIsAdding(false)
@@ -190,7 +189,7 @@ export function MasterTab() {
                 ) : (
                   clientes.map((cliente) => (
                     <tr key={cliente.id} className="hover:bg-muted/10 transition-colors">
-                      <td className="px-6 py-4 font-bold text-foreground">{cliente.empresa || "Sem nome definido"}</td>
+                      <td className="px-6 py-4 font-bold text-foreground">{cliente.nome || "Sem nome definido"}</td>
                       <td className="px-6 py-4 text-muted-foreground text-[11px] font-mono">{cliente.id}</td>
                       <td className="px-6 py-4">
                         <span className={`inline-flex items-center px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider ${cliente.status === 'inativo' ? 'bg-destructive/10 text-destructive' : 'bg-green-500/10 text-green-500'}`}>
