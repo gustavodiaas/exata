@@ -9,7 +9,7 @@ import { useToast } from "@/hooks/use-toast"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { GBOChart } from "@/components/gbo-chart"
 import { supabase } from "@/components/supabase"
-import { Plus, Download, Upload, FileSpreadsheet, CheckCircle2, FileImage, ChevronDown, Save, BookOpen, Pencil, Trash2 } from "lucide-react"
+import { Plus, Download, Upload, FileSpreadsheet, CheckCircle2, FileImage, ChevronDown, Save, BookOpen, Pencil, Trash2, Search, ChevronRight, FilePlus2, X } from "lucide-react"
 
 interface Operation {
   id: string
@@ -55,6 +55,10 @@ export function GBOTab({ user }: { user: any }) {
   const [savedProducts, setSavedProducts] = useState<Array<{ code: string; description: string; steps: Array<{ name: string; cycleTime: number; setupTime: number; maquina_id?: string }> }>>([])
   const [showProductsPanel, setShowProductsPanel] = useState(false)
   const [confirmOverwrite, setConfirmOverwrite] = useState<{ product: any; index: number } | null>(null)
+
+  // Novos states para pesquisa e expansão de produtos
+  const [productSearch, setProductSearch] = useState("")
+  const [expandedProduct, setExpandedProduct] = useState<string | null>(null)
 
   const fileInputRef = useRef<HTMLInputElement>(null)
   const { toast } = useToast()
@@ -202,6 +206,21 @@ export function GBOTab({ user }: { user: any }) {
     if (e.key === "Enter") addOperation()
   }
 
+  // Limpa tudo para cadastrar um produto novo
+  const handleNovoProduct = () => {
+    setProductCode("")
+    setProductName("")
+    setOperations([])
+    setCalcType("takt")
+    setTimeUnit("minutes")
+    setNewOperationName("")
+    setNewOperationTime("")
+    setNewOperationSetup("")
+    setNewOperationMaquinaId("")
+    setErrors({})
+    toast({ title: "Novo produto", description: "Campos limpos. Cadastre o novo produto." })
+  }
+
   const buildNewProduct = () => ({
     code: productCode.trim(),
     description: productName.trim(),
@@ -293,6 +312,8 @@ export function GBOTab({ user }: { user: any }) {
     setProductName(product.description)
     setOperations(ops)
     setShowProductsPanel(false)
+    setProductSearch("")
+    setExpandedProduct(null)
     toast({ title: "✅ Produto Carregado", description: `Roteiro "${product.description}" carregado para edição.` })
   }
 
@@ -303,6 +324,7 @@ export function GBOTab({ user }: { user: any }) {
       setSavedProducts(updated)
       localStorage.setItem("gbo_products", JSON.stringify(updated))
       window.dispatchEvent(new Event("sync_gbo_products"))
+      if (expandedProduct === code) setExpandedProduct(null)
       toast({ title: "Produto Removido", description: `O roteiro "${code}" foi excluído da nuvem.` })
     } catch (e: any) {
       toast({ title: "Erro ao excluir", description: e.message, variant: "destructive" })
@@ -349,6 +371,15 @@ export function GBOTab({ user }: { user: any }) {
     if (fileInputRef.current) fileInputRef.current.value = ""
   }
 
+  // Produtos filtrados pela pesquisa
+  const filteredProducts = useMemo(() => {
+    const q = productSearch.trim().toLowerCase()
+    if (!q) return savedProducts
+    return savedProducts.filter(p =>
+      p.code.toLowerCase().includes(q) || p.description.toLowerCase().includes(q)
+    )
+  }, [savedProducts, productSearch])
+
   return (
     <React.Fragment>
       {confirmOverwrite && (
@@ -387,11 +418,23 @@ export function GBOTab({ user }: { user: any }) {
 
       <div className="flex flex-col xl:flex-row gap-8 pb-12 print:p-0">
         <div className="xl:w-[35%] flex flex-col gap-6 print:hidden">
+
+          {/* Identificação do Produto + botão Novo */}
           <div className="bg-card p-6 rounded-2xl shadow-sm border border-border space-y-4">
-            <h3 className="font-bold text-foreground border-b border-border pb-2 flex items-center gap-2">
-              <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
-              Identificação do Produto
-            </h3>
+            <div className="flex items-center justify-between border-b border-border pb-2">
+              <h3 className="font-bold text-foreground flex items-center gap-2">
+                <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
+                Identificação do Produto
+              </h3>
+              <button
+                onClick={handleNovoProduct}
+                className="h-8 px-3 rounded-lg bg-primary/10 text-primary font-bold text-[10px] uppercase tracking-widest flex items-center gap-1.5 hover:bg-primary/20 transition-colors"
+                title="Limpar campos para novo produto"
+              >
+                <FilePlus2 className="h-3.5 w-3.5" />
+                Novo Produto
+              </button>
+            </div>
             <div className="space-y-3">
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1">
@@ -442,6 +485,7 @@ export function GBOTab({ user }: { user: any }) {
             </div>
           </div>
 
+          {/* Painel Produtos na Nuvem com pesquisa e expansão */}
           {savedProducts.length > 0 && (
             <div className="bg-card rounded-2xl shadow-sm border border-border overflow-hidden">
               <button onClick={() => setShowProductsPanel(!showProductsPanel)} className="w-full flex items-center justify-between px-6 py-4 hover:bg-muted/50 transition-colors">
@@ -453,25 +497,102 @@ export function GBOTab({ user }: { user: any }) {
                 <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform ${showProductsPanel ? "rotate-180" : ""}`} />
               </button>
               {showProductsPanel && (
-                <div className="border-t border-border divide-y divide-border max-h-[280px] overflow-y-auto">
-                  {savedProducts.map((product) => (
-                    <div key={product.code} className="flex items-center justify-between px-4 py-3 hover:bg-muted/30 transition-colors">
-                      <div className="flex flex-col gap-0.5 min-w-0">
-                        <span className="text-xs font-bold text-foreground truncate">{product.description}</span>
-                        <span className="text-[10px] text-muted-foreground">{product.code} · {product.steps.length} operações</span>
-                      </div>
-                      <div className="flex items-center gap-1 flex-shrink-0 ml-2">
-                        <button onClick={() => handleLoadProduct(product)} title="Carregar para edição"
-                          className="h-7 w-7 flex items-center justify-center rounded-lg text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors">
-                          <Pencil className="h-3.5 w-3.5" />
+                <div className="border-t border-border">
+                  {/* Campo de pesquisa */}
+                  <div className="px-4 py-3 border-b border-border">
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                      <input
+                        type="text"
+                        placeholder="Buscar por código ou nome..."
+                        value={productSearch}
+                        onChange={(e) => setProductSearch(e.target.value)}
+                        className="w-full h-9 pl-9 pr-8 rounded-lg border border-border bg-input text-foreground text-xs outline-none focus:ring-2 focus:ring-primary transition-all"
+                      />
+                      {productSearch && (
+                        <button onClick={() => setProductSearch("")} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors">
+                          <X className="h-3.5 w-3.5" />
                         </button>
-                        <button onClick={() => handleDeleteProduct(product.code)} title="Excluir produto"
-                          className="h-7 w-7 flex items-center justify-center rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors">
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
-                      </div>
+                      )}
                     </div>
-                  ))}
+                  </div>
+
+                  <div className="divide-y divide-border max-h-[380px] overflow-y-auto">
+                    {filteredProducts.length === 0 ? (
+                      <div className="px-4 py-6 text-center text-xs text-muted-foreground font-bold uppercase tracking-widest">
+                        Nenhum produto encontrado
+                      </div>
+                    ) : (
+                      filteredProducts.map((product) => (
+                        <div key={product.code}>
+                          {/* Linha principal do produto */}
+                          <div className="flex items-center justify-between px-4 py-3 hover:bg-muted/30 transition-colors">
+                            <button
+                              onClick={() => setExpandedProduct(expandedProduct === product.code ? null : product.code)}
+                              className="flex items-center gap-2 min-w-0 flex-1 text-left"
+                            >
+                              <ChevronRight className={`h-3.5 w-3.5 flex-shrink-0 text-muted-foreground transition-transform ${expandedProduct === product.code ? "rotate-90" : ""}`} />
+                              <div className="flex flex-col gap-0.5 min-w-0">
+                                <span className="text-xs font-bold text-foreground truncate">{product.description}</span>
+                                <span className="text-[10px] text-muted-foreground">{product.code} · {product.steps.length} operações</span>
+                              </div>
+                            </button>
+                            <div className="flex items-center gap-1 flex-shrink-0 ml-2">
+                              <button
+                                onClick={() => handleLoadProduct(product)}
+                                title="Carregar para edição"
+                                className="h-7 px-2.5 flex items-center gap-1 rounded-lg text-[10px] font-bold text-primary bg-primary/10 hover:bg-primary/20 transition-colors"
+                              >
+                                <Pencil className="h-3 w-3" />
+                                Editar
+                              </button>
+                              <button
+                                onClick={() => handleDeleteProduct(product.code)}
+                                title="Excluir produto"
+                                className="h-7 w-7 flex items-center justify-center rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Expansão com detalhes das operações */}
+                          {expandedProduct === product.code && (
+                            <div className="bg-muted/20 border-t border-border px-4 py-3 space-y-2">
+                              <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-2">Operações do Roteiro</p>
+                              {product.steps.length === 0 ? (
+                                <p className="text-xs text-muted-foreground italic">Nenhuma operação cadastrada</p>
+                              ) : (
+                                product.steps.map((step, i) => {
+                                  const maq = maquinasGlobais.find(m => m.id === step.maquina_id)
+                                  const cicloMin = (step.cycleTime / 60).toFixed(2)
+                                  const setupMin = (step.setupTime / 60).toFixed(2)
+                                  return (
+                                    <div key={i} className="flex items-start gap-2 p-2 bg-card rounded-lg border border-border">
+                                      <span className="text-[10px] font-bold text-muted-foreground w-5 flex-shrink-0 pt-0.5">{i + 1}.</span>
+                                      <div className="flex-1 min-w-0">
+                                        <p className="text-xs font-bold text-foreground truncate">{step.name}</p>
+                                        <p className="text-[10px] text-muted-foreground mt-0.5">
+                                          Ciclo: {cicloMin} min · Setup: {setupMin} min
+                                          {maq && <span> · {maq.nome}</span>}
+                                        </p>
+                                      </div>
+                                    </div>
+                                  )
+                                })
+                              )}
+                              <button
+                                onClick={() => handleLoadProduct(product)}
+                                className="w-full mt-2 h-8 flex items-center justify-center gap-1.5 bg-primary text-primary-foreground rounded-lg text-[10px] font-bold uppercase tracking-widest hover:opacity-90 transition-all"
+                              >
+                                <Pencil className="h-3 w-3" /> Carregar para Edição
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      ))
+                    )}
+                  </div>
                 </div>
               )}
             </div>
