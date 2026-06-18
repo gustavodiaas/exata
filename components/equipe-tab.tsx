@@ -21,7 +21,7 @@ export function EquipeTab({ user }: { user: any }) {
 
   const abasDisponiveis = ["gbo", "pcp", "apontamento", "maquinas", "manutencao"]
 
-  // Passo 1: Descobre quem é o usuário e se ele tem o poder de Deus
+  // 1. Identificação do Acesso
   const inicializarAcesso = async () => {
     try {
       const { data: meuAcesso, error } = await supabase
@@ -44,13 +44,17 @@ export function EquipeTab({ user }: { user: any }) {
     }
   }
 
-  // Passo 2: Carrega a equipe da fábrica selecionada
+  // 2. Carregamento Blindado da Equipe
   const carregarEquipeDaFabrica = async (idEmpresa: string) => {
     setIsLoading(true)
     try {
+      // Join explícito perfis!user_id -> conecta tabela controle_acesso (coluna user_id) com perfis (coluna id)
       const { data: equipeData, error: equipeError } = await supabase
         .from("controle_acesso")
-        .select("*, perfis(email, nome)")
+        .select(`
+          *,
+          perfis!user_id(email, nome)
+        `)
         .eq("empresa_id", idEmpresa)
         .neq("user_id", user.id)
 
@@ -58,6 +62,7 @@ export function EquipeTab({ user }: { user: any }) {
 
       if (equipeData && equipeData.length > 0) {
         const userIds = equipeData.map((m: any) => m.user_id)
+        
         const { data: permData, error: permError } = await supabase
           .from("permissoes")
           .select("*")
@@ -69,8 +74,9 @@ export function EquipeTab({ user }: { user: any }) {
         setPermissoes([])
       }
       setEquipe(equipeData || [])
-    } catch (error) {
-      toast({ title: "Erro", description: "Não foi possível carregar a equipe desta unidade.", variant: "destructive" })
+    } catch (error: any) {
+      console.error(error)
+      toast({ title: "Erro", description: "Falha ao carregar a equipe desta unidade.", variant: "destructive" })
     } finally {
       setIsLoading(false)
     }
@@ -142,7 +148,7 @@ export function EquipeTab({ user }: { user: any }) {
         </div>
         
         <div className="flex items-center gap-3">
-          {/* Seletor Master de Empresas */}
+          {/* Seletor Master */}
           {isMaster && (
             <div className="flex items-center bg-muted/30 px-3 py-1 rounded-xl border border-border">
               <Building className="h-4 w-4 text-primary mr-2" />
@@ -193,7 +199,7 @@ export function EquipeTab({ user }: { user: any }) {
               {isLoading ? (
                 <tr>
                   <td colSpan={3} className="px-6 py-8 text-center text-xs text-muted-foreground font-bold uppercase tracking-widest">
-                    Carregando equipe da unidade...
+                    Carregando equipe...
                   </td>
                 </tr>
               ) : equipe.length === 0 ? (
