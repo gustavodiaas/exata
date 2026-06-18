@@ -13,7 +13,7 @@ import { ManutencaoTab } from "@/components/manutencao-tab"
 import { MasterTab } from "@/components/master-tab"
 import { EquipeTab } from "@/components/equipe-tab"
 import {
-  Settings, Sun, Moon, Monitor, BookText, LogOut, ClipboardCheck, LayoutDashboard, User, BarChart2, CalendarClock, Menu, X, PanelLeftClose, Users, PanelLeftOpen, Factory, Wrench, ShieldAlert
+  Settings, Sun, Moon, Monitor, BookText, LogOut, ClipboardCheck, LayoutDashboard, User, BarChart2, CalendarClock, Menu, X, PanelLeftClose, Users, PanelLeftOpen, Factory, Wrench, ShieldAlert, Building
 } from "lucide-react"
 
 type TabId = "dashboard" | "gbo" | "pcp" | "apontamento" | "maquinas" | "manutencao" | "configuracoes" | "master" | "equipe"
@@ -49,6 +49,10 @@ export default function ExataApp() {
   const [isLoadingAuth, setIsLoadingAuth] = useState(false)
   const [showSetupModal, setShowSetupModal] = useState(false)
 
+  // ESTADOS DO MODO MASTER
+  const [listaEmpresas, setListaEmpresas] = useState<any[]>([])
+  const [empresaAtivaId, setEmpresaAtivaId] = useState<string | null>(null)
+
   const [activeTab, setActiveTab] = useState<TabId>("dashboard")
   const [collapsed, setCollapsed] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
@@ -56,63 +60,73 @@ export default function ExataApp() {
   const { theme, setTheme } = useTheme()
   const { toast } = useToast()
 
- const loadUserProfile = async (userId: string, userEmail: string) => {
-  try {
-    const { data: perfil } = await supabase
-      .from("perfis")
-      .select("empresa, tempo_padrao, unidade_tempo")
-      .eq("id", userId)
-      .single()
+  const loadUserProfile = async (userId: string, userEmail: string) => {
+    try {
+      const { data: perfil } = await supabase
+        .from("perfis")
+        .select("empresa, tempo_padrao, unidade_tempo, tipo_usuario, empresa_id")
+        .eq("id", userId)
+        .single()
 
-    if (perfil) {
-      setEmpresaName(perfil.empresa || "")
-      setDefaultTime(
-        perfil.tempo_padrao
-          ? perfil.tempo_padrao.toString()
-          : ""
-      )
-      setDefaultTimeUnit(perfil.unidade_tempo || "hours")
+      if (perfil) {
+        setEmpresaName(perfil.empresa || "")
+        setDefaultTime(
+          perfil.tempo_padrao
+            ? perfil.tempo_padrao.toString()
+            : ""
+        )
+        setDefaultTimeUnit(perfil.unidade_tempo || "hours")
 
-      if (!perfil.empresa || perfil.empresa.trim() === "") {
-        setShowSetupModal(true)
+        if (!perfil.empresa || perfil.empresa.trim() === "") {
+          setShowSetupModal(true)
+        }
+
+        const isMaster = perfil.tipo_usuario === "master" || userEmail === "gustavodiaass@yahoo.com"
+        setUserRole(isMaster ? "master" : (perfil.tipo_usuario || "colaborador"))
+
+        if (isMaster) {
+          const { data: emps } = await supabase.from("empresas").select("id, nome").order("nome")
+          if (emps) {
+            setListaEmpresas(emps)
+            if (emps.length > 0) setEmpresaAtivaId(emps[0].id)
+          }
+        } else {
+          setEmpresaAtivaId(perfil.empresa_id)
+        }
       }
+
+      const { data: acesso } = await supabase
+        .from("controle_acesso")
+        .select("nivel")
+        .eq("user_id", userId)
+        .single()
+
+      if (acesso && (!perfil || perfil.tipo_usuario !== "master")) {
+        setUserRole(acesso.nivel)
+        console.log("Perfil carregado:", acesso.nivel)
+      } else if (userEmail === "gustavodiaass@yahoo.com" && !userRole) {
+        setUserRole("master")
+      }
+
+      const { data: perms } = await supabase
+        .from("permissoes")
+        .select("aba_id")
+        .eq("user_id", userId)
+
+      setUserPermissions(
+        perms?.map((p) => p.aba_id) || []
+      )
+    } catch (e) {
+      console.error("Erro ao carregar perfil ou nível de acesso", e)
     }
-
-    const { data: acesso } = await supabase
-      .from("controle_acesso")
-      .select("nivel")
-      .eq("user_id", userId)
-      .single()
-
-    if (acesso) {
-      setUserRole(acesso.nivel)
-      console.log("Perfil carregado:", acesso.nivel)
-    } else if (userEmail === "gustavodiaass@yahoo.com") {
-      setUserRole("master")
-    }
-
-    const { data: perms } = await supabase
-      .from("permissoes")
-      .select("aba_id")
-      .eq("user_id", userId)
-
-    setUserPermissions(
-      perms?.map((p) => p.aba_id) || []
-    )
-  } catch (e) {
-    console.error("Erro ao carregar perfil ou nível de acesso", e)
   }
-}
-const canAccess = (id: TabId) => {
-  // Se ainda estiver carregando (role é null), deixa passar para não dar erro de tela branca
-  if (userRole === null) return true;
-  
-  // Verifica se é master ou admin (ajustado para 'admin' conforme seu banco)
-  if (userRole === "master" || userRole === "admin") return true;
-  
-  // Se for operador, verifica a permissão específica
-  return userPermissions.includes(id);
-}
+
+  const canAccess = (id: TabId) => {
+    if (userRole === null) return true;
+    if (userRole === "master" || userRole === "admin") return true;
+    return userPermissions.includes(id);
+  }
+
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session?.user) {
@@ -285,30 +299,47 @@ const canAccess = (id: TabId) => {
             </button>
           </div>
 
+          {userRole === "master" && !collapsed && (
+            <div className="px-4 py-3 border-b border-border bg-primary/5">
+              <label className="text-[9px] font-bold text-primary uppercase tracking-widest flex items-center gap-1 mb-1.5">
+                <Building className="h-3 w-3" /> Monitorando Fábrica
+              </label>
+              <select
+                value={empresaAtivaId || ""}
+                onChange={(e) => setEmpresaAtivaId(e.target.value)}
+                className="w-full bg-card border border-border rounded-lg text-xs font-bold p-2 outline-none text-foreground cursor-pointer shadow-sm"
+              >
+                {listaEmpresas.map(emp => (
+                  <option key={emp.id} value={emp.id}>{emp.nome}</option>
+                ))}
+              </select>
+            </div>
+          )}
+
           <nav className="flex-1 px-2 py-3 space-y-1">
             {NAV_ITEMS.filter(item => canAccess(item.id)).map((item) => {
-  const Icon = item.icon
-  const isActive = activeTab === item.id
-  return (
-    <button 
-      key={item.id} 
-      onClick={() => { 
-        setActiveTab(item.id); 
-        localStorage.setItem("exata_aba_ativa", item.id); 
-      }} 
-      title={collapsed ? item.sublabel : undefined}
-      className={`w-full flex items-center rounded-xl transition-all text-left ${collapsed ? "justify-center h-10 w-10 mx-auto" : "gap-3 px-3 py-3"} ${isActive ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:bg-muted hover:text-foreground"}`}
-    >
-      <Icon className="h-[18px] w-[18px] flex-shrink-0" />
-      {!collapsed && (
-        <div className="flex flex-col min-w-0">
-          <span className="text-xs font-bold leading-tight">{item.label}</span>
-          <span className={`text-[10px] leading-tight truncate ${isActive ? "text-primary-foreground/70" : "text-muted-foreground"}`}>{item.sublabel}</span>
-        </div>
-      )}
-    </button>
-  )
-}) }
+              const Icon = item.icon
+              const isActive = activeTab === item.id
+              return (
+                <button 
+                  key={item.id} 
+                  onClick={() => { 
+                    setActiveTab(item.id); 
+                    localStorage.setItem("exata_aba_ativa", item.id); 
+                  }} 
+                  title={collapsed ? item.sublabel : undefined}
+                  className={`w-full flex items-center rounded-xl transition-all text-left ${collapsed ? "justify-center h-10 w-10 mx-auto" : "gap-3 px-3 py-3"} ${isActive ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:bg-muted hover:text-foreground"}`}
+                >
+                  <Icon className="h-[18px] w-[18px] flex-shrink-0" />
+                  {!collapsed && (
+                    <div className="flex flex-col min-w-0">
+                      <span className="text-xs font-bold leading-tight">{item.label}</span>
+                      <span className={`text-[10px] leading-tight truncate ${isActive ? "text-primary-foreground/70" : "text-muted-foreground"}`}>{item.sublabel}</span>
+                    </div>
+                  )}
+                </button>
+              )
+            }) }
           </nav>
 
           <div className="px-2 py-3 border-t border-border space-y-1">
@@ -360,6 +391,24 @@ const canAccess = (id: TabId) => {
               <X className="h-4 w-4" />
             </button>
           </div>
+
+          {userRole === "master" && (
+            <div className="px-4 py-3 border-b border-border bg-primary/5">
+              <label className="text-[9px] font-bold text-primary uppercase tracking-widest flex items-center gap-1 mb-1.5">
+                <Building className="h-3 w-3" /> Monitorando Fábrica
+              </label>
+              <select
+                value={empresaAtivaId || ""}
+                onChange={(e) => setEmpresaAtivaId(e.target.value)}
+                className="w-full bg-card border border-border rounded-lg text-xs font-bold p-2 outline-none text-foreground cursor-pointer shadow-sm"
+              >
+                {listaEmpresas.map(emp => (
+                  <option key={emp.id} value={emp.id}>{emp.nome}</option>
+                ))}
+              </select>
+            </div>
+          )}
+
           <nav className="flex-1 px-3 py-3 space-y-1">
             {NAV_ITEMS.map((item) => {
               const Icon = item.icon
@@ -424,45 +473,46 @@ const canAccess = (id: TabId) => {
                 <MasterTab />
               </div>
             )}
+
             {activeTab === "equipe" && (
-  <div className="animate-in fade-in duration-300">
-    <EquipeTab user={user} />
-  </div>
-)}
+              <div className="animate-in fade-in duration-300">
+                <EquipeTab user={user} empresaAtivaId={empresaAtivaId} />
+              </div>
+            )}
 
             {activeTab === "gbo" && (
               <div className="animate-in fade-in duration-300">
-                <GBOTab user={user} />
+                <GBOTab user={user} empresaAtivaId={empresaAtivaId} />
               </div>
             )}
 
             {activeTab === "dashboard" && (
               <div className="animate-in fade-in duration-300">
-                <DashboardTab />
+                <DashboardTab empresaAtivaId={empresaAtivaId} />
               </div>
             )}
 
             {activeTab === "pcp" && (
               <div className="animate-in fade-in duration-300">
-                <PCPTab />
+                <PCPTab empresaAtivaId={empresaAtivaId} />
               </div>
             )}
 
             {activeTab === "maquinas" && (
               <div className="animate-in fade-in duration-300">
-                <MaquinasTab user={user} />
+                <MaquinasTab user={user} empresaAtivaId={empresaAtivaId} />
               </div>
             )}
             
             {activeTab === "manutencao" && (
               <div className="animate-in fade-in duration-300">
-                <ManutencaoTab user={user} />
+                <ManutencaoTab user={user} empresaAtivaId={empresaAtivaId} />
               </div>
             )}
 
             {activeTab === "apontamento" && (
               <div className="animate-in fade-in duration-300">
-                <ApontamentoTab />
+                <ApontamentoTab empresaAtivaId={empresaAtivaId} />
               </div>
             )}
 
