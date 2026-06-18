@@ -19,6 +19,7 @@ interface Operation {
   unit: "minutes" | "seconds"
   maquina_id?: string
   maquina_nome?: string
+  maquina_codigo?: string
 }
 
 const validateNumber = (value: string, min = 0): { isValid: boolean; error?: string } => {
@@ -65,7 +66,7 @@ export function GBOTab({ user }: { user: any }) {
 
   const loadMaquinas = async () => {
     try {
-      const { data } = await supabase.from("maquinas").select("id, nome, tempo_setup_padrao").neq("status", "inativa")
+      const { data } = await supabase.from("maquinas").select("id, nome, codigo, tempo_setup_padrao").neq("status", "inativa")
       if (data) setMaquinasGlobais(data)
     } catch (e) {
       console.error("Erro ao carregar máquinas")
@@ -174,7 +175,8 @@ export function GBOTab({ user }: { user: any }) {
       setupTime: Number.parseFloat(newOperationSetup),
       unit: timeUnit,
       maquina_id: newOperationMaquinaId || undefined,
-      maquina_nome: maq ? maq.nome : undefined
+      maquina_nome: maq ? maq.nome : undefined,
+      maquina_codigo: maq ? maq.codigo : undefined
     }
     
     setOperations([...operations, newOperation])
@@ -305,7 +307,8 @@ export function GBOTab({ user }: { user: any }) {
         setupTime: timeUnit === "minutes" ? step.setupTime / 60 : step.setupTime,
         unit: timeUnit,
         maquina_id: step.maquina_id,
-        maquina_nome: maq ? maq.nome : undefined
+        maquina_nome: maq ? maq.nome : undefined,
+        maquina_codigo: maq ? maq.codigo : undefined
       }
     })
     setProductCode(product.code)
@@ -454,7 +457,7 @@ export function GBOTab({ user }: { user: any }) {
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <button className="w-full h-12 px-4 rounded-xl bg-input border border-border text-sm font-medium text-foreground flex items-center justify-between outline-none hover:bg-muted transition-all focus:ring-2 focus:ring-primary">
-                        {calcType === "takt" ? "Takt" : calcType === "media" ? "Média" : "Soma"}
+                        {calcType === "takt" ? "Takt" : calcType === "media" ? "Soma" : "Média"}
                         <ChevronDown className="w-4 h-4 text-muted-foreground" />
                       </button>
                     </DropdownMenuTrigger>
@@ -574,7 +577,7 @@ export function GBOTab({ user }: { user: any }) {
                                         <p className="text-xs font-bold text-foreground truncate">{step.name}</p>
                                         <p className="text-[10px] text-muted-foreground mt-0.5">
                                           Ciclo: {cicloMin} min · Setup: {setupMin} min
-                                          {maq && <span> · {maq.nome}</span>}
+                                          {maq && <span> · {maq.codigo}</span>}
                                         </p>
                                       </div>
                                     </div>
@@ -620,7 +623,7 @@ export function GBOTab({ user }: { user: any }) {
             <div className="space-y-3">
               <select value={newOperationMaquinaId} onChange={handleMaquinaChange} className="w-full h-12 px-4 rounded-xl border border-border bg-input text-foreground text-sm outline-none focus:ring-2 focus:ring-primary transition-all">
                 <option value="">Sem máquina específica</option>
-                {maquinasGlobais.map(m => <option key={m.id} value={m.id}>{m.nome}</option>)}
+                {maquinasGlobais.map(m => <option key={m.id} value={m.id}>{m.codigo} - {m.nome}</option>)}
               </select>
               <input placeholder="Nome da Operação" value={newOperationName} onKeyPress={handleKeyPress}
                 onChange={(e) => { setNewOperationName(e.target.value); if (errors.operationName) setErrors((p) => ({ ...p, operationName: undefined })) }}
