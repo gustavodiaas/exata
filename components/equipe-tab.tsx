@@ -1,14 +1,17 @@
 "use client"
 
 import React, { useState, useEffect } from "react"
-import { Users, Plus, Loader2, ShieldCheck, Mail } from "lucide-react"
+import { Users, Plus, Loader2, ShieldCheck, Mail, Building } from "lucide-react"
 import { supabase } from "@/components/supabase"
 import { useToast } from "@/hooks/use-toast"
 
 export function EquipeTab({ user }: { user: any }) {
   const [equipe, setEquipe] = useState<any[]>([])
   const [permissoes, setPermissoes] = useState<any[]>([])
-  const [minhaEmpresaId, setMinhaEmpresaId] = useState<string | null>(null)
+  
+  const [isMaster, setIsMaster] = useState(false)
+  const [listaEmpresas, setListaEmpresas] = useState<any[]>([])
+  const [empresaAtivaId, setEmpresaAtivaId] = useState<string | null>(null)
   
   const [isAdding, setIsAdding] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
@@ -18,60 +21,71 @@ export function EquipeTab({ user }: { user: any }) {
 
   const abasDisponiveis = ["gbo", "pcp", "apontamento", "maquinas", "manutencao"]
 
-  const carregarDados = async () => {
-    setIsLoading(true)
+  // Passo 1: Descobre quem é o usuário e se ele tem o poder de Deus
+  const inicializarAcesso = async () => {
     try {
-      // 1. Descobre a fábrica do usuário logado
-      const { data: meuAcesso, error: acessoError } = await supabase
+      const { data: meuAcesso, error } = await supabase
         .from("controle_acesso")
-        .select("empresa_id")
+        .select("nivel, empresa_id")
         .eq("user_id", user.id)
         .single()
 
-      if (acessoError) throw acessoError
-      setMinhaEmpresaId(meuAcesso.empresa_id)
+      if (error) throw error
 
-      if (meuAcesso && meuAcesso.empresa_id) {
-        // 2. Busca a equipe da MESMA fábrica, ignorando o próprio usuário
-        const { data: equipeData, error: equipeError } = await supabase
-          .from("controle_acesso")
-          .select("*, perfis(email, nome)")
-          .eq("empresa_id", meuAcesso.empresa_id)
-          .neq("user_id", user.id)
-
-        if (equipeError) throw equipeError
-
-        if (equipeData && equipeData.length > 0) {
-          const userIds = equipeData.map((m: any) => m.user_id)
-          
-          // 3. Busca as permissões específicas atreladas a essa equipe
-          const { data: permData, error: permError } = await supabase
-            .from("permissoes")
-            .select("*")
-            .in("user_id", userIds)
-            
-          if (permError) throw permError
-          setPermissoes(permData || [])
-        } else {
-          setPermissoes([])
-        }
-        setEquipe(equipeData || [])
-      } else {
-        setEquipe([])
+      if (meuAcesso.nivel === "master") {
+        setIsMaster(true)
+        const { data: empresas } = await supabase.from("empresas").select("*").order("nome")
+        if (empresas) setListaEmpresas(empresas)
       }
-    } catch (error: any) {
-      toast({ title: "Erro", description: "Não foi possível carregar a equipe.", variant: "destructive" })
+
+      setEmpresaAtivaId(meuAcesso.empresa_id)
+    } catch (error) {
+      toast({ title: "Erro de Autenticação", description: "Não foi possível validar seu nível de acesso.", variant: "destructive" })
+    }
+  }
+
+  // Passo 2: Carrega a equipe da fábrica selecionada
+  const carregarEquipeDaFabrica = async (idEmpresa: string) => {
+    setIsLoading(true)
+    try {
+      const { data: equipeData, error: equipeError } = await supabase
+        .from("controle_acesso")
+        .select("*, perfis(email, nome)")
+        .eq("empresa_id", idEmpresa)
+        .neq("user_id", user.id)
+
+      if (equipeError) throw equipeError
+
+      if (equipeData && equipeData.length > 0) {
+        const userIds = equipeData.map((m: any) => m.user_id)
+        const { data: permData, error: permError } = await supabase
+          .from("permissoes")
+          .select("*")
+          .in("user_id", userIds)
+          
+        if (permError) throw permError
+        setPermissoes(permData || [])
+      } else {
+        setPermissoes([])
+      }
+      setEquipe(equipeData || [])
+    } catch (error) {
+      toast({ title: "Erro", description: "Não foi possível carregar a equipe desta unidade.", variant: "destructive" })
     } finally {
       setIsLoading(false)
     }
   }
 
-  useEffect(() => { 
-    if (user) carregarDados() 
+  useEffect(() => {
+    if (user) inicializarAcesso()
   }, [user])
 
+  useEffect(() => {
+    if (empresaAtivaId) carregarEquipeDaFabrica(empresaAtivaId)
+  }, [empresaAtivaId])
+
   const handleInvite = async () => {
-    if (!email.trim() || !minhaEmpresaId) return
+    if (!email.trim() || !empresaAtivaId) return
 
     setIsCreating(true)
     try {
@@ -81,7 +95,7 @@ export function EquipeTab({ user }: { user: any }) {
         body: JSON.stringify({
           email: email.trim(),
           nivel: "operador",
-          empresa_id: minhaEmpresaId
+          empresa_id: empresaAtivaId
         })
       })
 
@@ -93,7 +107,7 @@ export function EquipeTab({ user }: { user: any }) {
       toast({ title: "Sucesso", description: "Convite formal enviado por e-mail." })
       setEmail("")
       setIsAdding(false)
-      carregarDados()
+      carregarEquipeDaFabrica(empresaAtivaId)
     } catch (error: any) {
       toast({ title: "Erro no convite", description: error.message, variant: "destructive" })
     } finally {
@@ -110,7 +124,7 @@ export function EquipeTab({ user }: { user: any }) {
       } else {
         await supabase.from("permissoes").insert({ user_id: userId, aba_id: aba })
       }
-      carregarDados()
+      if (empresaAtivaId) carregarEquipeDaFabrica(empresaAtivaId)
     } catch (error: any) {
       toast({ title: "Erro", description: "Falha ao atualizar permissão.", variant: "destructive" })
     }
@@ -124,11 +138,30 @@ export function EquipeTab({ user }: { user: any }) {
             <Users className="h-6 w-6 text-primary" />
             Equipe
           </h2>
-          <p className="text-sm text-muted-foreground mt-1">Gerencie os acessos dos seus operadores.</p>
+          <p className="text-sm text-muted-foreground mt-1">Gerencie os acessos dos operadores.</p>
         </div>
-        <button onClick={() => setIsAdding(!isAdding)} className="bg-primary text-primary-foreground px-4 h-10 rounded-xl text-xs font-bold uppercase tracking-widest flex items-center gap-2 hover:opacity-90 transition-all shadow-md">
-          {isAdding ? "Cancelar" : <><Plus className="h-4 w-4" /> Novo Membro</>}
-        </button>
+        
+        <div className="flex items-center gap-3">
+          {/* Seletor Master de Empresas */}
+          {isMaster && (
+            <div className="flex items-center bg-muted/30 px-3 py-1 rounded-xl border border-border">
+              <Building className="h-4 w-4 text-primary mr-2" />
+              <select 
+                value={empresaAtivaId || ""}
+                onChange={(e) => setEmpresaAtivaId(e.target.value)}
+                className="bg-transparent text-xs font-bold uppercase tracking-widest text-foreground outline-none cursor-pointer"
+              >
+                {listaEmpresas.map(emp => (
+                  <option key={emp.id} value={emp.id}>{emp.nome}</option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          <button onClick={() => setIsAdding(!isAdding)} className="bg-primary text-primary-foreground px-4 h-10 rounded-xl text-xs font-bold uppercase tracking-widest flex items-center gap-2 hover:opacity-90 transition-all shadow-md">
+            {isAdding ? "Cancelar" : <><Plus className="h-4 w-4" /> Novo Membro</>}
+          </button>
+        </div>
       </div>
 
       {isAdding && (
@@ -140,7 +173,7 @@ export function EquipeTab({ user }: { user: any }) {
               <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="operador@industria.com" className="w-full h-11 pl-10 pr-4 rounded-xl border border-border bg-input outline-none focus:ring-2 focus:ring-primary text-sm transition-all" />
             </div>
           </div>
-          <button onClick={handleInvite} disabled={isCreating} className="w-full h-11 flex items-center justify-center bg-foreground text-background font-bold text-xs uppercase tracking-widest rounded-xl hover:opacity-90 transition-all shadow-md disabled:opacity-50">
+          <button onClick={handleInvite} disabled={isCreating || !empresaAtivaId} className="w-full h-11 flex items-center justify-center bg-foreground text-background font-bold text-xs uppercase tracking-widest rounded-xl hover:opacity-90 transition-all shadow-md disabled:opacity-50">
              {isCreating ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Convidando...</> : "Disparar Convite Oficial"}
           </button>
         </div>
@@ -160,13 +193,13 @@ export function EquipeTab({ user }: { user: any }) {
               {isLoading ? (
                 <tr>
                   <td colSpan={3} className="px-6 py-8 text-center text-xs text-muted-foreground font-bold uppercase tracking-widest">
-                    Carregando equipe...
+                    Carregando equipe da unidade...
                   </td>
                 </tr>
               ) : equipe.length === 0 ? (
                 <tr>
                   <td colSpan={3} className="px-6 py-8 text-center text-xs text-muted-foreground font-bold uppercase tracking-widest">
-                    Nenhum operador cadastrado
+                    Nenhum operador cadastrado nesta fábrica
                   </td>
                 </tr>
               ) : (
