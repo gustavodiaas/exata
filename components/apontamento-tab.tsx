@@ -113,22 +113,12 @@ export function ApontamentoTab() {
 
   const loadData = async () => {
     try {
-      const { data: userData } = await supabase.auth.getUser()
-      const userId = userData.user?.id
-      if (!userId) return
-
-      const { data: maqData } = await supabase
-        .from("maquinas")
-        .select("id, nome")
-        .eq("user_id", userId)
-        .neq("status", "inativa")
-        
+      const { data: maqData } = await supabase.from("maquinas").select("id, nome").neq("status", "inativa")
       setMaquinas(maqData || [])
 
       const { data: opsData } = await supabase
         .from("ordens_producao")
         .select("*")
-        .eq("user_id", userId)
         .order("data_programacao", { ascending: true })
 
       const formattedOrdens: OrdemProducao[] = (opsData || []).map((op: any) => ({
@@ -144,7 +134,6 @@ export function ApontamentoTab() {
       const { data: apData } = await supabase
         .from("apontamentos")
         .select(`*, maquinas (nome)`)
-        .eq("user_id", userId)
         .order("data_apontamento", { ascending: false })
 
       const formattedAp: Apontamento[] = (apData || []).map((a: any) => ({
@@ -238,14 +227,9 @@ export function ApontamentoTab() {
 
     setSalvando(true)
     try {
-      const { data: userData } = await supabase.auth.getUser()
-      const userId = userData.user?.id
-      if (!userId) return
-
       const maqNome = maquinas.find(m => m.id === maquinaSelecionada)?.nome || "Manual / Sem Máquina"
 
       const payload = {
-        user_id: userId,
         ordem_id: ordemSelecionada,
         maquina_id: maquinaSelecionada === "none" ? null : maquinaSelecionada,
         data_apontamento: dataApontamento,
