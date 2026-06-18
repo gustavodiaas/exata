@@ -38,8 +38,8 @@ export function ManutencaoTab({ user }: { user: any }) {
   const loadData = async () => {
     try {
       const [maq, man] = await Promise.all([
-        supabase.from("maquinas").select("id, nome, codigo").eq("user_id", user.id),
-        supabase.from("manutencao").select("*, maquinas(nome, codigo)").eq("user_id", user.id).order("data_programada", { ascending: true })
+        supabase.from("maquinas").select("id, nome, codigo"),
+supabase.from("manutencao").select("*, maquinas(nome, codigo)").order("data_programada", { ascending: true })
       ])
 
       setMaquinas(maq.data || [])
@@ -62,7 +62,6 @@ export function ManutencaoTab({ user }: { user: any }) {
     }
 
     const { error } = await supabase.from("manutencao").insert([{
-      user_id: user.id,
       maquina_id: maquinaId,
       tipo,
       data_programada: data,
