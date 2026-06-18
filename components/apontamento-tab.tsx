@@ -86,7 +86,7 @@ function isValidTime(value: string): boolean {
 
 // ─── Componente principal ─────────────────────────────────────────────────────
 
-export function ApontamentoTab() {
+export function ApontamentoTab({ empresaAtivaId }: { empresaAtivaId?: string | null }) {
   const { toast } = useToast()
 
   const [ordens, setOrdens] = useState<OrdemProducao[]>([])
@@ -109,17 +109,19 @@ export function ApontamentoTab() {
   // Filtro de OP selecionada no painel de resumo
   const [opExpandida, setOpExpandida] = useState<string | null>(null)
 
-  // ─── Carga de dados ──────────────────────────────────────────────────────────
+  // ─── Carga de dados com Filtro Master ─────────────────────────────────────────
 
   const loadData = async () => {
+    setLoading(true)
     try {
-      const { data: maqData } = await supabase.from("maquinas").select("id, nome").neq("status", "inativa")
+      let qMaq = supabase.from("maquinas").select("id, nome").neq("status", "inativa")
+      if (empresaAtivaId) qMaq = qMaq.eq("empresa_id", empresaAtivaId)
+      const { data: maqData } = await qMaq
       setMaquinas(maqData || [])
 
-      const { data: opsData } = await supabase
-        .from("ordens_producao")
-        .select("*")
-        .order("data_programacao", { ascending: true })
+      let qOps = supabase.from("ordens_producao").select("*").order("data_programacao", { ascending: true })
+      if (empresaAtivaId) qOps = qOps.eq("empresa_id", empresaAtivaId)
+      const { data: opsData } = await qOps
 
       const formattedOrdens: OrdemProducao[] = (opsData || []).map((op: any) => ({
         id: op.id,
@@ -131,10 +133,9 @@ export function ApontamentoTab() {
       }))
       setOrdens(formattedOrdens)
 
-      const { data: apData } = await supabase
-        .from("apontamentos")
-        .select(`*, maquinas (nome)`)
-        .order("data_apontamento", { ascending: false })
+      let qAp = supabase.from("apontamentos").select(`*, maquinas (nome)`).order("data_apontamento", { ascending: false })
+      if (empresaAtivaId) qAp = qAp.eq("empresa_id", empresaAtivaId)
+      const { data: apData } = await qAp
 
       const formattedAp: Apontamento[] = (apData || []).map((a: any) => ({
         id: a.id,
@@ -158,7 +159,7 @@ export function ApontamentoTab() {
 
   useEffect(() => {
     loadData()
-  }, [])
+  }, [empresaAtivaId])
 
   // ─── Resumo por OP ───────────────────────────────────────────────────────────
 
@@ -239,6 +240,7 @@ export function ApontamentoTab() {
         pecas_refugo: refugo,
         pecas_retrabalho: retrabalho,
         observacao: observacao.trim() || null,
+        ...(empresaAtivaId && { empresa_id: empresaAtivaId })
       }
 
       const { data, error } = await supabase.from("apontamentos").insert([payload]).select()
@@ -279,7 +281,12 @@ export function ApontamentoTab() {
   }
 
   const handleExcluirApontamento = async (id: string) => {
-    const { error } = await supabase.from("apontamentos").delete().eq("id", id)
+    let q = supabase.from("apontamentos").delete().eq("id", id)
+    if (empresaAtivaId) {
+      q = q.eq("empresa_id", empresaAtivaId)
+    }
+    const { error } = await q
+    
     if (!error) {
       setApontamentos((prev) => prev.filter((a) => a.id !== id))
       toast({ title: "Apontamento removido", description: "Registro excluído com sucesso." })
