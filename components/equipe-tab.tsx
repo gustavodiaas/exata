@@ -21,7 +21,6 @@ export function EquipeTab({ user }: { user: any }) {
 
   const abasDisponiveis = ["gbo", "pcp", "apontamento", "maquinas", "manutencao"]
 
-  // 1. Identificação do Acesso
   const inicializarAcesso = async () => {
     try {
       const { data: meuAcesso, error } = await supabase
@@ -44,48 +43,33 @@ export function EquipeTab({ user }: { user: any }) {
     }
   }
 
-  // 2. Carregamento Blindado (Query em duas partes para evitar erro de Join/RLS)
+  // AGORA BUSCA VIA API PARA BURLAR O RLS NO BANCO
   const carregarEquipeDaFabrica = async (idEmpresa: string) => {
     setIsLoading(true)
     try {
-      // Passo A: Pega só o controle de acesso
-      const { data: acessoData, error: acessoError } = await supabase
-        .from("controle_acesso")
-        .select("*")
-        .eq("empresa_id", idEmpresa)
-        .neq("user_id", user.id)
+      const res = await fetch('/api/admin/equipe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ empresa_id: idEmpresa })
+      })
 
-      if (acessoError) throw acessoError
-      if (!acessoData) {
-        setEquipe([])
-        return
-      }
+      if (!res.ok) throw new Error("Erro na comunicação com a API Admin")
+      
+      const { equipe, permissoes } = await res.json()
 
-      // Passo B: Pega os perfis baseados nos user_ids encontrados
-      const userIds = acessoData.map((a: any) => a.user_id)
-      const { data: perfisData } = await supabase
-        .from("perfis")
-        .select("id, email, nome")
-        .in("id", userIds)
+      const equipeFormatada = equipe
+        .filter((m: any) => m.user_id !== user.id)
+        .map((m: any) => ({
+          ...m,
+          perfis: m.perfis || { email: "Usuário sem perfil" }
+        }))
 
-      // Passo C: Pega as permissões
-      const { data: permData } = await supabase
-        .from("permissoes")
-        .select("*")
-        .in("user_id", userIds)
-
-      // Passo D: Mescla os dados no front
-      const equipeComDados = acessoData.map(acesso => ({
-        ...acesso,
-        perfis: perfisData?.find(p => p.id === acesso.user_id) || { email: "Usuário sem perfil" }
-      }))
-
-      setEquipe(equipeComDados)
-      setPermissoes(permData || [])
+      setEquipe(equipeFormatada)
+      setPermissoes(permissoes || [])
 
     } catch (error: any) {
       console.error(error)
-      toast({ title: "Erro", description: "Falha ao carregar a equipe.", variant: "destructive" })
+      toast({ title: "Erro", description: "Falha ao carregar equipe.", variant: "destructive" })
     } finally {
       setIsLoading(false)
     }
