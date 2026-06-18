@@ -237,9 +237,9 @@ export function GBOTab({ user }: { user: any }) {
   const commitSaveProduct = async (product: ReturnType<typeof buildNewProduct>) => {
     setIsLoading(true)
     try {
-      const { data: prodData, error: prodError } = await supabase
-        .from("produtos")
-        .upsert({ user_id: user.id, codigo: product.code, descricao: product.description }, { onConflict: "user_id,codigo" })
+     const { data: prodData, error: prodError } = await supabase
+  .from("produtos")
+  .upsert({ codigo: product.code, descricao: product.description }, { onConflict: "empresa_id,codigo" })
         .select()
         .single()
 
@@ -322,7 +322,7 @@ export function GBOTab({ user }: { user: any }) {
 
   const handleDeleteProduct = async (code: string) => {
     try {
-      await supabase.from("produtos").delete().eq("codigo", code).eq("user_id", user.id)
+      await supabase.from("produtos").delete().eq("codigo", code)
       const updated = savedProducts.filter((p: any) => p.code !== code)
       setSavedProducts(updated)
       localStorage.setItem("gbo_products", JSON.stringify(updated))
