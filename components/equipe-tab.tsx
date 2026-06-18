@@ -20,13 +20,22 @@ export function EquipeTab({ user }: { user: any }) {
   const abasDisponiveis = ["gbo", "pcp", "apontamento", "maquinas", "manutencao"]
 
   const carregarDadosMaster = async () => {
+    // Busca perfil
     const { data: perfil } = await supabase.from("perfis").select("tipo_usuario, empresa_id").eq("id", user.id).single()
     
     if (perfil?.tipo_usuario === "master") {
       setIsMaster(true)
-      const { data: empresas } = await supabase.from("empresas").select("*").order("nome")
+      const { data: empresas, error } = await supabase.from("empresas").select("*").order("nome")
+      
+      if (error) {
+        console.error("Erro ao buscar empresas:", error)
+        return
+      }
+
       setListaEmpresas(empresas || [])
-      setEmpresaAtivaId(empresas?.[0]?.id || null)
+      if (empresas && empresas.length > 0) {
+        setEmpresaAtivaId(empresas[0].id)
+      }
     } else {
       setEmpresaAtivaId(perfil?.empresa_id || null)
     }
