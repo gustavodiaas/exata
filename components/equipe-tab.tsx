@@ -46,7 +46,10 @@ export function EquipeTab({ user }: { user: any }) {
   }
 
   useEffect(() => { carregarDadosMaster() }, [])
-  useEffect(() => { carregarEquipe() }, [empresaAtivaId])
+  useEffect(() => { 
+  console.log("Empresa Ativa ID:", empresaAtivaId);
+  carregarEquipe(); 
+}, [empresaAtivaId]);
 
   const togglePermissao = async (userId: string, aba: string) => {
     const existing = permissoes.find(p => p.user_id === userId && p.aba_id === aba)
