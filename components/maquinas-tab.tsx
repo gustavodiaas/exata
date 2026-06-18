@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from "react"
 import { supabase } from "@/components/supabase"
 import { useToast } from "@/hooks/use-toast"
-import { Plus, Trash2, Settings, Power, Wrench, Ban, Activity, Factory } from "lucide-react"
+import { Plus, Trash2, Settings, Power, Wrench, Ban, Activity, Factory, Pencil } from "lucide-react"
 
 interface Maquina {
   id: string
@@ -21,6 +21,7 @@ export function MaquinasTab({ user }: { user: any }) {
   const [maquinas, setMaquinas] = useState<Maquina[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
+  const [editingId, setEditingId] = useState<string | null>(null)
 
   // Form states
   const [codigo, setCodigo] = useState("")
@@ -28,7 +29,6 @@ export function MaquinasTab({ user }: { user: any }) {
   const [setor, setSetor] = useState("")
   const [capacidade, setCapacidade] = useState("")
   const [setup, setSetup] = useState("")
-  const [status, setStatus] = useState<Maquina["status"]>("ativa")
   const [observacao, setObservacao] = useState("")
 
   useEffect(() => {
@@ -62,41 +62,64 @@ export function MaquinasTab({ user }: { user: any }) {
     setIsSaving(true)
     try {
       const payload = {
-        user_id: user.id,
         codigo: codigo.trim(),
         nome: nome.trim(),
         setor: setor.trim(),
         capacidade_diaria: parseFloat(capacidade) || 0,
         tempo_setup_padrao: parseFloat(setup) || 0,
-        status,
         observacao: observacao.trim()
       }
 
-      const { data, error } = await supabase
-        .from("maquinas")
-        .insert([payload])
-        .select()
-        .single()
+      if (editingId) {
+        const { error } = await supabase
+          .from("maquinas")
+          .update(payload)
+          .eq("id", editingId)
 
-      if (error) throw error
+        if (error) throw error
 
-      setMaquinas([data as Maquina, ...maquinas])
+        setMaquinas(maquinas.map(m => m.id === editingId ? { ...m, ...payload } : m))
+        toast({ title: "✅ Máquina Atualizada", description: "Os dados foram alterados com sucesso." })
+      } else {
+        const newPayload = { ...payload, status: "ativa", user_id: user.id }
+        const { data, error } = await supabase
+          .from("maquinas")
+          .insert([newPayload])
+          .select()
+          .single()
+
+        if (error) throw error
+
+        setMaquinas([data as Maquina, ...maquinas])
+        toast({ title: "✅ Máquina Cadastrada", description: "O recurso foi adicionado ao parque fabril." })
+      }
       
-      // Reset form
-      setCodigo("")
-      setNome("")
-      setSetor("")
-      setCapacidade("")
-      setSetup("")
-      setStatus("ativa")
-      setObservacao("")
-
-      toast({ title: "✅ Máquina Cadastrada", description: "O recurso foi adicionado ao parque fabril." })
+      resetForm()
     } catch (e: any) {
       toast({ title: "Erro ao salvar", description: e.message, variant: "destructive" })
     } finally {
       setIsSaving(false)
     }
+  }
+
+  const handleEditar = (maq: Maquina) => {
+    setEditingId(maq.id)
+    setCodigo(maq.codigo)
+    setNome(maq.nome)
+    setSetor(maq.setor)
+    setCapacidade(maq.capacidade_diaria.toString())
+    setSetup(maq.tempo_setup_padrao.toString())
+    setObservacao(maq.observacao)
+  }
+
+  const resetForm = () => {
+    setEditingId(null)
+    setCodigo("")
+    setNome("")
+    setSetor("")
+    setCapacidade("")
+    setSetup("")
+    setObservacao("")
   }
 
   const handleExcluir = async (id: string) => {
@@ -108,6 +131,23 @@ export function MaquinasTab({ user }: { user: any }) {
       toast({ title: "Máquina removida", description: "O recurso foi excluído do sistema." })
     } catch (e: any) {
       toast({ title: "Erro ao excluir", description: "Não foi possível remover a máquina.", variant: "destructive" })
+    }
+  }
+
+  const handleStatusChange = async (id: string, newStatus: Maquina["status"]) => {
+    try {
+      setMaquinas(maquinas.map(m => m.id === id ? { ...m, status: newStatus } : m))
+      
+      const { error } = await supabase
+        .from("maquinas")
+        .update({ status: newStatus })
+        .eq("id", id)
+
+      if (error) throw error
+      toast({ title: "Status alterado", description: "O status operacional foi atualizado." })
+    } catch (e: any) {
+      loadMaquinas() // Reverte visualmente em caso de erro
+      toast({ title: "Erro", description: "Não foi possível alterar o status.", variant: "destructive" })
     }
   }
 
@@ -130,7 +170,7 @@ export function MaquinasTab({ user }: { user: any }) {
           <div className="border-b border-border pb-3">
             <h3 className="font-bold text-foreground flex items-center gap-2">
               <Factory className="h-4 w-4 text-primary" />
-              Novo Posto de Trabalho
+              {editingId ? "Editar Posto de Trabalho" : "Novo Posto de Trabalho"}
             </h3>
             <p className="text-[11px] text-muted-foreground mt-1">Cadastre recursos produtivos para o PCP</p>
           </div>
@@ -164,27 +204,27 @@ export function MaquinasTab({ user }: { user: any }) {
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest pl-1">Status Operacional</label>
-              <select value={status} onChange={(e: any) => setStatus(e.target.value)} className="w-full h-11 px-3 rounded-xl border border-border bg-input text-foreground text-sm outline-none focus:ring-2 focus:ring-primary transition-all cursor-pointer">
-                <option value="ativa">🟢 Ativa e Operando</option>
-                <option value="manutencao">🟠 Em Manutenção</option>
-                <option value="parada">🔴 Parada (Falta O.P/Operador)</option>
-                <option value="inativa">⚪ Inativa / Desativada</option>
-              </select>
-            </div>
-
-            <div className="space-y-1.5">
               <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest pl-1">Observações Técnicas</label>
               <input type="text" placeholder="Restrições ou detalhes da máquina" value={observacao} onChange={(e) => setObservacao(e.target.value)} className="w-full h-11 px-4 rounded-xl border border-border bg-input text-foreground text-sm outline-none focus:ring-2 focus:ring-primary transition-all" />
             </div>
 
-            <button 
-              onClick={handleSalvar} 
-              disabled={isSaving}
-              className="w-full h-12 flex items-center justify-center bg-primary text-primary-foreground font-bold uppercase tracking-widest text-xs rounded-xl shadow-md hover:opacity-90 transition-all disabled:opacity-50 mt-2"
-            >
-              <Plus className="h-4 w-4 mr-2" /> {isSaving ? "Registrando..." : "Cadastrar Máquina"}
-            </button>
+            <div className="flex gap-2 mt-2">
+              <button 
+                onClick={handleSalvar} 
+                disabled={isSaving}
+                className="flex-1 h-12 flex items-center justify-center bg-primary text-primary-foreground font-bold uppercase tracking-widest text-xs rounded-xl shadow-md hover:opacity-90 transition-all disabled:opacity-50"
+              >
+                <Plus className="h-4 w-4 mr-2" /> {isSaving ? "Processando..." : editingId ? "Atualizar" : "Cadastrar"}
+              </button>
+              {editingId && (
+                <button 
+                  onClick={resetForm}
+                  className="px-4 h-12 flex items-center justify-center bg-muted text-muted-foreground font-bold uppercase tracking-widest text-xs rounded-xl hover:bg-border transition-all"
+                >
+                  Cancelar
+                </button>
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -225,12 +265,22 @@ export function MaquinasTab({ user }: { user: any }) {
                     <div className="flex items-start justify-between">
                       <div className="min-w-0 pr-3">
                         <div className="flex items-center gap-2 mb-1">
-                          <span className="text-sm font-black text-foreground truncate">{maq.nome}</span>
+                          <span className="text-sm font-black text-foreground truncate">{maq.codigo}</span>
                         </div>
-                        <span className="text-[10px] font-bold px-2 py-0.5 bg-muted text-muted-foreground rounded-md">{maq.codigo}</span>
+                        <span className="text-[10px] font-bold px-2 py-0.5 bg-muted text-muted-foreground rounded-md">{maq.nome}</span>
                       </div>
-                      <div className={`h-8 w-8 flex-shrink-0 rounded-lg flex items-center justify-center ${config.bg}`}>
-                        <StatusIcon className={`h-4 w-4 ${config.color}`} />
+                      <div className={`h-8 px-2 flex-shrink-0 rounded-lg flex items-center justify-center gap-1.5 ${config.bg}`}>
+                        <StatusIcon className={`h-3.5 w-3.5 ${config.color}`} />
+                        <select
+                          value={maq.status}
+                          onChange={(e) => handleStatusChange(maq.id, e.target.value as Maquina["status"])}
+                          className={`bg-transparent text-[10px] uppercase font-bold tracking-wider outline-none cursor-pointer appearance-none ${config.color}`}
+                        >
+                          <option value="ativa" className="text-foreground bg-background">Ativa</option>
+                          <option value="manutencao" className="text-foreground bg-background">Manutenção</option>
+                          <option value="parada" className="text-foreground bg-background">Parada</option>
+                          <option value="inativa" className="text-foreground bg-background">Inativa</option>
+                        </select>
                       </div>
                     </div>
                     
@@ -247,13 +297,22 @@ export function MaquinasTab({ user }: { user: any }) {
 
                     <div className="flex items-center justify-between pt-2">
                       <span className="text-[11px] text-muted-foreground truncate">{maq.setor || "Sem setor definido"}</span>
-                      <button 
-                        onClick={() => handleExcluir(maq.id)}
-                        className="h-7 w-7 flex items-center justify-center rounded-lg text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors"
-                        title="Remover máquina"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
+                      <div className="flex gap-1">
+                        <button 
+                          onClick={() => handleEditar(maq)}
+                          className="h-7 w-7 flex items-center justify-center rounded-lg text-muted-foreground hover:bg-primary/10 hover:text-primary transition-colors"
+                          title="Editar máquina"
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                        </button>
+                        <button 
+                          onClick={() => handleExcluir(maq.id)}
+                          className="h-7 w-7 flex items-center justify-center rounded-lg text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors"
+                          title="Remover máquina"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
                     </div>
                   </div>
                 )
