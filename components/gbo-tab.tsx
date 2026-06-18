@@ -38,7 +38,7 @@ const validateText = (value: string): { isValid: boolean; error?: string } => {
 
 type CalcType = "takt" | "media" | "soma"
 
-export function GBOTab({ user }: { user: any }) {
+export function GBOTab({ user, empresaAtivaId }: { user: any; empresaAtivaId?: string | null }) {
   const [operations, setOperations] = useState<Operation[]>([])
   const [timeUnit, setTimeUnit] = useState<"minutes" | "seconds">("minutes")
   const [productCode, setProductCode] = useState("")
@@ -66,7 +66,11 @@ export function GBOTab({ user }: { user: any }) {
 
   const loadMaquinas = async () => {
     try {
-      const { data } = await supabase.from("maquinas").select("id, nome, codigo, tempo_setup_padrao").neq("status", "inativa")
+      let q = supabase.from("maquinas").select("id, nome, codigo, tempo_setup_padrao").neq("status", "inativa")
+      if (empresaAtivaId) {
+        q = q.eq("empresa_id", empresaAtivaId)
+      }
+      const { data } = await q
       if (data) setMaquinasGlobais(data)
     } catch (e) {
       console.error("Erro ao carregar máquinas")
@@ -75,10 +79,16 @@ export function GBOTab({ user }: { user: any }) {
 
   const loadSavedProducts = async () => {
     try {
-      const { data: prods, error } = await supabase
+      let q = supabase
         .from("produtos")
         .select(`id, codigo, descricao, operacoes (nome, tempo, unidade, ordem, setup_time, maquina_id)`)
         .order("ordem", { foreignTable: "operacoes" })
+
+      if (empresaAtivaId) {
+        q = q.eq("empresa_id", empresaAtivaId)
+      }
+
+      const { data: prods, error } = await q
 
       if (error) throw error
 
@@ -123,7 +133,7 @@ export function GBOTab({ user }: { user: any }) {
     setIsLoaded(true)
     window.addEventListener("sync_gbo_products", loadSavedProducts)
     return () => window.removeEventListener("sync_gbo_products", loadSavedProducts)
-  }, [user])
+  }, [user, empresaAtivaId])
 
   useEffect(() => {
     if (isLoaded && user) {
@@ -208,7 +218,6 @@ export function GBOTab({ user }: { user: any }) {
     if (e.key === "Enter") addOperation()
   }
 
-  // Limpa tudo para cadastrar um produto novo
   const handleNovoProduct = () => {
     setProductCode("")
     setProductName("")
@@ -237,9 +246,13 @@ export function GBOTab({ user }: { user: any }) {
   const commitSaveProduct = async (product: ReturnType<typeof buildNewProduct>) => {
     setIsLoading(true)
     try {
-     const { data: prodData, error: prodError } = await supabase
-  .from("produtos")
-  .upsert({ codigo: product.code, descricao: product.description }, { onConflict: "empresa_id,codigo" })
+      const { data: prodData, error: prodError } = await supabase
+        .from("produtos")
+        .upsert({ 
+          codigo: product.code, 
+          descricao: product.description,
+          ...(empresaAtivaId && { empresa_id: empresaAtivaId }) 
+        }, { onConflict: "empresa_id,codigo" })
         .select()
         .single()
 
@@ -322,7 +335,12 @@ export function GBOTab({ user }: { user: any }) {
 
   const handleDeleteProduct = async (code: string) => {
     try {
-      await supabase.from("produtos").delete().eq("codigo", code)
+      let q = supabase.from("produtos").delete().eq("codigo", code)
+      if (empresaAtivaId) {
+        q = q.eq("empresa_id", empresaAtivaId)
+      }
+      await q
+      
       const updated = savedProducts.filter((p: any) => p.code !== code)
       setSavedProducts(updated)
       localStorage.setItem("gbo_products", JSON.stringify(updated))
@@ -374,7 +392,6 @@ export function GBOTab({ user }: { user: any }) {
     if (fileInputRef.current) fileInputRef.current.value = ""
   }
 
-  // Produtos filtrados pela pesquisa
   const filteredProducts = useMemo(() => {
     const q = productSearch.trim().toLowerCase()
     if (!q) return savedProducts
@@ -422,7 +439,6 @@ export function GBOTab({ user }: { user: any }) {
       <div className="flex flex-col xl:flex-row gap-8 pb-12 print:p-0">
         <div className="xl:w-[35%] flex flex-col gap-6 print:hidden">
 
-          {/* Identificação do Produto + botão Novo */}
           <div className="bg-card p-6 rounded-2xl shadow-sm border border-border space-y-4">
             <div className="flex items-center justify-between border-b border-border pb-2">
               <h3 className="font-bold text-foreground flex items-center gap-2">
@@ -488,7 +504,6 @@ export function GBOTab({ user }: { user: any }) {
             </div>
           </div>
 
-          {/* Painel Produtos na Nuvem com pesquisa e expansão */}
           {savedProducts.length > 0 && (
             <div className="bg-card rounded-2xl shadow-sm border border-border overflow-hidden">
               <button onClick={() => setShowProductsPanel(!showProductsPanel)} className="w-full flex items-center justify-between px-6 py-4 hover:bg-muted/50 transition-colors">
@@ -501,7 +516,6 @@ export function GBOTab({ user }: { user: any }) {
               </button>
               {showProductsPanel && (
                 <div className="border-t border-border">
-                  {/* Campo de pesquisa */}
                   <div className="px-4 py-3 border-b border-border">
                     <div className="relative">
                       <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
@@ -528,7 +542,6 @@ export function GBOTab({ user }: { user: any }) {
                     ) : (
                       filteredProducts.map((product) => (
                         <div key={product.code}>
-                          {/* Linha principal do produto */}
                           <div className="flex items-center justify-between px-4 py-3 hover:bg-muted/30 transition-colors">
                             <button
                               onClick={() => setExpandedProduct(expandedProduct === product.code ? null : product.code)}
@@ -559,7 +572,6 @@ export function GBOTab({ user }: { user: any }) {
                             </div>
                           </div>
 
-                          {/* Expansão com detalhes das operações */}
                           {expandedProduct === product.code && (
                             <div className="bg-muted/20 border-t border-border px-4 py-3 space-y-2">
                               <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-2">Operações do Roteiro</p>
