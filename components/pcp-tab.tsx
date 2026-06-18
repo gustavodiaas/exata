@@ -159,10 +159,10 @@ export function PCPTab() {
       const userId = userResponse.user?.id
       if (!userId) return
 
-      const { data: maqData } = await supabase.from("maquinas").select("*").eq("user_id", userId)
+      const { data: maqData } = await supabase.from("maquinas").select("*")
       setMachines(maqData || [])
 
-      const { data: prodsData } = await supabase.from("produtos").select("*, operacoes(*)").eq("user_id", userId)
+      const { data: prodsData } = await supabase.from("produtos").select("*, operacoes(*)")
       setProducts((prodsData || []).map((p: any) => ({
         code: p.codigo,
         description: p.descricao,
@@ -174,7 +174,7 @@ export function PCPTab() {
         }))
       })))
 
-      const { data: opsData } = await supabase.from("ordens_producao").select("*").eq("user_id", userId)
+      const { data: opsData } = await supabase.from("ordens_producao").select("*")
       setOrders((opsData || []).map((op: any) => ({
         id: op.id,
         opNumber: op.numero_op,
@@ -185,7 +185,7 @@ export function PCPTab() {
         groupSetup: op.agrupar_setup
       })))
 
-      const { data: capData } = await supabase.from("capacidade_diaria").select("*").eq("user_id", userId)
+      const { data: capData } = await supabase.from("capacidade_diaria").select("*")
       setCapacities((capData || []).map((c: any) => ({
         id: c.id,
         date: c.data_excecao,
@@ -363,14 +363,13 @@ export function PCPTab() {
     const userId = userData.user?.id
     if (!userId) return
 
-    const newOP = {
-      user_id: userId,
-      numero_op: opNumber.trim(),
-      data_programacao: opDate,
-      produto_codigo: opProductCode,
-      quantidade: parseInt(opQuantity),
-      regra_calculo: opRule,
-      agrupar_setup: opGroupSetup,
+   const newOP = {
+  numero_op: opNumber.trim(),
+  data_programacao: opDate,
+  produto_codigo: opProductCode,
+  quantidade: parseInt(opQuantity),
+  regra_calculo: opRule,
+  agrupar_setup: opGroupSetup,
     }
 
     const { data, error } = await supabase.from("ordens_producao").insert([newOP]).select()
@@ -407,7 +406,7 @@ export function PCPTab() {
     }
     const downtimeInSeconds = downtimeValue ? parseFloat(downtimeValue) * 60 : (existing?.downtime ?? 0)
 
-    const payload = { user_id: userId, data_excecao: selectedDate, capacidade_global: capInSeconds, tempo_parada: downtimeInSeconds }
+    const payload = { data_excecao: selectedDate, capacidade_global: capInSeconds, tempo_parada: downtimeInSeconds }
 
     if (existing?.id) {
       await supabase.from("capacidade_diaria").update(payload).eq("id", existing.id)
@@ -425,7 +424,7 @@ export function PCPTab() {
     const { data: userData } = await supabase.auth.getUser()
     const userId = userData.user?.id
     if (!userId) return
-    const { error } = await supabase.from("capacidade_diaria").delete().eq("data_excecao", date).eq("user_id", userId)
+    const { error } = await supabase.from("capacidade_diaria").delete().eq("data_excecao", date)
     if (!error) { setCapacities(capacities.filter((c) => c.date !== date)); toast({ title: "Exceção Removida" }) }
   }
 
