@@ -3,7 +3,8 @@
 import React, { useState, useEffect } from "react"
 import { supabase } from "@/components/supabase"
 import { useToast } from "@/hooks/use-toast"
-import { Plus, Trash2, Settings, Power, Wrench, Ban, Activity, Factory, Pencil } from "lucide-react"
+import { Plus, Trash2, Settings, Power, Wrench, Ban, Activity, Factory, Pencil, ChevronDown } from "lucide-react"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 
 interface Maquina {
   id: string
@@ -146,7 +147,7 @@ export function MaquinasTab({ user }: { user: any }) {
       if (error) throw error
       toast({ title: "Status alterado", description: "O status operacional foi atualizado." })
     } catch (e: any) {
-      loadMaquinas() // Reverte visualmente em caso de erro
+      loadMaquinas() 
       toast({ title: "Erro", description: "Não foi possível alterar o status.", variant: "destructive" })
     }
   }
@@ -269,19 +270,31 @@ export function MaquinasTab({ user }: { user: any }) {
                         </div>
                         <span className="text-[10px] font-bold px-2 py-0.5 bg-muted text-muted-foreground rounded-md">{maq.nome}</span>
                       </div>
-                      <div className={`h-8 px-2 flex-shrink-0 rounded-lg flex items-center justify-center gap-1.5 ${config.bg}`}>
-                        <StatusIcon className={`h-3.5 w-3.5 ${config.color}`} />
-                        <select
-                          value={maq.status}
-                          onChange={(e) => handleStatusChange(maq.id, e.target.value as Maquina["status"])}
-                          className={`bg-transparent text-[10px] uppercase font-bold tracking-wider outline-none cursor-pointer appearance-none ${config.color}`}
-                        >
-                          <option value="ativa" className="text-foreground bg-background">Ativa</option>
-                          <option value="manutencao" className="text-foreground bg-background">Manutenção</option>
-                          <option value="parada" className="text-foreground bg-background">Parada</option>
-                          <option value="inativa" className="text-foreground bg-background">Inativa</option>
-                        </select>
-                      </div>
+                      
+                      <DropdownMenu>
+                        <DropdownMenuTrigger className="outline-none">
+                          <div className={`h-8 px-2.5 flex-shrink-0 rounded-lg flex items-center justify-center gap-1.5 cursor-pointer hover:opacity-80 transition-opacity ${config.bg} ${config.color}`}>
+                            <StatusIcon className="h-3.5 w-3.5" />
+                            <span className="text-[10px] uppercase font-bold tracking-wider">{config.label}</span>
+                            <ChevronDown className="h-3 w-3 opacity-60 ml-0.5" />
+                          </div>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-40 bg-card border border-border p-1.5 rounded-xl shadow-xl z-50">
+                          <DropdownMenuItem onClick={() => handleStatusChange(maq.id, "ativa")} className="text-xs font-bold flex items-center gap-2 cursor-pointer hover:bg-muted rounded-lg px-2 py-2 text-green-500">
+                            <Power className="h-4 w-4" /> Ativa
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => handleStatusChange(maq.id, "manutencao")} className="text-xs font-bold flex items-center gap-2 cursor-pointer hover:bg-muted rounded-lg px-2 py-2 text-amber-500">
+                            <Wrench className="h-4 w-4" /> Manutenção
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => handleStatusChange(maq.id, "parada")} className="text-xs font-bold flex items-center gap-2 cursor-pointer hover:bg-muted rounded-lg px-2 py-2 text-destructive">
+                            <Ban className="h-4 w-4" /> Parada
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => handleStatusChange(maq.id, "inativa")} className="text-xs font-bold flex items-center gap-2 cursor-pointer hover:bg-muted rounded-lg px-2 py-2 text-muted-foreground">
+                            <Settings className="h-4 w-4" /> Inativa
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+
                     </div>
                     
                     <div className="grid grid-cols-2 gap-2 text-xs border-t border-border pt-3 mt-1">
