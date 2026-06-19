@@ -38,13 +38,34 @@ export function ManutencaoTab({ user, empresaAtivaId }: { user: any, empresaAtiv
     if (!empresaAtivaId) return
 
     try {
-      const [maq, man] = await Promise.all([
-        supabase.from("maquinas").select("id, nome, codigo").eq("empresa_id", empresaAtivaId),
-        supabase.from("manutencao").select("*, maquinas(nome, codigo)").eq("empresa_id", empresaAtivaId).order("data_programada", { ascending: true })
+      const fetchTable = async (table: string) => {
+        const response = await fetch("/api/admin/get-dados", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ table, empresaId: empresaAtivaId }),
+        })
+        const result = await response.json()
+        if (!response.ok) throw new Error(result.error)
+        return result.data || []
+      }
+
+      const [maqData, manDataRaw] = await Promise.all([
+        fetchTable("maquinas"),
+        fetchTable("manutencao")
       ])
 
-      setMaquinas(maq.data || [])
-      setRegistros((man.data || []).map((m: any) => ({ 
+      const manData = manDataRaw
+        .sort((a: any, b: any) => new Date(a.data_programada).getTime() - new Date(b.data_programada).getTime())
+        .map((m: any) => {
+          const maq = maqData.find((mq: any) => mq.id === m.maquina_id)
+          return {
+            ...m,
+            maquinas: maq ? { nome: maq.nome, codigo: maq.codigo } : null
+          }
+        })
+
+      setMaquinas(maqData)
+      setRegistros(manData.map((m: any) => ({ 
         ...m, 
         maquina_nome: m.maquinas?.nome,
         maquina_codigo: m.maquinas?.codigo
