@@ -1,10 +1,14 @@
 import * as XLSX from "xlsx"
 
-interface Operation {
+export interface Operation {
   id: string
   name: string
   time: number
+  setupTime: number
   unit: "minutes" | "seconds"
+  maquina_id?: string
+  maquina_nome?: string
+  maquina_codigo?: string
 }
 
 export const exportToExcel = async (operations: Operation[], timeUnit: string) => {
@@ -12,6 +16,7 @@ export const exportToExcel = async (operations: Operation[], timeUnit: string) =
     "ORDEM": index + 1,
     "NOME DA OPERAÇÃO": op.name,
     "TEMPO": op.time,
+    "SETUP": op.setupTime || 0,
     "UNIDADE": op.unit === "seconds" ? "segundos" : "minutos"
   }))
   const ws = XLSX.utils.json_to_sheet(data)
@@ -51,6 +56,7 @@ export const importFromExcel = async (file: File): Promise<Operation[]> => {
 
           const name = String(normalizedRow["NOME DA OPERAÇÃO"] || normalizedRow["NOME"] || "Sem Nome")
           const time = Number(normalizedRow["TEMPO"]) || 0
+          const setupTime = Number(normalizedRow["SETUP"] || normalizedRow["TEMPO DE SETUP"]) || 0
           const rawUnit = String(normalizedRow["UNIDADE"] || "minutos").toLowerCase()
           
           const unit: "minutes" | "seconds" = rawUnit.includes("seg") ? "seconds" : "minutes"
@@ -59,6 +65,7 @@ export const importFromExcel = async (file: File): Promise<Operation[]> => {
             id: Date.now().toString() + Math.random().toString(36).substring(7),
             name,
             time,
+            setupTime,
             unit,
           }
         }).filter(op => op.time > 0) 
