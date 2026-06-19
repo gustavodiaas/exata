@@ -17,14 +17,13 @@ interface Maquina {
   observacao: string
 }
 
-export function MaquinasTab({ user }: { user: any }) {
+export function MaquinasTab({ user, empresaAtivaId }: { user: any, empresaAtivaId: string | null }) {
   const { toast } = useToast()
   const [maquinas, setMaquinas] = useState<Maquina[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
 
-  // Form states
   const [codigo, setCodigo] = useState("")
   const [nome, setNome] = useState("")
   const [setor, setSetor] = useState("")
@@ -33,16 +32,19 @@ export function MaquinasTab({ user }: { user: any }) {
   const [observacao, setObservacao] = useState("")
 
   useEffect(() => {
-    if (user) {
+    if (user && empresaAtivaId) {
       loadMaquinas()
     }
-  }, [user])
+  }, [user, empresaAtivaId])
 
   const loadMaquinas = async () => {
+    if (!empresaAtivaId) return
+
     try {
       const { data, error } = await supabase
         .from("maquinas")
         .select("*")
+        .eq("empresa_id", empresaAtivaId)
         .order("created_at", { ascending: false })
 
       if (error) throw error
@@ -57,6 +59,11 @@ export function MaquinasTab({ user }: { user: any }) {
   const handleSalvar = async () => {
     if (!codigo.trim() || !nome.trim()) {
       toast({ title: "Dados incompletos", description: "Código e Nome são obrigatórios.", variant: "destructive" })
+      return
+    }
+
+    if (!empresaAtivaId) {
+      toast({ title: "Erro", description: "Empresa ativa não identificada.", variant: "destructive" })
       return
     }
 
@@ -76,13 +83,14 @@ export function MaquinasTab({ user }: { user: any }) {
           .from("maquinas")
           .update(payload)
           .eq("id", editingId)
+          .eq("empresa_id", empresaAtivaId)
 
         if (error) throw error
 
         setMaquinas(maquinas.map(m => m.id === editingId ? { ...m, ...payload } : m))
         toast({ title: "✅ Máquina Atualizada", description: "Os dados foram alterados com sucesso." })
       } else {
-        const newPayload = { ...payload, status: "ativa" }
+        const newPayload = { ...payload, status: "ativa", empresa_id: empresaAtivaId }
         const { data, error } = await supabase
           .from("maquinas")
           .insert([newPayload])
@@ -124,8 +132,10 @@ export function MaquinasTab({ user }: { user: any }) {
   }
 
   const handleExcluir = async (id: string) => {
+    if (!empresaAtivaId) return
+
     try {
-      const { error } = await supabase.from("maquinas").delete().eq("id", id)
+      const { error } = await supabase.from("maquinas").delete().eq("id", id).eq("empresa_id", empresaAtivaId)
       if (error) throw error
       
       setMaquinas(maquinas.filter(m => m.id !== id))
@@ -136,6 +146,8 @@ export function MaquinasTab({ user }: { user: any }) {
   }
 
   const handleStatusChange = async (id: string, newStatus: Maquina["status"]) => {
+    if (!empresaAtivaId) return
+
     try {
       setMaquinas(maquinas.map(m => m.id === id ? { ...m, status: newStatus } : m))
       
@@ -143,6 +155,7 @@ export function MaquinasTab({ user }: { user: any }) {
         .from("maquinas")
         .update({ status: newStatus })
         .eq("id", id)
+        .eq("empresa_id", empresaAtivaId)
 
       if (error) throw error
       toast({ title: "Status alterado", description: "O status operacional foi atualizado." })
@@ -165,7 +178,6 @@ export function MaquinasTab({ user }: { user: any }) {
   return (
     <div className="flex flex-col xl:flex-row gap-8 pb-12">
       
-      {/* Coluna Esquerda - Formulário */}
       <div className="xl:w-[35%] flex flex-col gap-6">
         <div className="bg-card p-6 rounded-2xl shadow-sm border border-border space-y-5">
           <div className="border-b border-border pb-3">
@@ -230,7 +242,6 @@ export function MaquinasTab({ user }: { user: any }) {
         </div>
       </div>
 
-      {/* Coluna Direita - Parque Fabril */}
       <div className="xl:w-[65%] flex flex-col">
         <div className="bg-card rounded-3xl shadow-sm border border-border p-6 min-h-[500px]">
           <div className="flex items-center justify-between border-b border-border pb-4 mb-4">
