@@ -10,7 +10,36 @@ import { supabase } from "@/components/supabase"
 import { Plus, Trash2, ClipboardList, TrendingUp, AlertTriangle, CheckCircle2, Clock, Package, Factory } from "lucide-react"
 import { DatePicker } from "@/components/date-picker"
 
-// ─── Tipos ────────────────────────────────────────────────────────────────────
+// ─── Interfaces de Banco de Dados ─────────────────────────────────────────────
+
+interface SupabaseOrdem {
+  id: string
+  numero_op: string
+  data_programacao: string
+  produto_codigo: string
+  quantidade: number
+  regra_calculo: "soma" | "media" | "gargalo"
+}
+
+interface SupabaseApontamento {
+  id: string
+  ordem_id: string
+  data_apontamento: string
+  hora_inicio: string
+  hora_fim: string
+  pecas_produzidas: number
+  pecas_refugo: number
+  pecas_retrabalho: number
+  observacao?: string
+  maquinas?: { nome: string }
+}
+
+interface SupabaseMaquina {
+  id: string
+  nome: string
+}
+
+// ─── Tipos Locais ─────────────────────────────────────────────────────────────
 
 interface OrdemProducao {
   id: string
@@ -117,13 +146,13 @@ export function ApontamentoTab({ empresaAtivaId }: { empresaAtivaId?: string | n
       let qMaq = supabase.from("maquinas").select("id, nome").neq("status", "inativa")
       if (empresaAtivaId) qMaq = qMaq.eq("empresa_id", empresaAtivaId)
       const { data: maqData } = await qMaq
-      setMaquinas(maqData || [])
+      setMaquinas((maqData as SupabaseMaquina[]) || [])
 
       let qOps = supabase.from("ordens_producao").select("*").order("data_programacao", { ascending: true })
       if (empresaAtivaId) qOps = qOps.eq("empresa_id", empresaAtivaId)
       const { data: opsData } = await qOps
 
-      const formattedOrdens: OrdemProducao[] = (opsData || []).map((op: any) => ({
+      const formattedOrdens: OrdemProducao[] = ((opsData as SupabaseOrdem[]) || []).map((op) => ({
         id: op.id,
         opNumber: op.numero_op,
         date: op.data_programacao,
@@ -137,7 +166,7 @@ export function ApontamentoTab({ empresaAtivaId }: { empresaAtivaId?: string | n
       if (empresaAtivaId) qAp = qAp.eq("empresa_id", empresaAtivaId)
       const { data: apData } = await qAp
 
-      const formattedAp: Apontamento[] = (apData || []).map((a: any) => ({
+      const formattedAp: Apontamento[] = ((apData as SupabaseApontamento[]) || []).map((a) => ({
         id: a.id,
         ordemId: a.ordem_id,
         dataApontamento: a.data_apontamento,
