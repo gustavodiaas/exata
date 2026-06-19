@@ -17,29 +17,30 @@ interface Manutencao {
   descricao: string
 }
 
-export function ManutencaoTab({ user }: { user: any }) {
+export function ManutencaoTab({ user, empresaAtivaId }: { user: any, empresaAtivaId: string | null }) {
   const { toast } = useToast()
   const [registros, setRegistros] = useState<Manutencao[]>([])
   const [maquinas, setMaquinas] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
 
-  // Form states
   const [maquinaId, setMaquinaId] = useState("")
   const [tipo, setTipo] = useState<"preventiva" | "corretiva">("preventiva")
   const [data, setData] = useState("")
   const [descricao, setDescricao] = useState("")
 
   useEffect(() => {
-    if (user) {
+    if (user && empresaAtivaId) {
       loadData()
     }
-  }, [user])
+  }, [user, empresaAtivaId])
 
   const loadData = async () => {
+    if (!empresaAtivaId) return
+
     try {
       const [maq, man] = await Promise.all([
-        supabase.from("maquinas").select("id, nome, codigo"),
-supabase.from("manutencao").select("*, maquinas(nome, codigo)").order("data_programada", { ascending: true })
+        supabase.from("maquinas").select("id, nome, codigo").eq("empresa_id", empresaAtivaId),
+        supabase.from("manutencao").select("*, maquinas(nome, codigo)").eq("empresa_id", empresaAtivaId).order("data_programada", { ascending: true })
       ])
 
       setMaquinas(maq.data || [])
@@ -61,7 +62,13 @@ supabase.from("manutencao").select("*, maquinas(nome, codigo)").order("data_prog
       return
     }
 
+    if (!empresaAtivaId) {
+      toast({ title: "Erro", description: "Empresa ativa não identificada.", variant: "destructive" })
+      return
+    }
+
     const { error } = await supabase.from("manutencao").insert([{
+      empresa_id: empresaAtivaId,
       maquina_id: maquinaId,
       tipo,
       data_programada: data,
@@ -80,12 +87,16 @@ supabase.from("manutencao").select("*, maquinas(nome, codigo)").order("data_prog
   }
 
   const handleStatusChange = async (id: string, novoStatus: string) => {
-    const { error } = await supabase.from("manutencao").update({ status: novoStatus }).eq("id", id)
+    if (!empresaAtivaId) return
+
+    const { error } = await supabase.from("manutencao").update({ status: novoStatus }).eq("id", id).eq("empresa_id", empresaAtivaId)
     if (!error) loadData()
   }
 
   const handleExcluir = async (id: string) => {
-    const { error } = await supabase.from("manutencao").delete().eq("id", id)
+    if (!empresaAtivaId) return
+
+    const { error } = await supabase.from("manutencao").delete().eq("id", id).eq("empresa_id", empresaAtivaId)
     if (!error) loadData()
   }
 
