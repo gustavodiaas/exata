@@ -140,7 +140,7 @@ export function ApontamentoTab({ empresaAtivaId }: { empresaAtivaId?: string | n
 
   // ─── Carga de dados com Filtro Master ─────────────────────────────────────────
 
-  const loadData = async () => {
+const loadData = async () => {
     setLoading(true)
     try {
       let qMaq = supabase.from("maquinas").select("id, nome").neq("status", "inativa")
@@ -177,13 +177,14 @@ export function ApontamentoTab({ empresaAtivaId }: { empresaAtivaId?: string | n
         pecasRetrabalho: a.pecas_retrabalho,
         observacao: a.observacao || "",
         maquinaNome: a.maquinas?.nome || "Manual / Sem Máquina"
-     }))
+      }))
       setApontamentos(formattedAp)
     } catch (e) {
       // Permanece silencioso, loading state resolve a UI
     } finally {
       setLoading(false)
-
+    }
+  }
   useEffect(() => {
     loadData()
   }, [empresaAtivaId])
