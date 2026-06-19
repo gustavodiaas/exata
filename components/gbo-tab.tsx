@@ -150,6 +150,12 @@ export function GBOTab({ user, empresaAtivaId }: { user: { id: string }, empresa
           // Ignorado: falha ao fazer parse do localStorage apenas recomeça limpo
         }
       }
+      loadSavedProducts()
+    }
+    setIsLoaded(true)
+    window.addEventListener("sync_gbo_products", loadSavedProducts)
+    return () => window.removeEventListener("sync_gbo_products", loadSavedProducts)
+  }, [user, empresaAtivaId])
     setIsLoaded(true)
     window.addEventListener("sync_gbo_products", loadSavedProducts)
     return () => window.removeEventListener("sync_gbo_products", loadSavedProducts)
