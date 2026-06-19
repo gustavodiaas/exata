@@ -8,7 +8,6 @@ interface Operation {
 }
 
 export const exportToExcel = async (operations: Operation[], timeUnit: string) => {
-  // Ajustado para exportar usando exatamente o mesmo formato do seu novo modelo
   const data = operations.map((op, index) => ({
     "ORDEM": index + 1,
     "NOME DA OPERAÇÃO": op.name,
@@ -22,7 +21,6 @@ export const exportToExcel = async (operations: Operation[], timeUnit: string) =
 }
 
 export const downloadTemplate = () => {
-  // Aponta direto para o arquivo físico que você colocou na pasta 'public'
   const link = document.createElement("a")
   link.href = "/modelo-padrao.xlsx"
   link.download = "modelo-padrao-gbo.xlsx"
@@ -41,11 +39,9 @@ export const importFromExcel = async (file: File): Promise<Operation[]> => {
         const sheetName = workbook.SheetNames[0]
         const worksheet = workbook.Sheets[sheetName]
         
-        // Lê a planilha ignorando linhas vazias reais
         const rawJson = XLSX.utils.sheet_to_json(worksheet, { blankrows: false })
 
-        const operations = rawJson.map((row: any) => {
-          // Normaliza todas as chaves do Excel para CAIXA ALTA para garantir a leitura
+        const operations: Operation[] = rawJson.map((row: any) => {
           const normalizedRow: any = {}
           for (const key in row) {
             if (Object.prototype.hasOwnProperty.call(row, key)) {
@@ -53,12 +49,11 @@ export const importFromExcel = async (file: File): Promise<Operation[]> => {
             }
           }
 
-          const name = normalizedRow["NOME DA OPERAÇÃO"] || normalizedRow["NOME"] || "Sem Nome"
+          const name = String(normalizedRow["NOME DA OPERAÇÃO"] || normalizedRow["NOME"] || "Sem Nome")
           const time = Number(normalizedRow["TEMPO"]) || 0
           const rawUnit = String(normalizedRow["UNIDADE"] || "minutos").toLowerCase()
           
-          // Entende a lista suspensa em português
-          const unit = rawUnit.includes("seg") ? "seconds" : "minutes"
+          const unit: "minutes" | "seconds" = rawUnit.includes("seg") ? "seconds" : "minutes"
 
           return {
             id: Date.now().toString() + Math.random().toString(36).substring(7),
@@ -66,7 +61,7 @@ export const importFromExcel = async (file: File): Promise<Operation[]> => {
             time,
             unit,
           }
-        }).filter(op => op.time > 0) // Ignora as linhas extras que você formatou mas o usuário deixou em branco
+        }).filter(op => op.time > 0) 
 
         resolve(operations)
       } catch (error) {
