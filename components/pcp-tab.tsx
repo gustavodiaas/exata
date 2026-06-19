@@ -16,12 +16,46 @@ import { useToast } from "@/hooks/use-toast"
 import { supabase } from "@/components/supabase"
 import { DatePicker } from "@/components/date-picker"
 
-// ─── Constantes ───────────────────────────────────────────────────────────────
-
 const DEFAULT_SHIFT_CAPACITY_SECONDS = 29880
 const DIAS_SEMANA = ["Segunda", "Terça", "Quarta", "Quinta", "Sexta"]
 
-// ─── Tipos ────────────────────────────────────────────────────────────────────
+interface SupabaseMaquina {
+  id: string
+  nome: string
+  capacidade_diaria: number
+  status: string
+}
+
+interface SupabaseOperacao {
+  nome: string
+  tempo: number
+  unidade: "minutes" | "seconds"
+  setup_time?: number
+  maquina_id?: string
+}
+
+interface SupabaseProduto {
+  codigo: string
+  descricao: string
+  operacoes?: SupabaseOperacao[]
+}
+
+interface SupabaseOrdem {
+  id: string
+  numero_op: string
+  data_programacao: string
+  produto_codigo: string
+  quantidade: number
+  regra_calculo: "soma" | "media" | "gargalo"
+  agrupar_setup: boolean
+}
+
+interface SupabaseCapacidade {
+  id: string
+  data_excecao: string
+  capacidade_global: number
+  tempo_parada: number
+}
 
 interface Machine {
   id: string
@@ -72,7 +106,21 @@ interface OPSlice {
   totalParts: number
 }
 
-// ─── Helpers de data ──────────────────────────────────────────────────────────
+interface HeijunkaMachine {
+  name: string
+  load: number
+  capacity: number
+  occupation: number
+  overflow: number
+}
+
+interface HeijunkaDay {
+  date: string
+  machines: HeijunkaMachine[]
+  maxOccupation: number
+  totalLoad: number
+  totalOverflow: number
+}
 
 function toDate(dateStr: string): Date {
   const [y, m, d] = dateStr.split("-").map(Number)
@@ -117,8 +165,6 @@ function formatMinutes(sec: number): string {
   return r === 0 ? `${h}h` : `${h}h ${r}min`
 }
 
-// ─── Componente ───────────────────────────────────────────────────────────────
-
 export function PCPTab({ empresaAtivaId }: { empresaAtivaId?: string | null }) {
   const { toast } = useToast()
 
@@ -147,8 +193,6 @@ export function PCPTab({ empresaAtivaId }: { empresaAtivaId?: string | null }) {
 
   const [draggingId, setDraggingId] = useState<string | null>(null)
 
-  // ─── Carga de dados com filtro Mestre ────────────────────────────────────────
-
   const loadData = async () => {
     setLoading(true)
     try {
@@ -168,12 +212,12 @@ export function PCPTab({ empresaAtivaId }: { empresaAtivaId?: string | null }) {
         qMaquinas, qProdutos, qOrdens, qCapacidade
       ])
 
-      setMachines(maqData || [])
+      setMachines((maqData as SupabaseMaquina[]) || [])
 
-      setProducts((prodsData || []).map((p: any) => ({
+      setProducts(((prodsData as SupabaseProduto[]) || []).map((p) => ({
         code: p.codigo,
         description: p.descricao,
-        steps: (p.operacoes || []).map((op: any) => ({
+        steps: (p.operacoes || []).map((op) => ({
           name: op.nome,
           cycleTime: op.unidade === "minutes" ? Number(op.tempo) * 60 : Number(op.tempo),
           setupTime: op.unidade === "minutes" ? Number(op.setup_time || 0) * 60 : Number(op.setup_time || 0),
@@ -181,7 +225,7 @@ export function PCPTab({ empresaAtivaId }: { empresaAtivaId?: string | null }) {
         }))
       })))
 
-      setOrders((opsData || []).map((op: any) => ({
+      setOrders(((opsData as SupabaseOrdem[]) || []).map((op) => ({
         id: op.id,
         opNumber: op.numero_op,
         date: op.data_programacao,
@@ -191,7 +235,7 @@ export function PCPTab({ empresaAtivaId }: { empresaAtivaId?: string | null }) {
         groupSetup: op.agrupar_setup
       })))
 
-      setCapacities((capData || []).map((c: any) => ({
+      setCapacities(((capData as SupabaseCapacidade[]) || []).map((c) => ({
         id: c.id,
         date: c.data_excecao,
         globalCapacity: Number(c.capacidade_global),
@@ -205,8 +249,6 @@ export function PCPTab({ empresaAtivaId }: { empresaAtivaId?: string | null }) {
   }
 
   useEffect(() => { loadData() }, [empresaAtivaId])
-
-  // ─── Lógica interna ──────────────────────────────────────────────────────────
 
   const calculateOPTime = (op: ProductionOrder): number => {
     const product = products.find((p) => p.code === op.productCode)
@@ -305,10 +347,10 @@ export function PCPTab({ empresaAtivaId }: { empresaAtivaId?: string | null }) {
   }, [orders, capacities, computeSlices])
 
   const heijunkaDashboard = useMemo(() => {
-    const map: Record<string, any> = {}
+    const map: Record<string, HeijunkaDay> = {}
     allDates.forEach((date) => {
       const daySlices = computeSlices.filter((s) => s.sliceDate === date)
-      const mLoads: Record<string, any> = {}
+      const mLoads: Record<string, HeijunkaMachine> = {}
 
       machines.filter(m => m.status !== 'inativa').forEach(m => {
         const base = m.capacidade_diaria > 0 ? m.capacidade_diaria * 3600 : DEFAULT_SHIFT_CAPACITY_SECONDS
@@ -346,14 +388,18 @@ export function PCPTab({ empresaAtivaId }: { empresaAtivaId?: string | null }) {
         totOverflow += ml.overflow
       })
 
-      map[date] = { date, machines: Object.values(mLoads).filter((m: any) => m.load > 0 || m.capacity > 0), maxOccupation: maxOcc, totalLoad: totLoad, totalOverflow: totOverflow }
+      map[date] = { 
+        date, 
+        machines: Object.values(mLoads).filter(m => m.load > 0 || m.capacity > 0), 
+        maxOccupation: maxOcc, 
+        totalLoad: totLoad, 
+        totalOverflow: totOverflow 
+      }
     })
     return map
   }, [allDates, computeSlices, capacities, machines])
 
   const dashboardArray = Object.values(heijunkaDashboard)
-
-  // ─── Handlers de gravação com injeção de ID ──────────────────────────────────
 
   const handleAddOP = async () => {
     if (!opNumber || !opDate || !opProductCode || !opQuantity) {
@@ -461,7 +507,7 @@ export function PCPTab({ empresaAtivaId }: { empresaAtivaId?: string | null }) {
 
   const weekLabel = useMemo(() => {
     const friday = addDays(currentMonday, 4)
-    return `${formatDateLabel(currentMonday)} — ${formatDateLabel(friday)}`
+    return `${formatDateLabel(currentMonday)} - ${formatDateLabel(friday)}`
   }, [currentMonday])
 
   const isCurrentWeek = useMemo(() => currentMonday === getMondayOfWeek(toStr(new Date())), [currentMonday])
@@ -490,7 +536,7 @@ export function PCPTab({ empresaAtivaId }: { empresaAtivaId?: string | null }) {
               <Label className="text-[10px] uppercase font-bold text-muted-foreground">Tempo Disponível</Label>
               <div className="grid grid-cols-2 gap-2">
                 <Input type="number" placeholder="Ex: 8.0" value={capacityValue} onChange={(e) => setCapacityValue(e.target.value)} className="h-9 text-xs bg-input border-border" />
-                <Select value={capacityUnit} onValueChange={(v: any) => setCapacityUnit(v)}>
+                <Select value={capacityUnit} onValueChange={(v: "hours" | "minutes") => setCapacityUnit(v)}>
                   <SelectTrigger className="h-9 text-xs border-border bg-input"><SelectValue /></SelectTrigger>
                   <SelectContent className="bg-card border-border">
                     <SelectItem value="hours">Horas</SelectItem>
@@ -559,15 +605,15 @@ export function PCPTab({ empresaAtivaId }: { empresaAtivaId?: string | null }) {
               <React.Fragment>
                 {(() => {
                   const totalDays = dashboardArray.length
-                  const overloadedDays = dashboardArray.filter((d: any) => d.totalOverflow > 0).length
-                  const totalLoad = dashboardArray.reduce((s: number, d: any) => s + d.totalLoad, 0)
-                  const totalCap = dashboardArray.reduce((s: number, d: any) => s + d.machines.reduce((acc: number, m: any) => acc + m.capacity, 0), 0)
+                  const overloadedDays = dashboardArray.filter((d) => d.totalOverflow > 0).length
+                  const totalLoad = dashboardArray.reduce((s, d) => s + d.totalLoad, 0)
+                  const totalCap = dashboardArray.reduce((s, d) => s + d.machines.reduce((acc, m) => acc + m.capacity, 0), 0)
                   const globalOcc = totalCap > 0 ? (totalLoad / totalCap) * 100 : 0
                   
                   return (
                     <div className="mb-4 grid grid-cols-2 lg:grid-cols-4 gap-3">
                       {[
-                        { label: "Pico de Máquina", value: `${Math.max(...dashboardArray.map((d: any) => d.maxOccupation)).toFixed(0)}%`, warn: Math.max(...dashboardArray.map((d: any) => d.maxOccupation)) > 85, danger: Math.max(...dashboardArray.map((d: any) => d.maxOccupation)) > 100 },
+                        { label: "Pico de Máquina", value: `${Math.max(...dashboardArray.map((d) => d.maxOccupation)).toFixed(0)}%`, warn: Math.max(...dashboardArray.map((d) => d.maxOccupation)) > 85, danger: Math.max(...dashboardArray.map((d) => d.maxOccupation)) > 100 },
                         { label: "Ocupação Global", value: `${globalOcc.toFixed(0)}%`, warn: false, danger: globalOcc > 100 },
                         { label: "Dias com Gargalo", value: `${overloadedDays}/${totalDays}`, warn: overloadedDays > 0, danger: false },
                         { label: "Carga Total", value: `${(totalLoad / 3600).toFixed(1)}h`, warn: false, danger: false },
@@ -629,7 +675,7 @@ export function PCPTab({ empresaAtivaId }: { empresaAtivaId?: string | null }) {
                                 />
                               </div>
                               <div className="mt-2 flex flex-col gap-1">
-                                {dayData?.machines.filter((m: any) => m.load > 0).map((m: any) => (
+                                {dayData?.machines.filter(m => m.load > 0).map(m => (
                                   <div key={m.name} className="flex justify-between items-center text-[9px]">
                                     <span className="text-muted-foreground truncate max-w-[80px]" title={m.name}>{m.name}</span>
                                     <span className={m.overflow > 0 ? "text-destructive font-bold" : "text-foreground"}>
@@ -701,7 +747,7 @@ export function PCPTab({ empresaAtivaId }: { empresaAtivaId?: string | null }) {
 
                 {viewMode === "calendario" && (
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
-                    {dashboardArray.map((day: any) => (
+                    {dashboardArray.map((day) => (
                       <div key={day.date} className={`p-3 border rounded-xl flex flex-col gap-1 ${day.totalOverflow > 0 ? "bg-destructive/5 border-destructive/30" : "bg-card border-border"}`}>
                         <div className="flex justify-between items-start mb-1">
                           <span className="text-xs font-bold">{day.date.split("-")[2]}</span>
@@ -733,15 +779,15 @@ export function PCPTab({ empresaAtivaId }: { empresaAtivaId?: string | null }) {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-border">
-                        {dashboardArray.map((day: any) => {
-                          const bottleneck = day.machines.reduce((prev: any, curr: any) => (prev.occupation > curr.occupation) ? prev : curr)
+                        {dashboardArray.map((day) => {
+                          const bottleneck = day.machines.reduce((prev, curr) => (prev.occupation > curr.occupation) ? prev : curr)
                           return (
                             <tr key={day.date} className="hover:bg-muted/30 transition-colors">
                               <td className="px-4 py-3 font-medium text-foreground">{day.date.split("-").reverse().join("/")}</td>
                               <td className="px-4 py-3 text-muted-foreground">{bottleneck.name} ({bottleneck.occupation.toFixed(0)}%)</td>
                               <td className="px-4 py-3 text-foreground">{(day.totalLoad / 3600).toFixed(1)}h</td>
                               <td className="px-4 py-3"><span className={`px-2 py-0.5 rounded-full font-bold ${day.maxOccupation > 100 ? "bg-destructive/10 text-destructive" : "bg-primary/10 text-primary"}`}>{day.maxOccupation.toFixed(0)}%</span></td>
-                              <td className={`px-4 py-3 text-right font-bold ${day.totalOverflow > 0 ? "text-destructive" : "text-muted-foreground"}`}>{day.totalOverflow > 0 ? `+${(day.totalOverflow / 3600).toFixed(1)}h` : "—"}</td>
+                              <td className={`px-4 py-3 text-right font-bold ${day.totalOverflow > 0 ? "text-destructive" : "text-muted-foreground"}`}>{day.totalOverflow > 0 ? `+${(day.totalOverflow / 3600).toFixed(1)}h` : "-"}</td>
                             </tr>
                           )
                         })}
@@ -786,7 +832,7 @@ export function PCPTab({ empresaAtivaId }: { empresaAtivaId?: string | null }) {
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Regra de Tempo Base</Label>
-              <Select value={opRule} onValueChange={(v: any) => setOpRule(v)}>
+              <Select value={opRule} onValueChange={(v: "soma" | "media" | "gargalo") => setOpRule(v)}>
                 <SelectTrigger className="bg-input border-border h-10"><SelectValue /></SelectTrigger>
                 <SelectContent className="bg-card border-border">
                   <SelectItem value="soma">Soma dos Tempos do Roteiro</SelectItem>
@@ -832,7 +878,7 @@ export function PCPTab({ empresaAtivaId }: { empresaAtivaId?: string | null }) {
                     </div>
                     <span className="text-xs text-muted-foreground">
                       Início: <strong className="text-foreground">{op.date.split("-").reverse().join("/")}</strong>
-                      {multiDay && ` → Fim: ${slices[slices.length - 1].sliceDate.split("-").reverse().join("/")}`}
+                      {multiDay && ` -> Fim: ${slices[slices.length - 1].sliceDate.split("-").reverse().join("/")}`}
                       {" | "}Qtd: <strong className="text-foreground">{op.quantity}</strong>
                     </span>
                     <div className="flex gap-2 mt-1 flex-wrap">
