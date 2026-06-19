@@ -9,7 +9,11 @@ interface Operation {
   id: string
   name: string
   time: number
+  setupTime: number
   unit: "minutes" | "seconds"
+  maquina_id?: string
+  maquina_nome?: string
+  maquina_codigo?: string
 }
 
 interface GBOChartProps {
