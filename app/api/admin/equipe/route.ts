@@ -1,16 +1,37 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
 
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-)
-
 export async function POST(req: Request) {
   try {
+    const authHeader = req.headers.get('Authorization')
+    if (!authHeader) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
+    const token = authHeader.replace('Bearer ', '')
+
+    const supabaseAuth = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    )
+
+    const { data: { user }, error: authErr } = await supabaseAuth.auth.getUser(token)
+    if (authErr || !user) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
+
+    const supabaseAdmin = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    )
+
+    const { data: acesso } = await supabaseAdmin
+      .from('controle_acesso')
+      .select('nivel')
+      .eq('user_id', user.id)
+      .single()
+
+    if (!acesso || !['master', 'admin'].includes(acesso.nivel)) {
+      return NextResponse.json({ error: 'Acesso negado' }, { status: 403 })
+    }
+
     const { empresa_id } = await req.json()
 
-    // 1. Busca equipe
     const { data: equipe, error: equipeError } = await supabaseAdmin
       .from('controle_acesso')
       .select('*, perfis:user_id(email, nome)')
@@ -18,11 +39,9 @@ export async function POST(req: Request) {
 
     if (equipeError) throw equipeError
 
-    // 2. Garante que equipe é um array (se for null, vira [])
     const equipeData = equipe || []
-
-    // 3. Busca permissões apenas se tiver usuários
     let permissoesData = []
+
     if (equipeData.length > 0) {
       const userIds = equipeData.map((u: any) => u.user_id)
       const { data: permData, error: permError } = await supabaseAdmin
@@ -37,7 +56,6 @@ export async function POST(req: Request) {
     return NextResponse.json({ equipe: equipeData, permissoes: permissoesData })
     
   } catch (error: any) {
-    // Retorna o erro real para facilitar o debug
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 }
