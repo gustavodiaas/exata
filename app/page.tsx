@@ -68,6 +68,12 @@ export default function ExataApp() {
         .eq("id", userId)
         .single()
 
+      const { data: acesso } = await supabase
+        .from("controle_acesso")
+        .select("nivel")
+        .eq("user_id", userId)
+        .single()
+
       if (perfil) {
         setEmpresaName(perfil.empresa || "")
         setDefaultTime(
@@ -81,7 +87,7 @@ export default function ExataApp() {
           setShowSetupModal(true)
         }
 
-        const isMaster = perfil.tipo_usuario === "master" || userEmail === "gustavodiaass@yahoo.com"
+        const isMaster = perfil.tipo_usuario === "master" || (acesso && acesso.nivel === "master")
         setUserRole(isMaster ? "master" : (perfil.tipo_usuario || "colaborador"))
 
         if (isMaster) {
@@ -95,17 +101,9 @@ export default function ExataApp() {
         }
       }
 
-      const { data: acesso } = await supabase
-        .from("controle_acesso")
-        .select("nivel")
-        .eq("user_id", userId)
-        .single()
-
       if (acesso && (!perfil || perfil.tipo_usuario !== "master")) {
         setUserRole(acesso.nivel)
         console.log("Perfil carregado:", acesso.nivel)
-      } else if (userEmail === "gustavodiaass@yahoo.com" && !userRole) {
-        setUserRole("master")
       }
 
       const { data: perms } = await supabase
@@ -608,7 +606,7 @@ export default function ExataApp() {
                       </div>
                       <div className="border-t border-border pt-4 space-y-2">
                         <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Exceções de Capacidade</p>
-                        <p className="text-sm text-foreground/80">Use o Gerenciamento de Exceções no PCP para configurar dias com capacidade diferenciada, como feriados, manutenções programadas ou turnos reduzidos. As exceções ficam listadas e podem ser removidas a qualquer momento.</p>
+                        <p className="text-sm text-foreground/80">Use o Gerenciamento de Exceções no PCP para configure dias com capacidade diferenciada, como feriados, manutenções programadas ou turnos reduzidos. As exceções ficam listadas e podem ser removidas a qualquer momento.</p>
                       </div>
                       <div className="border-t border-border pt-4 space-y-2">
                         <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Produtos Salvos</p>
