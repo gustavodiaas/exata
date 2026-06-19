@@ -95,7 +95,7 @@ export function GBOTab({ user, empresaAtivaId }: { user: { id: string }, empresa
       const { data } = await q
       if (data) setMaquinasGlobais(data as MaquinaDatabase[])
     } catch (e) {
-      console.error("Erro ao carregar máquinas", e)
+      // Ignorado silenciosamente
     }
   }
 
@@ -147,11 +147,9 @@ export function GBOTab({ user, empresaAtivaId }: { user: { id: string }, empresa
           if (parsed.calcType) setCalcType(parsed.calcType)
           if (parsed.timeUnit) setTimeUnit(parsed.timeUnit)
         } catch (e) {
-          console.error("Erro ao ler rascunho", e)
+          // Ignorado: falha ao fazer parse do localStorage apenas recomeça limpo
         }
       }
-      loadSavedProducts()
-    }
     setIsLoaded(true)
     window.addEventListener("sync_gbo_products", loadSavedProducts)
     return () => window.removeEventListener("sync_gbo_products", loadSavedProducts)
