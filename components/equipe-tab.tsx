@@ -5,7 +5,7 @@ import { Users, Plus, Building, UserCheck } from "lucide-react"
 import { supabase } from "@/components/supabase"
 import { useToast } from "@/hooks/use-toast"
 
-export function EquipeTab({ user }: { user: any }) {
+export function EquipeTab({ user, empresaAtivaId }: { user: any, empresaAtivaId: string | null }) {
   const [equipe, setEquipe] = useState<any[]>([])
   const [permissoes, setPermissoes] = useState<any[]>([])
   const [isMaster, setIsMaster] = useState(false)
