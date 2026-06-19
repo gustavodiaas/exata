@@ -177,14 +177,12 @@ export function ApontamentoTab({ empresaAtivaId }: { empresaAtivaId?: string | n
         pecasRetrabalho: a.pecas_retrabalho,
         observacao: a.observacao || "",
         maquinaNome: a.maquinas?.nome || "Manual / Sem Máquina"
-      }))
+     }))
       setApontamentos(formattedAp)
     } catch (e) {
-      console.error("Erro ao carregar apontamentos:", e)
+      // Permanece silencioso, loading state resolve a UI
     } finally {
       setLoading(false)
-    }
-  }
 
   useEffect(() => {
     loadData()
