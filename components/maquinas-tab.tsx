@@ -41,14 +41,19 @@ export function MaquinasTab({ user, empresaAtivaId }: { user: any, empresaAtivaI
     if (!empresaAtivaId) return
 
     try {
-      const { data, error } = await supabase
-        .from("maquinas")
-        .select("*")
-        .eq("empresa_id", empresaAtivaId)
-        .order("created_at", { ascending: false })
+      const response = await fetch("/api/admin/get-dados", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ table: "maquinas", empresaId: empresaAtivaId }),
+      })
+      
+      const result = await response.json()
+      if (!response.ok) throw new Error(result.error)
+      
+      let data = result.data || []
+      data = data.sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
 
-      if (error) throw error
-      if (data) setMaquinas(data as Maquina[])
+      setMaquinas(data as Maquina[])
     } catch (e: any) {
       toast({ title: "Erro de conexão", description: "Não foi possível carregar o parque fabril.", variant: "destructive" })
     } finally {
@@ -177,7 +182,6 @@ export function MaquinasTab({ user, empresaAtivaId }: { user: any, empresaAtivaI
 
   return (
     <div className="flex flex-col xl:flex-row gap-8 pb-12">
-      
       <div className="xl:w-[35%] flex flex-col gap-6">
         <div className="bg-card p-6 rounded-2xl shadow-sm border border-border space-y-5">
           <div className="border-b border-border pb-3">
