@@ -5,11 +5,16 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { GripVertical, Trash2, Pencil, Check, X } from "lucide-react"
 
+// Interface 100% alinhada com o GBO e Export Utils
 interface Operation {
   id: string
   name: string
   time: number
+  setupTime: number
   unit: "minutes" | "seconds"
+  maquina_id?: string
+  maquina_nome?: string
+  maquina_codigo?: string
 }
 
 interface DraggableOperationsListProps {
@@ -82,7 +87,7 @@ export function DraggableOperationsList({
         {operations.map((op, index) => (
           <div
             key={op.id}
-            draggable={editingId !== op.id} // Desativa o drag enquanto edita
+            draggable={editingId !== op.id}
             onDragStart={() => handleDragStart(index)}
             onDragOver={(e) => handleDragOver(e, index)}
             onDragEnd={handleDragEnd}
@@ -119,7 +124,7 @@ export function DraggableOperationsList({
                 <div className="flex flex-col min-w-0">
                   <span className="text-sm font-medium truncate">{op.name}</span>
                   <span className="text-xs text-muted-foreground">
-                    {op.time.toFixed(1)} {op.unit}
+                    Ciclo: {op.time.toFixed(1)} {op.unit} {op.setupTime > 0 ? `| Setup: ${op.setupTime} ${op.unit}` : ""}
                   </span>
                 </div>
               )}
