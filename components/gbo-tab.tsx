@@ -22,6 +22,29 @@ interface Operation {
   maquina_codigo?: string
 }
 
+interface MaquinaDatabase {
+  id: string
+  nome: string
+  codigo: string
+  tempo_setup_padrao?: number
+}
+
+interface OperacaoDatabase {
+  nome: string
+  tempo: number
+  unidade: "minutes" | "seconds"
+  ordem?: number
+  setup_time?: number
+  maquina_id?: string
+}
+
+interface ProdutoDatabase {
+  id: string
+  codigo: string
+  descricao: string
+  operacoes?: OperacaoDatabase[]
+}
+
 const validateNumber = (value: string, min = 0): { isValid: boolean; error?: string } => {
   if (!value.trim()) return { isValid: false, error: "Campo obrigatório" }
   const num = Number.parseFloat(value)
@@ -38,7 +61,7 @@ const validateText = (value: string): { isValid: boolean; error?: string } => {
 
 type CalcType = "takt" | "media" | "soma"
 
-export function GBOTab({ user, empresaAtivaId }: { user: any; empresaAtivaId?: string | null }) {
+export function GBOTab({ user, empresaAtivaId }: { user: { id: string }, empresaAtivaId?: string | null }) {
   const [operations, setOperations] = useState<Operation[]>([])
   const [timeUnit, setTimeUnit] = useState<"minutes" | "seconds">("minutes")
   const [productCode, setProductCode] = useState("")
@@ -48,7 +71,7 @@ export function GBOTab({ user, empresaAtivaId }: { user: any; empresaAtivaId?: s
   const [newOperationTime, setNewOperationTime] = useState("")
   const [newOperationSetup, setNewOperationSetup] = useState("")
   const [newOperationMaquinaId, setNewOperationMaquinaId] = useState("")
-  const [maquinasGlobais, setMaquinasGlobais] = useState<any[]>([])
+  const [maquinasGlobais, setMaquinasGlobais] = useState<MaquinaDatabase[]>([])
   
   const [errors, setErrors] = useState<{ operationName?: string; operationTime?: string; operationSetup?: string }>({})
   const [isLoading, setIsLoading] = useState(false)
@@ -57,7 +80,6 @@ export function GBOTab({ user, empresaAtivaId }: { user: any; empresaAtivaId?: s
   const [showProductsPanel, setShowProductsPanel] = useState(false)
   const [confirmOverwrite, setConfirmOverwrite] = useState<{ product: any; index: number } | null>(null)
 
-  // Novos states para pesquisa e expansão de produtos
   const [productSearch, setProductSearch] = useState("")
   const [expandedProduct, setExpandedProduct] = useState<string | null>(null)
 
@@ -71,9 +93,9 @@ export function GBOTab({ user, empresaAtivaId }: { user: any; empresaAtivaId?: s
         q = q.eq("empresa_id", empresaAtivaId)
       }
       const { data } = await q
-      if (data) setMaquinasGlobais(data)
+      if (data) setMaquinasGlobais(data as MaquinaDatabase[])
     } catch (e) {
-      console.error("Erro ao carregar máquinas")
+      console.error("Erro ao carregar máquinas", e)
     }
   }
 
@@ -93,10 +115,10 @@ export function GBOTab({ user, empresaAtivaId }: { user: any; empresaAtivaId?: s
       if (error) throw error
 
       if (prods) {
-        const formatted = prods.map((p: any) => ({
+        const formatted = (prods as ProdutoDatabase[]).map((p) => ({
           code: p.codigo,
           description: p.descricao,
-          steps: (p.operacoes || []).sort((a: any, b: any) => (a.ordem ?? 0) - (b.ordem ?? 0)).map((o: any) => ({
+          steps: (p.operacoes || []).sort((a, b) => (a.ordem ?? 0) - (b.ordem ?? 0)).map((o) => ({
             name: o.nome,
             cycleTime: o.unidade === "minutes" ? o.tempo * 60 : o.tempo,
             setupTime: o.unidade === "minutes" ? (o.setup_time || 0) * 60 : (o.setup_time || 0),
@@ -125,7 +147,7 @@ export function GBOTab({ user, empresaAtivaId }: { user: any; empresaAtivaId?: s
           if (parsed.calcType) setCalcType(parsed.calcType)
           if (parsed.timeUnit) setTimeUnit(parsed.timeUnit)
         } catch (e) {
-          console.error("Erro ao ler rascunho")
+          console.error("Erro ao ler rascunho", e)
         }
       }
       loadSavedProducts()
@@ -275,7 +297,7 @@ export function GBOTab({ user, empresaAtivaId }: { user: any; empresaAtivaId?: s
 
       const existingData = localStorage.getItem("gbo_products")
       let productsArray = existingData ? JSON.parse(existingData) : []
-      const existingIndex = productsArray.findIndex((p: any) => p.code === product.code)
+      const existingIndex = productsArray.findIndex((p: { code: string }) => p.code === product.code)
       if (existingIndex >= 0) productsArray[existingIndex] = product
       else productsArray.push(product)
       localStorage.setItem("gbo_products", JSON.stringify(productsArray))
@@ -284,8 +306,8 @@ export function GBOTab({ user, empresaAtivaId }: { user: any; empresaAtivaId?: s
       await loadSavedProducts()
       setConfirmOverwrite(null)
       toast({ title: "✅ Sincronizado na Nuvem", description: "O roteiro está salvo e disponível no ecossistema Exata." })
-    } catch (err: any) {
-      toast({ title: "Erro ao salvar", description: err.message, variant: "destructive" })
+    } catch (err: unknown) {
+      toast({ title: "Erro ao salvar", description: (err as Error).message, variant: "destructive" })
     } finally {
       setIsLoading(false)
     }
@@ -301,7 +323,7 @@ export function GBOTab({ user, empresaAtivaId }: { user: any; empresaAtivaId?: s
       return
     }
     const newProduct = buildNewProduct()
-    const existingIndex = savedProducts.findIndex((p: any) => p.code === newProduct.code)
+    const existingIndex = savedProducts.findIndex((p) => p.code === newProduct.code)
     if (existingIndex >= 0) {
       setConfirmOverwrite({ product: newProduct, index: existingIndex })
       return
@@ -341,14 +363,14 @@ export function GBOTab({ user, empresaAtivaId }: { user: any; empresaAtivaId?: s
       }
       await q
       
-      const updated = savedProducts.filter((p: any) => p.code !== code)
+      const updated = savedProducts.filter((p) => p.code !== code)
       setSavedProducts(updated)
       localStorage.setItem("gbo_products", JSON.stringify(updated))
       window.dispatchEvent(new Event("sync_gbo_products"))
       if (expandedProduct === code) setExpandedProduct(null)
       toast({ title: "Produto Removido", description: `O roteiro "${code}" foi excluído da nuvem.` })
-    } catch (e: any) {
-      toast({ title: "Erro ao excluir", description: e.message, variant: "destructive" })
+    } catch (e: unknown) {
+      toast({ title: "Erro ao excluir", description: (e as Error).message, variant: "destructive" })
     }
   }
 
