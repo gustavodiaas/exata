@@ -156,10 +156,6 @@ export function GBOTab({ user, empresaAtivaId }: { user: { id: string }, empresa
     window.addEventListener("sync_gbo_products", loadSavedProducts)
     return () => window.removeEventListener("sync_gbo_products", loadSavedProducts)
   }, [user, empresaAtivaId])
-    setIsLoaded(true)
-    window.addEventListener("sync_gbo_products", loadSavedProducts)
-    return () => window.removeEventListener("sync_gbo_products", loadSavedProducts)
-  }, [user, empresaAtivaId])
 
   useEffect(() => {
     if (isLoaded && user) {
