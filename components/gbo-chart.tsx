@@ -1,7 +1,6 @@
 "use client"
 
 import React, { useState, useMemo } from "react"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, Cell } from "recharts"
 import { Input } from "@/components/ui/input"
 import { Pencil } from "lucide-react"
@@ -21,11 +20,25 @@ interface GBOChartProps {
   demandUnit?: string
 }
 
+interface ChartDataPoint {
+  name: string
+  time: number
+  isBottleneck: boolean
+  exceedsTakt: boolean
+  index: number
+  originalUnit: "minutes" | "seconds"
+}
+
+interface CustomTooltipProps {
+  active?: boolean
+  payload?: { payload: ChartDataPoint }[]
+  label?: string
+}
+
 export const GBOChart = React.memo(function GBOChart({ operations, timeUnit, taktTime, taktTimeUnit, demandUnit = "un" }: GBOChartProps) {
   const [chartTitle, setChartTitle] = useState("Gráfico de Balanceamento de Operações")
   const [isEditingTitle, setIsEditingTitle] = useState(false)
 
-  // Matemática pesada envelopada para não recalcular a cada letra digitada no input
   const { chartData, averageTime, taktTimeInDisplayUnit, originalTaktValue, yAxisMax } = useMemo(() => {
     const convertToSeconds = (time: number, unit: "minutes" | "seconds"): number => {
       return unit === "minutes" ? time * 60 : time
@@ -56,7 +69,7 @@ export const GBOChart = React.memo(function GBOChart({ operations, timeUnit, tak
       taktTimeUnit === "hours" ? taktTime / 3600 :
       taktTimeUnit === "minutes" ? taktTime / 60 :
       taktTime
-    ) : undefined;
+    ) : undefined
 
     const maxOperationTime = operationsInDisplayUnit.length > 0 ? Math.max(...operationsInDisplayUnit.map((op) => op.timeInDisplayUnit)) : 0
     const maxOperationWithPadding = maxOperationTime * 1.1
@@ -64,7 +77,7 @@ export const GBOChart = React.memo(function GBOChart({ operations, timeUnit, tak
     
     const yMax = Math.ceil(Math.max(maxOperationWithPadding, taktWithPadding, 1))
 
-    const data = operationsInDisplayUnit.map((operation, index) => {
+    const data: ChartDataPoint[] = operationsInDisplayUnit.map((operation, index) => {
       const isMaxTime = operation.timeInSeconds === Math.max(...operationsInSeconds.map((op) => op.timeInSeconds))
       const exceedsTakt = taktTime ? operation.timeInSeconds > taktTime : false
       const isBottleneck = isMaxTime || exceedsTakt
@@ -88,7 +101,7 @@ export const GBOChart = React.memo(function GBOChart({ operations, timeUnit, tak
     }
   }, [operations, timeUnit, taktTime, taktTimeUnit, demandUnit])
 
-  const CustomTooltip = ({ active, payload, label }: any) => {
+  const CustomTooltip = ({ active, payload, label }: CustomTooltipProps) => {
     if (active && payload && payload.length) {
       const data = payload[0].payload
       return (
@@ -175,7 +188,7 @@ export const GBOChart = React.memo(function GBOChart({ operations, timeUnit, tak
               label={{ value: `Tempo (${timeUnit})`, angle: -90, position: "insideLeft", offset: 15, fill: 'hsl(var(--muted-foreground))', fontSize: 12 }}
               fontSize={11}
               domain={[0, yAxisMax]}
-              tickFormatter={(value: any) => parseFloat(Number(value).toFixed(1)).toString()}
+              tickFormatter={(value: number | string) => parseFloat(Number(value).toFixed(1)).toString()}
               tick={{ fill: 'hsl(var(--muted-foreground))' }}
               axisLine={false}
               tickLine={false}
