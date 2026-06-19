@@ -8,7 +8,11 @@ interface Operation {
   id: string
   name: string
   time: number
+  setupTime: number
   unit: "minutes" | "seconds"
+  maquina_id?: string
+  maquina_nome?: string
+  maquina_codigo?: string
 }
 
 interface CalculationsDashboardProps {
@@ -95,7 +99,7 @@ export function CalculationsDashboard({
           </CardContent>
         </Card>
 
-        {/* Operação Gargalo (Destaque Visual + Truncamento) */}
+        {/* Operação Gargalo */}
         <Card className="glass-panel border-destructive/40 relative overflow-hidden group shadow-[0_0_15px_-3px_rgba(239,68,68,0.15)]">
           <div className="absolute inset-0 bg-destructive/5 translate-y-full group-hover:translate-y-0 transition-transform duration-300"></div>
           <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0 relative z-10">
