@@ -239,12 +239,14 @@ export function PCPTab({ empresaAtivaId }: { empresaAtivaId?: string | null }) {
         id: c.id,
         date: c.data_excecao,
         globalCapacity: Number(c.capacidade_global),
-     downtime: Number(c.tempo_parada)
+        downtime: Number(c.tempo_parada)
       })))
     } catch (e) {
       // Falha na rede tratada silenciosamente
     } finally {
       setLoading(false)
+    }
+  }
 
   useEffect(() => { loadData() }, [empresaAtivaId])
 
