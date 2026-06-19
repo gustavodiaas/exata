@@ -12,8 +12,6 @@ import {
   Bell, X, Factory
 } from "lucide-react"
 
-// ─── Tipos e Interfaces do Banco de Dados ─────────────────────────────────────
-
 interface SupabaseOrdem {
   id: string
   numero_op: string
@@ -42,8 +40,6 @@ interface SupabaseMaquina {
   id: string
   nome: string
 }
-
-// ─── Tipos Locais do Componente ───────────────────────────────────────────────
 
 interface OrdemProducao {
   id: string
@@ -77,8 +73,6 @@ interface DailyCapacity {
 type Periodo = "semana" | "mes" | "trimestre" | "custom"
 
 const DEFAULT_SHIFT_CAPACITY_SECONDS = 29880
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function toStr(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
@@ -132,8 +126,6 @@ const CustomTooltip = ({ active, payload, label }: TooltipProps) => {
   )
 }
 
-// ─── Componente principal ─────────────────────────────────────────────────────
-
 export function DashboardTab({ empresaAtivaId }: { empresaAtivaId: string | null }) {
   const [ordens, setOrdens] = useState<OrdemProducao[]>([])
   const [apontamentos, setApontamentos] = useState<Apontamento[]>([])
@@ -172,12 +164,22 @@ export function DashboardTab({ empresaAtivaId }: { empresaAtivaId: string | null
     else setRefreshing(true)
     
     try {
-      // Filtragem rígida por empresa_id garantindo o isolamento
-      const [{ data: opsData }, { data: apData }, { data: capData }, { data: maqData }] = await Promise.all([
-        supabase.from("ordens_producao").select("*").eq("empresa_id", empresaAtivaId),
-        supabase.from("apontamentos").select("*").eq("empresa_id", empresaAtivaId),
-        supabase.from("capacidade_diaria").select("*").eq("empresa_id", empresaAtivaId),
-        supabase.from("maquinas").select("id, nome").eq("empresa_id", empresaAtivaId),
+      const fetchTable = async (table: string) => {
+        const response = await fetch("/api/admin/get-dados", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ table, empresaId: empresaAtivaId }),
+        })
+        const result = await response.json()
+        if (!response.ok) throw new Error(result.error)
+        return result.data || []
+      }
+
+      const [opsData, apData, capData, maqData] = await Promise.all([
+        fetchTable("ordens_producao"),
+        fetchTable("apontamentos"),
+        fetchTable("capacidade_diaria"),
+        fetchTable("maquinas"),
       ])
 
       setOrdens(((opsData as SupabaseOrdem[]) || []).map(op => ({
@@ -196,6 +198,8 @@ export function DashboardTab({ empresaAtivaId }: { empresaAtivaId: string | null
       })))
 
       setMaquinas((maqData as SupabaseMaquina[]) || [])
+    } catch (e: any) {
+      console.error("Erro ao carregar dashboard:", e.message)
     } finally {
       setLoading(false)
       setRefreshing(false)
