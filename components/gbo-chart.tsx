@@ -175,7 +175,7 @@ export const GBOChart = React.memo(function GBOChart({ operations, timeUnit, tak
               label={{ value: `Tempo (${timeUnit})`, angle: -90, position: "insideLeft", offset: 15, fill: 'hsl(var(--muted-foreground))', fontSize: 12 }}
               fontSize={11}
               domain={[0, yAxisMax]}
-              tickFormatter={(value) => parseFloat(value.toFixed(1))}
+              tickFormatter={(value: any) => parseFloat(Number(value).toFixed(1)).toString()}
               tick={{ fill: 'hsl(var(--muted-foreground))' }}
               axisLine={false}
               tickLine={false}
