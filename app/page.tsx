@@ -103,7 +103,6 @@ export default function ExataApp() {
 
       if (acesso && (!perfil || perfil.tipo_usuario !== "master")) {
         setUserRole(acesso.nivel)
-        console.log("Perfil carregado:", acesso.nivel)
       }
 
       const { data: perms } = await supabase
@@ -111,11 +110,11 @@ export default function ExataApp() {
         .select("aba_id")
         .eq("user_id", userId)
 
-      setUserPermissions(
+   setUserPermissions(
         perms?.map((p) => p.aba_id) || []
       )
     } catch (e) {
-      console.error("Erro ao carregar perfil ou nível de acesso", e)
+      // Falha silenciosa: a interface lida com a falta de dados
     }
   }
 
