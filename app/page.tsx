@@ -506,7 +506,7 @@ export default function ExataApp() {
 
             {activeTab === "gbo" && (
               <div className="animate-in fade-in duration-300">
-                <GBOTab user={null} empresaAtivaId={empresaAtivaId} />
+                <GBOTab user={{ id: empresaAtivaId ?? "" }} empresaAtivaId={empresaAtivaId} />
               </div>
             )}
 
@@ -518,13 +518,13 @@ export default function ExataApp() {
 
             {activeTab === "maquinas" && (
               <div className="animate-in fade-in duration-300">
-                <MaquinasTab user={null} empresaAtivaId={empresaAtivaId} />
+                <MaquinasTab user={{ id: empresaAtivaId ?? "" }} empresaAtivaId={empresaAtivaId} />
               </div>
             )}
 
             {activeTab === "manutencao" && (
               <div className="animate-in fade-in duration-300">
-                <ManutencaoTab user={null} empresaAtivaId={empresaAtivaId} />
+                <ManutencaoTab user={{ id: empresaAtivaId ?? "" }} empresaAtivaId={empresaAtivaId} />
               </div>
             )}
 
