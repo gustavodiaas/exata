@@ -5,7 +5,17 @@ export const dynamic = 'force-dynamic'
 
 export async function POST(request: Request) {
   try {
-    const { email, password, nivel, gerenteId, empresaNome } = await request.json()
+    const authHeader = request.headers.get('Authorization')
+    if (!authHeader) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
+    const token = authHeader.replace('Bearer ', '')
+
+    const supabaseAuth = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    )
+
+    const { data: { user }, error: authErr } = await supabaseAuth.auth.getUser(token)
+    if (authErr || !user) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
 
     const supabaseAdmin = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -13,16 +23,19 @@ export async function POST(request: Request) {
       { auth: { autoRefreshToken: false, persistSession: false } }
     )
 
-    // Descobre quem está emitindo o convite
     const { data: acessoInviter } = await supabaseAdmin
       .from('controle_acesso')
       .select('nivel')
-      .eq('user_id', gerenteId)
+      .eq('user_id', user.id)
       .single()
 
-    const isMaster = acessoInviter?.nivel === 'master'
+    if (!acessoInviter || !['master', 'admin'].includes(acessoInviter.nivel)) {
+      return NextResponse.json({ error: 'Acesso negado' }, { status: 403 })
+    }
 
-    // Cria a conta do novo usuário
+    const { email, password, nivel, gerenteId, empresaNome } = await request.json()
+    const isMaster = acessoInviter.nivel === 'master'
+
     const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
       email,
       password: password || 'Exata@123',
@@ -33,7 +46,6 @@ export async function POST(request: Request) {
     let empresaIdFinal = null
 
     if (isMaster && nivel === 'admin') {
-      // O Master está criando um cliente novo. Abre uma nova empresa no banco.
       const { data: novaEmpresa, error: empError } = await supabaseAdmin
         .from('empresas')
         .insert({ nome: empresaNome, status: 'ativo' })
@@ -43,7 +55,6 @@ export async function POST(request: Request) {
       if (empError) throw empError
       empresaIdFinal = novaEmpresa.id
     } else {
-      // O Cliente está criando um operador para a fábrica dele.
       const { data: adminPerfil } = await supabaseAdmin
         .from('perfis')
         .select('empresa_id')
@@ -53,7 +64,6 @@ export async function POST(request: Request) {
       empresaIdFinal = adminPerfil?.empresa_id
     }
 
-    // Grava o perfil com a empresa correta
     const { error: perfilError } = await supabaseAdmin
       .from('perfis')
       .insert({
@@ -64,7 +74,6 @@ export async function POST(request: Request) {
       })
     if (perfilError) throw perfilError
 
-    // Define o cargo do novo usuário
     const { error: acessoError } = await supabaseAdmin
       .from('controle_acesso')
       .insert({
