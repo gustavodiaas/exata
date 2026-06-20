@@ -1,59 +1,62 @@
-Exata
+# Exata
 
-Sistema de gestão industrial focado em Planejamento e Controle de Produção (PCP).
+Sistema ERP para micro e pequenas indústrias brasileiras. Controle de produção, máquinas, manutenção e apontamentos em uma única plataforma — sem complexidade desnecessária.
 
-Propósito
+---
 
-O Exata resolve a complexidade do chão de fábrica através de algoritmos de nivelamento de carga e visibilidade operacional direta. É uma ferramenta para quem busca controle rigoroso e eficiência real.
+## Módulos
 
-Estrutura do Sistema
+**Produto / Roteiro**
+Cadastro de produtos com roteiro de operações e tempos de ciclo. Base para o nivelamento do PCP.
 
-•
-Dashboard: Monitoramento de indicadores e performance.
+**PCP — Programação de Produção**
+Lógica Heijunka para nivelamento de carga por máquina. Ordens de produção com transbordo automático, visualização em Kanban semanal, calendário e lista. Gestão de exceções de capacidade por dia.
 
-•
-PCP: Programação de produção com lógica de transbordo por máquina.
+**Máquinas**
+Cadastro de postos de trabalho com capacidade diária, tempo de setup e status operacional.
 
-•
-GBO: Definição de roteiros e tempos padrão.
+**Manutenção**
+Registro e acompanhamento de ordens de manutenção corretiva e preventiva por ativo.
 
-•
-Manutenção: Gestão de ativos e disponibilidade.
+**Apontamento**
+Registro de execução de produção com indicadores de performance por ordem e por turno.
 
-•
-Apontamento: Registro de execução e perdas.
+---
 
-Tecnologia
+## Stack
 
-•
-Next.js (App Router)
+- Next.js 15 (App Router)
+- React 19
+- TypeScript
+- Tailwind CSS + shadcn/ui
+- Supabase (PostgreSQL + RLS)
+- Vercel
 
-•
-Tailwind CSS
+---
 
-•
-Supabase
+## Configuração
 
-•
-TypeScript
+```bash
+npm install
+```
 
-Configuração
+Crie um arquivo `.env.local` na raiz:
 
-1.
-Instalar dependências: npm install
+```env
+NEXT_PUBLIC_SUPABASE_URL=sua_url_aqui
+NEXT_PUBLIC_SUPABASE_ANON_KEY=sua_chave_aqui
+```
 
-2.
-Configurar .env.local com as chaves do Supabase.
+```bash
+npm run dev
+```
 
-3.
-Executar: npm run dev
+---
 
+## Acesso
 
+O sistema não utiliza login tradicional. Cada fábrica é identificada por um código de acesso único gerado no cadastro. O isolamento de dados é garantido por `empresa_id` em todas as tabelas.
 
+---
 
-
-
-
-<sub>Construído para quem valoriza a precisão. <b>Exata © 2026</b></sub>
-</div>
-
+<sub>Construído para quem valoriza a precisão. Exata © 2026</sub>
