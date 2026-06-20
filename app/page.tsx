@@ -9,6 +9,7 @@ import { PCPTab } from "@/components/pcp-tab"
 import { ApontamentoTab } from "@/components/apontamento-tab"
 import { MaquinasTab } from "@/components/maquinas-tab"
 import { ManutencaoTab } from "@/components/manutencao-tab"
+import { OnboardingChecklist } from "@/components/onboarding-checklist"
 import {
   Settings, Sun, Moon, Monitor, BookText, BarChart2, ClipboardCheck,
   CalendarClock, Menu, X, PanelLeftClose, PanelLeftOpen, Factory, Wrench, Key,
@@ -235,10 +236,14 @@ export default function ExataApp() {
                 <input
                   type="text"
                   value={codigoInput}
-                  onChange={(e) => setCodigoInput(e.target.value)}
+                  onChange={(e) => setCodigoInput(e.target.value.toUpperCase())}
                   onKeyDown={(e) => e.key === "Enter" && handleCodigo()}
-                  className="w-full h-12 px-4 rounded-xl border border-border bg-input text-foreground text-sm outline-none focus:ring-2 focus:ring-primary transition-all tracking-widest font-bold uppercase"
-                  placeholder="Ex: MX7K2P"
+                  className="w-full h-14 px-4 rounded-xl border border-border bg-input text-foreground text-xl outline-none focus:ring-2 focus:ring-primary transition-all tracking-[0.3em] font-black text-center uppercase"
+                  placeholder="MX7K2P"
+                  maxLength={10}
+                  autoCapitalize="characters"
+                  autoCorrect="off"
+                  spellCheck={false}
                 />
               </div>
               {codigoError && (
@@ -503,6 +508,13 @@ export default function ExataApp() {
           </div>
 
           <main className="flex-1 overflow-auto px-4 lg:px-8 py-6 print:p-12">
+
+            {empresaAtivaId && activeTab !== "configuracoes" && (
+              <OnboardingChecklist
+                empresaAtivaId={empresaAtivaId}
+                onGoToTab={(tab) => goTab(tab as any)}
+              />
+            )}
 
             {activeTab === "gbo" && (
               <div className="animate-in fade-in duration-300">
