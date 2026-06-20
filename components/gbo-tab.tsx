@@ -7,6 +7,7 @@ import { DraggableOperationsList } from "@/components/draggable-operations-list"
 import { exportToExcel, importFromExcel, downloadTemplate } from "@/components/export-utils"
 import { useToast } from "@/hooks/use-toast"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { GBOChart } from "@/components/gbo-chart"
 import { supabase } from "@/components/supabase"
 import { Plus, Download, Upload, FileSpreadsheet, CheckCircle2, FileImage, ChevronDown, Save, BookOpen, Pencil, Trash2, Search, ChevronRight, FilePlus2, X } from "lucide-react"
@@ -655,10 +656,17 @@ export function GBOTab({ user, empresaAtivaId }: { user: { id: string }, empresa
               </DropdownMenu>
             </div>
             <div className="space-y-3">
-              <select value={newOperationMaquinaId} onChange={handleMaquinaChange} className="w-full h-12 px-4 rounded-xl border border-border bg-input text-foreground text-sm outline-none focus:ring-2 focus:ring-primary transition-all">
-                <option value="">Sem máquina específica</option>
-                {maquinasGlobais.map(m => <option key={m.id} value={m.id}>{m.codigo} - {m.nome}</option>)}
-              </select>
+              <Select value={newOperationMaquinaId} onValueChange={(val) => handleMaquinaChange({ target: { value: val } } as any)}>
+                <SelectTrigger className="w-full h-12 rounded-xl border border-border bg-input text-foreground text-sm outline-none focus:ring-2 focus:ring-primary transition-all">
+                  <SelectValue placeholder="Sem máquina específica" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">Sem máquina específica</SelectItem>
+                  {maquinasGlobais.map(m => (
+                    <SelectItem key={m.id} value={m.id}>{m.codigo} - {m.nome}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
               <input placeholder="Nome da Operação" value={newOperationName} onKeyPress={handleKeyPress}
                 onChange={(e) => { setNewOperationName(e.target.value); if (errors.operationName) setErrors((p) => ({ ...p, operationName: undefined })) }}
                 className="w-full h-12 px-4 rounded-xl border border-border bg-input text-foreground text-sm outline-none focus:ring-2 focus:ring-primary transition-all" />
