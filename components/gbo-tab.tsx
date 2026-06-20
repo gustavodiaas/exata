@@ -656,12 +656,12 @@ export function GBOTab({ user, empresaAtivaId }: { user: { id: string }, empresa
               </DropdownMenu>
             </div>
             <div className="space-y-3">
-              <Select value={newOperationMaquinaId} onValueChange={(val) => handleMaquinaChange({ target: { value: val } } as any)}>
+              <Select value={newOperationMaquinaId || "none"} onValueChange={(val) => handleMaquinaChange({ target: { value: val === "none" ? "" : val } } as any)}>
                 <SelectTrigger className="w-full h-12 rounded-xl border border-border bg-input text-foreground text-sm outline-none focus:ring-2 focus:ring-primary transition-all">
                   <SelectValue placeholder="Sem máquina específica" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Sem máquina específica</SelectItem>
+                  <SelectItem value="none">Sem máquina específica</SelectItem>
                   {maquinasGlobais.map(m => (
                     <SelectItem key={m.id} value={m.id}>{m.codigo} - {m.nome}</SelectItem>
                   ))}
