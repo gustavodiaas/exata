@@ -646,7 +646,7 @@ export function PCPTab({ empresaAtivaId }: { empresaAtivaId?: string | null }) {
                       </button>
                     </div>
 
-                    <div className="grid grid-cols-5 gap-2 min-h-[300px]">
+                    <div className="grid grid-cols-5 gap-2">
                       {weekDays.map((date, idx) => {
                         const dayData = heijunkaDashboard[date]
                         const maxOccupation = dayData?.maxOccupation ?? 0
@@ -686,7 +686,7 @@ export function PCPTab({ empresaAtivaId }: { empresaAtivaId?: string | null }) {
                               </div>
                             </div>
 
-                            <div className="p-1.5 flex flex-col gap-1.5 flex-1 overflow-y-auto max-h-[320px]">
+                            <div className="p-1.5 flex flex-col gap-1.5 flex-1">
                               {daySlices.length === 0 && (
                                 <div className="flex-1 flex items-center justify-center py-6">
                                   <span className="text-[10px] text-muted-foreground/50">Livre</span>
