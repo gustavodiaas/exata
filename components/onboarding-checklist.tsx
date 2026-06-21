@@ -23,6 +23,8 @@ export function OnboardingChecklist({ empresaAtivaId, onGoToTab }: Props) {
   const [steps, setSteps] = useState<Step[]>([
     { id: "maquina",    label: "Cadastrar uma máquina",         description: "Registre pelo menos um posto de trabalho.",         tab: "maquinas",    done: false },
     { id: "produto",    label: "Cadastrar um produto",          description: "Crie um produto com seu roteiro de operações.",      tab: "gbo",         done: false },
+    { id: "excecao",    label: "Cadastrar grupos de exceção",   description: "Crie os motivos de parada para usar nos apontamentos.", tab: "excecoes",  done: false },
+    { id: "estoque",    label: "Cadastrar itens no estoque",    description: "Registre matérias-primas e produtos acabados.",      tab: "estoque",     done: false },
     { id: "ordem",      label: "Criar uma ordem de produção",   description: "Programe sua primeira OP no PCP.",                  tab: "pcp",         done: false },
     { id: "apontamento",label: "Registrar um apontamento",      description: "Aponte a execução de uma ordem de produção.",       tab: "apontamento", done: false },
   ])
@@ -41,18 +43,22 @@ export function OnboardingChecklist({ empresaAtivaId, onGoToTab }: Props) {
 
   const checkProgress = async () => {
     setLoading(true)
-    const [maq, prod, ordem, apon] = await Promise.all([
+    const [maq, prod, excecao, estoque, ordem, apon] = await Promise.all([
       supabase.from("maquinas").select("id", { count: "exact", head: true }).eq("empresa_id", empresaAtivaId),
       supabase.from("produtos").select("id", { count: "exact", head: true }).eq("empresa_id", empresaAtivaId),
+      supabase.from("excecao_grupos").select("id", { count: "exact", head: true }).eq("empresa_id", empresaAtivaId),
+      supabase.from("insumos").select("id", { count: "exact", head: true }).eq("empresa_id", empresaAtivaId),
       supabase.from("ordens_producao").select("id", { count: "exact", head: true }).eq("empresa_id", empresaAtivaId),
       supabase.from("apontamentos").select("id", { count: "exact", head: true }).eq("empresa_id", empresaAtivaId),
     ])
 
     const updated = [
-      { id: "maquina",     done: (maq.count   ?? 0) > 0 },
-      { id: "produto",     done: (prod.count   ?? 0) > 0 },
-      { id: "ordem",       done: (ordem.count  ?? 0) > 0 },
-      { id: "apontamento", done: (apon.count   ?? 0) > 0 },
+      { id: "maquina",     done: (maq.count     ?? 0) > 0 },
+      { id: "produto",     done: (prod.count     ?? 0) > 0 },
+      { id: "excecao",     done: (excecao.count  ?? 0) > 0 },
+      { id: "estoque",     done: (estoque.count  ?? 0) > 0 },
+      { id: "ordem",       done: (ordem.count    ?? 0) > 0 },
+      { id: "apontamento", done: (apon.count     ?? 0) > 0 },
     ]
 
     setSteps(prev => prev.map(s => ({
@@ -60,7 +66,6 @@ export function OnboardingChecklist({ empresaAtivaId, onGoToTab }: Props) {
       done: updated.find(u => u.id === s.id)?.done ?? s.done
     })))
 
-    // Se tudo concluído, dispensa automaticamente
     if (updated.every(u => u.done)) {
       dismiss()
     }
