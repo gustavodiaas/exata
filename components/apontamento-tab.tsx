@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from "react"
 import { supabase } from "@/components/supabase"
 import { useToast } from "@/hooks/use-toast"
+import { NativeSelect } from "@/components/native-select"
 import {
   Play, Pause, Square, Plus, Trash2, ClipboardList, TrendingUp,
   AlertTriangle, CheckCircle2, Clock, Package, Factory, ChevronDown, X
@@ -111,27 +112,19 @@ function ModalPausa({ grupos, onConfirm, onCancel }: {
         <div className="space-y-3">
           <div className="space-y-1.5">
             <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Grupo</label>
-            <select
-              value={grupoId}
-              onChange={e => { setGrupoId(e.target.value); setSubgrupoId("") }}
-              className="w-full h-11 px-4 rounded-xl border border-border bg-input text-foreground text-sm outline-none focus:ring-2 focus:ring-primary transition-all"
-            >
+            <NativeSelect value={grupoId} onChange={e => { setGrupoId(e.target.value); setSubgrupoId("") }}>
               <option value="">Selecione o grupo</option>
               {grupos.map(g => <option key={g.id} value={g.id}>{g.nome}</option>)}
-            </select>
+            </NativeSelect>
           </div>
 
           {grupo && (
             <div className="space-y-1.5">
               <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Motivo</label>
-              <select
-                value={subgrupoId}
-                onChange={e => setSubgrupoId(e.target.value)}
-                className="w-full h-11 px-4 rounded-xl border border-border bg-input text-foreground text-sm outline-none focus:ring-2 focus:ring-primary transition-all"
-              >
+              <NativeSelect value={subgrupoId} onChange={e => setSubgrupoId(e.target.value)}>
                 <option value="">Selecione o motivo</option>
                 {grupo.subgrupos.map(s => <option key={s.id} value={s.id}>{s.nome}</option>)}
-              </select>
+              </NativeSelect>
             </div>
           )}
         </div>
@@ -803,16 +796,12 @@ export function ApontamentoTab({ empresaAtivaId }: { empresaAtivaId?: string | n
                 {/* Seleção de OP */}
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Ordem de Produção</label>
-                  <select
-                    value={ordemSelecionadaId}
-                    onChange={e => { setOrdemSelecionadaId(e.target.value); setOperacaoSelecionadaId("") }}
-                    className="w-full h-11 px-4 rounded-xl border border-border bg-input text-foreground text-sm outline-none focus:ring-2 focus:ring-primary transition-all"
-                  >
+                  <NativeSelect value={ordemSelecionadaId} onChange={e => { setOrdemSelecionadaId(e.target.value); setOperacaoSelecionadaId("") }}>
                     <option value="">Selecione a OP</option>
                     {ordens.filter(o => o.status !== "encerrada").map(op => (
                       <option key={op.id} value={op.id}>{op.numero_op} — {op.produto_codigo}</option>
                     ))}
-                  </select>
+                  </NativeSelect>
                 </div>
 
                 {/* Dados da OP */}
@@ -842,18 +831,14 @@ export function ApontamentoTab({ empresaAtivaId }: { empresaAtivaId?: string | n
                     ) : operacoes.length === 0 ? (
                       <p className="text-xs text-muted-foreground px-1">Nenhuma operação no roteiro deste produto.</p>
                     ) : (
-                      <select
-                        value={operacaoSelecionadaId}
-                        onChange={e => setOperacaoSelecionadaId(e.target.value)}
-                        className="w-full h-11 px-4 rounded-xl border border-border bg-input text-foreground text-sm outline-none focus:ring-2 focus:ring-primary transition-all"
-                      >
+                      <NativeSelect value={operacaoSelecionadaId} onChange={e => setOperacaoSelecionadaId(e.target.value)}>
                         <option value="">Selecione a operação</option>
                         {operacoes.map(op => (
                           <option key={op.id} value={op.id}>
                             {op.ordem}. {op.nome}{op.maquina_codigo ? ` — ${op.maquina_codigo}` : ""}
                           </option>
                         ))}
-                      </select>
+                      </NativeSelect>
                     )}
                   </div>
                 )}
