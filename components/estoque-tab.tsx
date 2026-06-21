@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useMemo } from "react"
 import { supabase } from "@/components/supabase"
 import { useToast } from "@/hooks/use-toast"
+import { NativeSelect } from "@/components/native-select"
 import {
   Package, TrendingUp, TrendingDown, ArrowLeftRight, Plus, X,
   AlertTriangle, CheckCircle2, Search, ChevronDown, RefreshCw,
@@ -165,11 +166,7 @@ function ModalRecebimento({ insumos, localId, empresaAtivaId, onSuccess, onCance
         <div className="space-y-3">
           <div className="space-y-1.5">
             <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Item</label>
-            <select
-              value={insumoId}
-              onChange={e => setInsumoId(e.target.value)}
-              className="w-full h-11 px-4 rounded-xl border border-border bg-input text-foreground text-sm outline-none focus:ring-2 focus:ring-primary transition-all"
-            >
+            <NativeSelect value={insumoId} onChange={e => setInsumoId(e.target.value)}>
               <option value="">Selecione o item</option>
               {["materia_prima", "semi_acabado", "produto_acabado"].map(tipo => (
                 <optgroup key={tipo} label={TIPO_LABELS[tipo]}>
@@ -178,7 +175,7 @@ function ModalRecebimento({ insumos, localId, empresaAtivaId, onSuccess, onCance
                   ))}
                 </optgroup>
               ))}
-            </select>
+            </NativeSelect>
           </div>
 
           {insumoSel && (
@@ -310,16 +307,12 @@ function ModalAjuste({ insumos, localId, empresaAtivaId, saldos, onSuccess, onCa
         <div className="space-y-3">
           <div className="space-y-1.5">
             <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Item</label>
-            <select
-              value={insumoId}
-              onChange={e => { setInsumoId(e.target.value); setQuantidadeReal("") }}
-              className="w-full h-11 px-4 rounded-xl border border-border bg-input text-foreground text-sm outline-none focus:ring-2 focus:ring-primary transition-all"
-            >
+            <NativeSelect value={insumoId} onChange={e => { setInsumoId(e.target.value); setQuantidadeReal("") }}>
               <option value="">Selecione o item</option>
               {insumos.map(i => (
                 <option key={i.id} value={i.id}>{i.codigo} — {i.descricao}</option>
               ))}
-            </select>
+            </NativeSelect>
           </div>
 
           {saldoAtual && (
@@ -627,15 +620,12 @@ export function EstoqueTab({ empresaAtivaId }: { empresaAtivaId?: string | null 
                 className="w-full h-9 pl-9 pr-3 rounded-lg border border-border bg-input text-foreground text-xs outline-none focus:ring-2 focus:ring-primary transition-all"
               />
             </div>
-            <select
-              value={filtroTipo} onChange={e => setFiltroTipo(e.target.value)}
-              className="h-9 px-3 rounded-lg border border-border bg-input text-foreground text-xs outline-none focus:ring-2 focus:ring-primary"
-            >
+            <NativeSelect size="sm" value={filtroTipo} onChange={e => setFiltroTipo(e.target.value)} className="w-auto">
               <option value="todos">Todos os tipos</option>
               <option value="materia_prima">Matéria-Prima</option>
               <option value="semi_acabado">Semi-Acabado</option>
               <option value="produto_acabado">Produto Acabado</option>
-            </select>
+            </NativeSelect>
           </div>
 
           {saldosFiltrados.length === 0 ? (
@@ -719,10 +709,7 @@ export function EstoqueTab({ empresaAtivaId }: { empresaAtivaId?: string | null 
                 className="w-full h-9 pl-9 pr-3 rounded-lg border border-border bg-input text-foreground text-xs outline-none focus:ring-2 focus:ring-primary transition-all"
               />
             </div>
-            <select
-              value={filtroMov} onChange={e => setFiltroMov(e.target.value)}
-              className="h-9 px-3 rounded-lg border border-border bg-input text-foreground text-xs outline-none focus:ring-2 focus:ring-primary"
-            >
+            <NativeSelect size="sm" value={filtroMov} onChange={e => setFiltroMov(e.target.value)} className="w-auto">
               <option value="todos">Todos os tipos</option>
               <option value="entrada">Recebimento</option>
               <option value="saida_producao">Consumo OP</option>
@@ -730,7 +717,7 @@ export function EstoqueTab({ empresaAtivaId }: { empresaAtivaId?: string | null 
               <option value="ajuste_positivo">Ajuste +</option>
               <option value="ajuste_negativo">Ajuste -</option>
               <option value="refugo">Refugo</option>
-            </select>
+            </NativeSelect>
           </div>
 
           {movFiltradas.length === 0 ? (
@@ -822,12 +809,11 @@ export function EstoqueTab({ empresaAtivaId }: { empresaAtivaId?: string | null 
                   </div>
                   <div className="space-y-1.5">
                     <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Tipo *</label>
-                    <select value={novoItem.tipo} onChange={e => setNovoItem(p => ({ ...p, tipo: e.target.value }))}
-                      className="w-full h-10 px-3 rounded-xl border border-border bg-input text-foreground text-sm outline-none focus:ring-2 focus:ring-primary">
+                    <NativeSelect value={novoItem.tipo} onChange={e => setNovoItem(p => ({ ...p, tipo: e.target.value }))}>
                       <option value="materia_prima">Matéria-Prima</option>
                       <option value="semi_acabado">Semi-Acabado</option>
                       <option value="produto_acabado">Produto Acabado</option>
-                    </select>
+                    </NativeSelect>
                   </div>
                   <div className="space-y-1.5">
                     <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Unidade *</label>
