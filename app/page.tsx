@@ -7,16 +7,17 @@ import { useToast } from "@/hooks/use-toast"
 import { GBOTab } from "@/components/gbo-tab"
 import { PCPTab } from "@/components/pcp-tab"
 import { ApontamentoTab } from "@/components/apontamento-tab"
+import { ExcecoesTab } from "@/components/excecoes-tab"
 import { MaquinasTab } from "@/components/maquinas-tab"
 import { ManutencaoTab } from "@/components/manutencao-tab"
 import { OnboardingChecklist } from "@/components/onboarding-checklist"
 import {
   Settings, Sun, Moon, Monitor, BookText, BarChart2, ClipboardCheck,
   CalendarClock, Menu, X, PanelLeftClose, PanelLeftOpen, Factory, Wrench, Key,
-  Copy, Check, Eye, EyeOff
+  Copy, Check, Eye, EyeOff, Tag
 } from "lucide-react"
 
-type TabId = "gbo" | "pcp" | "apontamento" | "maquinas" | "manutencao" | "configuracoes"
+type TabId = "gbo" | "pcp" | "apontamento" | "maquinas" | "manutencao" | "excecoes" | "configuracoes"
 
 const NAV_ITEMS: { id: TabId; label: string; sublabel: string; icon: React.ElementType }[] = [
   { id: "gbo",        label: "Produto/Roteiro", sublabel: "Gerenciamento Diário",   icon: BarChart2      },
@@ -24,6 +25,7 @@ const NAV_ITEMS: { id: TabId; label: string; sublabel: string; icon: React.Eleme
   { id: "maquinas",   label: "Máquinas",         sublabel: "Postos de Trabalho",     icon: Factory        },
   { id: "manutencao", label: "Manutenção",        sublabel: "Gestão de Ativos",       icon: Wrench         },
   { id: "apontamento",label: "Apontamento",       sublabel: "Registro de Produção",   icon: ClipboardCheck },
+  { id: "excecoes",   label: "Exceções",          sublabel: "Motivos de Parada",      icon: Tag            },
 ]
 
 const STORAGE_KEY = "exata_empresa_id"
@@ -543,6 +545,12 @@ export default function ExataApp() {
             {activeTab === "apontamento" && (
               <div className="animate-in fade-in duration-300">
                 <ApontamentoTab empresaAtivaId={empresaAtivaId} />
+              </div>
+            )}
+
+            {activeTab === "excecoes" && (
+              <div className="animate-in fade-in duration-300">
+                <ExcecoesTab empresaAtivaId={empresaAtivaId} />
               </div>
             )}
 
