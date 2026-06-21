@@ -68,6 +68,7 @@ interface SessaoAtiva {
   segundosAcumulados: number
   pausaInicioTimestamp?: number
   pausaId?: string
+  cicloPlanejadoSeg?: number
 }
 
 const SESSAO_KEY = "exata_apontamento_sessao_"
@@ -395,6 +396,17 @@ export function ApontamentoTab({ empresaAtivaId }: { empresaAtivaId?: string | n
     const op = operacoes.find(o => o.id === operacaoSelecionadaId)
     if (!op) return
 
+    // Busca tempo planejado da operação no banco para ter unidade correta
+    const { data: opDb } = await supabase
+      .from("operacoes")
+      .select("tempo, unidade")
+      .eq("id", operacaoSelecionadaId)
+      .single()
+
+    const cicloPlanejadoSeg = opDb
+      ? (opDb.unidade === "minutes" ? opDb.tempo * 60 : opDb.tempo)
+      : undefined
+
     const { data, error } = await supabase
       .from("apontamentos")
       .insert({
@@ -426,6 +438,7 @@ export function ApontamentoTab({ empresaAtivaId }: { empresaAtivaId?: string | n
       maquinaNome: op.maquina_nome ? `${op.maquina_codigo} - ${op.maquina_nome}` : "Manual",
       inicioTimestamp: Date.now(),
       segundosAcumulados: 0,
+      cicloPlanejadoSeg,
     }
     salvarSessao(novaSessao)
     setEmPausa(false)
@@ -983,14 +996,48 @@ export function ApontamentoTab({ empresaAtivaId }: { empresaAtivaId?: string | n
               </>
             ) : (
               <>
-                {/* Cronômetro ativo */}
-                <div className="bg-muted/40 rounded-xl p-4 text-center space-y-1">
-                  <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Tempo decorrido</p>
-                  <p className={`text-4xl font-black tabular-nums tracking-tight ${emPausa ? "text-amber-500" : "text-foreground"}`}>
-                    {formatarTempo(segundosDisplay)}
-                  </p>
-                  {emPausa && <p className="text-xs font-bold text-amber-500 uppercase tracking-wider">Em pausa</p>}
-                </div>
+                {/* Cronômetro ativo com semáforo */}
+                {(() => {
+                  const ciclo = sessao.cicloPlanejadoSeg
+                  const pct = ciclo && ciclo > 0 && segundosDisplay > 0
+                    ? (segundosDisplay / ciclo) * 100
+                    : null
+                  const semaforo = emPausa
+                    ? { cor: "text-amber-500", bg: "bg-amber-500/10", borda: "border-amber-500/30", label: "Em pausa", barra: "bg-amber-500" }
+                    : pct === null
+                    ? { cor: "text-foreground", bg: "bg-muted/40", borda: "border-transparent", label: "Sem ciclo padrão", barra: "bg-primary" }
+                    : pct <= 90
+                    ? { cor: "text-green-600", bg: "bg-green-500/10", borda: "border-green-500/30", label: "Dentro do tempo", barra: "bg-green-500" }
+                    : pct <= 110
+                    ? { cor: "text-amber-500", bg: "bg-amber-500/10", borda: "border-amber-500/30", label: "No limite", barra: "bg-amber-500" }
+                    : { cor: "text-destructive", bg: "bg-destructive/10", borda: "border-destructive/30", label: "Tempo estourado", barra: "bg-destructive" }
+
+                  return (
+                    <div className={`rounded-xl p-4 text-center space-y-2 border ${semaforo.bg} ${semaforo.borda} transition-all`}>
+                      <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Tempo decorrido</p>
+                      <p className={`text-4xl font-black tabular-nums tracking-tight ${semaforo.cor}`}>
+                        {formatarTempo(segundosDisplay)}
+                      </p>
+                      <p className={`text-[10px] font-bold uppercase tracking-wider ${semaforo.cor}`}>
+                        {semaforo.label}
+                      </p>
+                      {ciclo && ciclo > 0 && (
+                        <div className="space-y-1 pt-1">
+                          <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+                            <div
+                              className={`h-full rounded-full transition-all ${semaforo.barra}`}
+                              style={{ width: `${Math.min(100, pct ?? 0)}%` }}
+                            />
+                          </div>
+                          <p className="text-[10px] text-muted-foreground">
+                            Ciclo padrão: {formatarTempo(ciclo)}
+                            {pct !== null && ` — ${pct.toFixed(0)}%`}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  )
+                })()}
 
                 <div className="bg-muted/20 rounded-xl p-4 space-y-1.5 text-xs">
                   <div className="flex justify-between">
