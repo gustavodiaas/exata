@@ -620,7 +620,7 @@ export function EstoqueTab({ empresaAtivaId }: { empresaAtivaId?: string | null 
                 className="w-full h-9 pl-9 pr-3 rounded-lg border border-border bg-input text-foreground text-xs outline-none focus:ring-2 focus:ring-primary transition-all"
               />
             </div>
-            <NativeSelect size="sm" value={filtroTipo} onChange={e => setFiltroTipo(e.target.value)} className="w-auto">
+            <NativeSelect variant="sm" value={filtroTipo} onChange={e => setFiltroTipo(e.target.value)} className="w-auto">
               <option value="todos">Todos os tipos</option>
               <option value="materia_prima">Matéria-Prima</option>
               <option value="semi_acabado">Semi-Acabado</option>
@@ -709,7 +709,7 @@ export function EstoqueTab({ empresaAtivaId }: { empresaAtivaId?: string | null 
                 className="w-full h-9 pl-9 pr-3 rounded-lg border border-border bg-input text-foreground text-xs outline-none focus:ring-2 focus:ring-primary transition-all"
               />
             </div>
-            <NativeSelect size="sm" value={filtroMov} onChange={e => setFiltroMov(e.target.value)} className="w-auto">
+            <NativeSelect variant="sm" value={filtroMov} onChange={e => setFiltroMov(e.target.value)} className="w-auto">
               <option value="todos">Todos os tipos</option>
               <option value="entrada">Recebimento</option>
               <option value="saida_producao">Consumo OP</option>
