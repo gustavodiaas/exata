@@ -511,6 +511,7 @@ export function ApontamentoTab({ empresaAtivaId }: { empresaAtivaId?: string | n
       await supabase.from("apontamento_pausas").update({ fim: new Date().toISOString() }).eq("id", sessao.pausaId)
     }
 
+    // Salva o apontamento
     const { error } = await supabase
       .from("apontamentos")
       .update({
@@ -526,9 +527,183 @@ export function ApontamentoTab({ empresaAtivaId }: { empresaAtivaId?: string | n
 
     if (error) { toast({ title: "Erro ao finalizar", description: error.message, variant: "destructive" }); return }
 
-    // Se encerrar a OP
+    // ── Integração com estoque ao encerrar ──────────────────────────────────
     if (dados.encerramento !== "continuar") {
-      await supabase.from("ordens_producao").update({ status: "encerrada" }).eq("id", sessao.ordemId)
+      const ordem = ordens.find(o => o.id === sessao.ordemId)
+      if (ordem) {
+        const pecasBoas = dados.produzidas - dados.refugo
+
+        // 1. Busca a BOM do produto
+        const { data: bomData } = await supabase
+          .from("bom_itens")
+          .select("insumo_id, quantidade, unidade_medida, insumos(codigo, descricao, unidade_medida)")
+          .eq("empresa_id", empresaAtivaId!)
+          .eq("produto_codigo", ordem.produto_codigo)
+
+        if (bomData && bomData.length > 0 && pecasBoas > 0) {
+          // 2. Para cada insumo da BOM, debita o consumo proporcional
+          for (const bom of bomData as any[]) {
+            const qtdConsumida = bom.quantidade * pecasBoas
+
+            // Busca saldo atual
+            const { data: saldo } = await supabase
+              .from("saldo_estoque")
+              .select("saldo_atual, custo_medio")
+              .eq("insumo_id", bom.insumo_id)
+              .eq("empresa_id", empresaAtivaId!)
+              .single()
+
+            const saldoAnterior = saldo?.saldo_atual ?? 0
+            const custoMedio = saldo?.custo_medio ?? 0
+            const saldoPosterior = Math.max(0, saldoAnterior - qtdConsumida)
+
+            // Atualiza saldo
+            await supabase.from("saldo_estoque").upsert({
+              empresa_id: empresaAtivaId,
+              insumo_id: bom.insumo_id,
+              saldo_atual: saldoPosterior,
+              custo_medio: custoMedio,
+              updated_at: new Date().toISOString(),
+            }, { onConflict: "empresa_id,insumo_id" })
+
+            // Registra movimentação de consumo
+            await supabase.from("movimentacoes_estoque").insert({
+              empresa_id: empresaAtivaId,
+              insumo_id: bom.insumo_id,
+              tipo: "saida_producao",
+              quantidade: qtdConsumida,
+              quantidade_anterior: saldoAnterior,
+              quantidade_posterior: saldoPosterior,
+              custo_unitario: custoMedio,
+              valor_total: qtdConsumida * custoMedio,
+              origem: "op_automatico",
+              referencia_id: sessao.ordemId,
+              observacao: `OP ${ordem.numero_op} — ${pecasBoas} peças boas`,
+            })
+
+            // Avisa se foi a negativo
+            if (saldoAnterior < qtdConsumida) {
+              toast({
+                title: `⚠ Estoque insuficiente: ${bom.insumos?.codigo}`,
+                description: `Consumo: ${qtdConsumida} ${bom.unidade_medida} — Disponível: ${saldoAnterior.toFixed(3)}. Saldo foi a negativo.`,
+                variant: "destructive",
+              })
+            }
+          }
+
+          // 3. Calcula custo total da BOM para o produto acabado
+          const custoBomTotal = (bomData as any[]).reduce((acc, bom) => {
+            const saldoItem = acc // aproximação: usa custo médio atual
+            return acc
+          }, 0)
+
+          // Busca custo médio real de cada insumo para calcular custo do PA
+          let custoPA = 0
+          for (const bom of bomData as any[]) {
+            const { data: saldo } = await supabase
+              .from("saldo_estoque")
+              .select("custo_medio")
+              .eq("insumo_id", bom.insumo_id)
+              .eq("empresa_id", empresaAtivaId!)
+              .single()
+            custoPA += (saldo?.custo_medio ?? 0) * bom.quantidade
+          }
+
+          // 4. Entrada do produto acabado no estoque
+          const { data: produtoPA } = await supabase
+            .from("insumos")
+            .select("id, unidade_medida, codigo")
+            .eq("empresa_id", empresaAtivaId!)
+            .eq("codigo", ordem.produto_codigo)
+            .single()
+
+          if (produtoPA) {
+            const { data: saldoPA } = await supabase
+              .from("saldo_estoque")
+              .select("saldo_atual, custo_medio")
+              .eq("insumo_id", produtoPA.id)
+              .eq("empresa_id", empresaAtivaId!)
+              .single()
+
+            const saldoAnteriorPA = saldoPA?.saldo_atual ?? 0
+            const custoMedioAnteriorPA = saldoPA?.custo_medio ?? 0
+            const saldoPosteriorPA = saldoAnteriorPA + pecasBoas
+            const novoCustoMedioPA = saldoAnteriorPA === 0
+              ? custoPA
+              : ((saldoAnteriorPA * custoMedioAnteriorPA) + (pecasBoas * custoPA)) / saldoPosteriorPA
+
+            await supabase.from("saldo_estoque").upsert({
+              empresa_id: empresaAtivaId,
+              insumo_id: produtoPA.id,
+              saldo_atual: saldoPosteriorPA,
+              custo_medio: novoCustoMedioPA,
+              updated_at: new Date().toISOString(),
+            }, { onConflict: "empresa_id,insumo_id" })
+
+            await supabase.from("movimentacoes_estoque").insert({
+              empresa_id: empresaAtivaId,
+              insumo_id: produtoPA.id,
+              tipo: "entrada_producao",
+              quantidade: pecasBoas,
+              quantidade_anterior: saldoAnteriorPA,
+              quantidade_posterior: saldoPosteriorPA,
+              custo_unitario: custoPA,
+              valor_total: pecasBoas * custoPA,
+              origem: "op_automatico",
+              referencia_id: sessao.ordemId,
+              observacao: `OP ${ordem.numero_op} — produção encerrada`,
+            })
+          }
+        }
+
+        // 5. Refugo — saída separada do produto acabado se houver
+        if (dados.refugo > 0) {
+          const { data: produtoPA } = await supabase
+            .from("insumos")
+            .select("id, unidade_medida")
+            .eq("empresa_id", empresaAtivaId!)
+            .eq("codigo", ordem.produto_codigo)
+            .single()
+
+          if (produtoPA) {
+            const { data: saldoPA } = await supabase
+              .from("saldo_estoque")
+              .select("saldo_atual, custo_medio")
+              .eq("insumo_id", produtoPA.id)
+              .eq("empresa_id", empresaAtivaId!)
+              .single()
+
+            const saldoAnterior = saldoPA?.saldo_atual ?? 0
+            const custoMedio = saldoPA?.custo_medio ?? 0
+            const saldoPosterior = Math.max(0, saldoAnterior - dados.refugo)
+
+            await supabase.from("saldo_estoque").upsert({
+              empresa_id: empresaAtivaId,
+              insumo_id: produtoPA.id,
+              saldo_atual: saldoPosterior,
+              custo_medio: custoMedio,
+              updated_at: new Date().toISOString(),
+            }, { onConflict: "empresa_id,insumo_id" })
+
+            await supabase.from("movimentacoes_estoque").insert({
+              empresa_id: empresaAtivaId,
+              insumo_id: produtoPA.id,
+              tipo: "refugo",
+              quantidade: dados.refugo,
+              quantidade_anterior: saldoAnterior,
+              quantidade_posterior: saldoPosterior,
+              custo_unitario: custoMedio,
+              valor_total: dados.refugo * custoMedio,
+              origem: "op_automatico",
+              referencia_id: sessao.ordemId,
+              observacao: `OP ${ordem.numero_op} — peças refugadas`,
+            })
+          }
+        }
+
+        // 6. Encerra a OP
+        await supabase.from("ordens_producao").update({ status: "encerrada" }).eq("id", sessao.ordemId)
+      }
     }
 
     salvarSessao(null)
@@ -536,7 +711,7 @@ export function ApontamentoTab({ empresaAtivaId }: { empresaAtivaId?: string | n
     setSegundosDisplay(0)
     await loadData()
 
-    const labels = { continuar: "Apontamento salvo", encerrar: "OP encerrada", encerrar_parcial: "OP encerrada parcialmente" }
+    const labels = { continuar: "Apontamento salvo", encerrar: "OP encerrada e estoque atualizado", encerrar_parcial: "OP encerrada parcialmente e estoque atualizado" }
     toast({ title: `✅ ${labels[dados.encerramento]}` })
   }
 
