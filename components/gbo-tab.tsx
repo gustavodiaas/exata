@@ -8,6 +8,7 @@ import { exportToExcel, importFromExcel, downloadTemplate } from "@/components/e
 import { useToast } from "@/hooks/use-toast"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { NativeSelect } from "@/components/native-select"
 import { GBOChart } from "@/components/gbo-chart"
 import { supabase } from "@/components/supabase"
 import { Plus, Download, Upload, FileSpreadsheet, CheckCircle2, FileImage, ChevronDown, Save, BookOpen, Pencil, Trash2, Search, ChevronRight, FilePlus2, X, Package } from "lucide-react"
@@ -829,16 +830,15 @@ export function GBOTab({ user, empresaAtivaId }: { user: { id: string }, empresa
                       <div className="px-5 py-4 bg-muted/20 space-y-3">
                         <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Adicionar Insumo à BOM</p>
                         <div className="flex gap-2">
-                          <select
+                          <NativeSelect
                             value={novoBomInsumoId}
                             onChange={e => setNovoBomInsumoId(e.target.value)}
-                            className="flex-1 h-10 px-3 rounded-xl border border-border bg-input text-foreground text-sm outline-none focus:ring-2 focus:ring-primary transition-all"
                           >
                             <option value="">Selecione o insumo</option>
                             {insumos.filter(i => !bomItems.find(b => b.insumo_id === i.id)).map(i => (
                               <option key={i.id} value={i.id}>{i.codigo} — {i.descricao}</option>
                             ))}
-                          </select>
+                          </NativeSelect>
                           <input
                             type="number" min="0.001" step="0.001"
                             placeholder="Qtd/peça"
