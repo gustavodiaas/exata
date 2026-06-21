@@ -273,6 +273,9 @@ export function ApontamentoTab({ empresaAtivaId }: { empresaAtivaId?: string | n
   // Modais
   const [showModalPausa, setShowModalPausa] = useState(false)
   const [showModalFinalizar, setShowModalFinalizar] = useState(false)
+  const [dadosFinalizar, setDadosFinalizar] = useState<{ produzidas: number; refugo: number; retrabalho: number; encerramento: "continuar" | "encerrar" | "encerrar_parcial" } | null>(null)
+  const [showAvisoEstoque, setShowAvisoEstoque] = useState(false)
+  const [avisoItens, setAvisoItens] = useState<{ codigo: string; descricao: string; disponivel: number; necessario: number; unidade: string }[]>([])
 
   // Painel
   const [opExpandida, setOpExpandida] = useState<string | null>(null)
@@ -486,7 +489,75 @@ export function ApontamentoTab({ empresaAtivaId }: { empresaAtivaId?: string | n
     toast({ title: "▶ Produção retomada" })
   }
 
-  // ─── Finalizar ─────────────────────────────────────────────────────────────
+  // ─── Verificação de estoque antes de encerrar ──────────────────────────────
+
+  const verificarEstoqueEFinalizar = async (dados: {
+    produzidas: number; refugo: number; retrabalho: number
+    encerramento: "continuar" | "encerrar" | "encerrar_parcial"
+  }) => {
+    setShowModalFinalizar(false)
+
+    // Se não vai encerrar, não precisa verificar
+    if (dados.encerramento === "continuar") {
+      handleConfirmarFinalizar(dados)
+      return
+    }
+
+    const ordem = ordens.find(o => o.id === sessao?.ordemId)
+    if (!ordem) { handleConfirmarFinalizar(dados); return }
+
+    const pecasBoas = dados.produzidas - dados.refugo
+
+    // Busca BOM
+    const { data: bomData } = await supabase
+      .from("bom_itens")
+      .select("insumo_id, quantidade, unidade_medida, insumos(codigo, descricao)")
+      .eq("empresa_id", empresaAtivaId!)
+      .eq("produto_codigo", ordem.produto_codigo)
+
+    if (!bomData || bomData.length === 0) {
+      // Sem BOM, avisa e deixa encerrar
+      toast({
+        title: "⚠ BOM não cadastrada",
+        description: `O produto ${ordem.produto_codigo} não tem lista de materiais. O estoque não será atualizado automaticamente.`,
+        variant: "destructive",
+      })
+      handleConfirmarFinalizar(dados)
+      return
+    }
+
+    // Verifica saldo de cada insumo
+    const insuficientes: typeof avisoItens = []
+
+    for (const bom of bomData as any[]) {
+      const necessario = bom.quantidade * pecasBoas
+      const { data: saldo } = await supabase
+        .from("saldo_estoque")
+        .select("saldo_atual")
+        .eq("insumo_id", bom.insumo_id)
+        .eq("empresa_id", empresaAtivaId!)
+        .single()
+
+      const disponivel = saldo?.saldo_atual ?? 0
+      if (disponivel < necessario) {
+        insuficientes.push({
+          codigo: bom.insumos?.codigo ?? "",
+          descricao: bom.insumos?.descricao ?? "",
+          disponivel,
+          necessario,
+          unidade: bom.unidade_medida,
+        })
+      }
+    }
+
+    if (insuficientes.length > 0) {
+      setAvisoItens(insuficientes)
+      setDadosFinalizar(dados)
+      setShowAvisoEstoque(true)
+    } else {
+      handleConfirmarFinalizar(dados)
+    }
+  }
 
   const handleConfirmarFinalizar = async (dados: {
     produzidas: number; refugo: number; retrabalho: number
@@ -756,9 +827,68 @@ export function ApontamentoTab({ empresaAtivaId }: { empresaAtivaId?: string | n
       )}
       {showModalFinalizar && (
         <ModalFinalizar
-          onConfirm={handleConfirmarFinalizar}
+          onConfirm={verificarEstoqueEFinalizar}
           onCancel={() => setShowModalFinalizar(false)}
         />
+      )}
+
+      {/* Modal aviso estoque insuficiente */}
+      {showAvisoEstoque && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm p-4">
+          <div className="w-full max-w-md bg-card border border-border rounded-2xl shadow-2xl p-6 space-y-5">
+            <div className="flex items-start gap-3">
+              <div className="h-10 w-10 rounded-xl bg-amber-500/10 flex items-center justify-center flex-shrink-0">
+                <AlertTriangle className="h-5 w-5 text-amber-500" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-foreground">Estoque insuficiente</h3>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Os itens abaixo não têm saldo suficiente para cobrir o consumo desta OP. O encerramento vai deixar o estoque negativo.
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              {avisoItens.map((item, i) => (
+                <div key={i} className="bg-amber-500/5 border border-amber-500/20 rounded-xl px-4 py-3 space-y-1">
+                  <p className="text-xs font-bold text-foreground">{item.codigo} — {item.descricao}</p>
+                  <div className="flex gap-4 text-[11px]">
+                    <span className="text-muted-foreground">Disponível: <strong className="text-foreground">{item.disponivel.toFixed(3)} {item.unidade}</strong></span>
+                    <span className="text-muted-foreground">Necessário: <strong className="text-destructive">{item.necessario.toFixed(3)} {item.unidade}</strong></span>
+                  </div>
+                  <div className="h-1.5 bg-muted rounded-full overflow-hidden mt-1">
+                    <div
+                      className="h-full bg-amber-500 rounded-full"
+                      style={{ width: `${Math.min(100, (item.disponivel / item.necessario) * 100)}%` }}
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <p className="text-[11px] text-muted-foreground bg-muted/40 rounded-xl px-4 py-3">
+              Você pode encerrar mesmo assim. O sistema vai registrar o consumo e o saldo ficará negativo até a próxima entrada de material.
+            </p>
+
+            <div className="flex gap-2">
+              <button
+                onClick={() => { setShowAvisoEstoque(false); setDadosFinalizar(null) }}
+                className="flex-1 h-11 rounded-xl border border-border text-sm font-bold text-muted-foreground hover:bg-muted transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={() => {
+                  setShowAvisoEstoque(false)
+                  if (dadosFinalizar) handleConfirmarFinalizar(dadosFinalizar)
+                }}
+                className="flex-1 h-11 rounded-xl bg-amber-500 text-white text-sm font-bold hover:opacity-90 transition-all"
+              >
+                Encerrar mesmo assim
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* KPIs */}
