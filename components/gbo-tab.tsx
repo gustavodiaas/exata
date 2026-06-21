@@ -10,7 +10,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { GBOChart } from "@/components/gbo-chart"
 import { supabase } from "@/components/supabase"
-import { Plus, Download, Upload, FileSpreadsheet, CheckCircle2, FileImage, ChevronDown, Save, BookOpen, Pencil, Trash2, Search, ChevronRight, FilePlus2, X } from "lucide-react"
+import { Plus, Download, Upload, FileSpreadsheet, CheckCircle2, FileImage, ChevronDown, Save, BookOpen, Pencil, Trash2, Search, ChevronRight, FilePlus2, X, Package } from "lucide-react"
 
 interface Operation {
   id: string
@@ -28,6 +28,14 @@ interface MaquinaDatabase {
   nome: string
   codigo: string
   tempo_setup_padrao?: number
+}
+
+interface BomItem {
+  insumo_id: string
+  insumo_codigo: string
+  insumo_descricao: string
+  unidade_medida: string
+  quantidade: number
 }
 
 interface OperacaoDatabase {
@@ -84,6 +92,13 @@ export function GBOTab({ user, empresaAtivaId }: { user: { id: string }, empresa
   const [productSearch, setProductSearch] = useState("")
   const [expandedProduct, setExpandedProduct] = useState<string | null>(null)
 
+  // BOM
+  const [bomItems, setBomItems] = useState<BomItem[]>([])
+  const [insumos, setInsumos] = useState<{ id: string; codigo: string; descricao: string; unidade_medida: string }[]>([])
+  const [showBom, setShowBom] = useState(false)
+  const [novoBomInsumoId, setNovoBomInsumoId] = useState("")
+  const [novoBomQtd, setNovoBomQtd] = useState("")
+
   const fileInputRef = useRef<HTMLInputElement>(null)
   const { toast } = useToast()
 
@@ -97,6 +112,41 @@ export function GBOTab({ user, empresaAtivaId }: { user: { id: string }, empresa
       if (data) setMaquinasGlobais(data as MaquinaDatabase[])
     } catch (e) {
       // Ignorado silenciosamente
+    }
+  }
+
+  const loadInsumos = async () => {
+    if (!empresaAtivaId) return
+    const { data } = await supabase
+      .from("insumos")
+      .select("id, codigo, descricao, unidade_medida")
+      .eq("empresa_id", empresaAtivaId)
+      .order("codigo")
+    if (data) setInsumos(data)
+  }
+
+  const loadBomDoProduto = async (codigo: string) => {
+    if (!empresaAtivaId || !codigo) { setBomItems([]); return }
+    const { data: prod } = await supabase
+      .from("produtos")
+      .select("id")
+      .eq("codigo", codigo)
+      .eq("empresa_id", empresaAtivaId)
+      .single()
+    if (!prod) { setBomItems([]); return }
+    const { data: bom } = await supabase
+      .from("bom_itens")
+      .select("insumo_id, quantidade, unidade_medida, insumos(codigo, descricao, unidade_medida)")
+      .eq("empresa_id", empresaAtivaId)
+      .eq("produto_codigo", codigo)
+    if (bom) {
+      setBomItems(bom.map((b: any) => ({
+        insumo_id: b.insumo_id,
+        insumo_codigo: b.insumos?.codigo ?? "",
+        insumo_descricao: b.insumos?.descricao ?? "",
+        unidade_medida: b.unidade_medida,
+        quantidade: b.quantidade,
+      })))
     }
   }
 
@@ -138,6 +188,7 @@ export function GBOTab({ user, empresaAtivaId }: { user: { id: string }, empresa
   useEffect(() => {
     if (user) {
       loadMaquinas()
+      loadInsumos()
       const savedSession = localStorage.getItem(`exata_session_${user.id}`)
       if (savedSession) {
         try {
@@ -296,6 +347,19 @@ export function GBOTab({ user, empresaAtivaId }: { user: { id: string }, empresa
       const { error: opsError } = await supabase.from("operacoes").insert(opsToInsert)
       if (opsError) throw opsError
 
+      // Salva BOM — apaga e recria
+      await supabase.from("bom_itens").delete().eq("produto_codigo", product.code).eq("empresa_id", empresaAtivaId!)
+      if (bomItems.length > 0) {
+        const bomToInsert = bomItems.map(b => ({
+          empresa_id: empresaAtivaId,
+          produto_codigo: product.code,
+          insumo_id: b.insumo_id,
+          quantidade: b.quantidade,
+          unidade_medida: b.unidade_medida,
+        }))
+        await supabase.from("bom_itens").insert(bomToInsert)
+      }
+
       const existingData = localStorage.getItem("gbo_products")
       let productsArray = existingData ? JSON.parse(existingData) : []
       const existingIndex = productsArray.findIndex((p: { code: string }) => p.code === product.code)
@@ -353,6 +417,7 @@ export function GBOTab({ user, empresaAtivaId }: { user: { id: string }, empresa
     setShowProductsPanel(false)
     setProductSearch("")
     setExpandedProduct(null)
+    loadBomDoProduto(product.code)
     toast({ title: "✅ Produto Carregado", description: `Roteiro "${product.description}" carregado para edição.` })
   }
 
@@ -722,6 +787,93 @@ export function GBOTab({ user, empresaAtivaId }: { user: { id: string }, empresa
                 <GBOChart operations={operations} timeUnit={timeUnit} taktTime={calcType === "takt" && operations.length > 0 ? (timeUnit === "minutes" ? totalCycleTime * 60 : totalCycleTime) : undefined} taktTimeUnit="seconds" demandUnit="un" />
               </div>
               <div className="flex justify-end mt-2 print:hidden">
+                {/* BOM */}
+                <div className="w-full mb-4 bg-card border border-border rounded-2xl shadow-sm overflow-hidden">
+                  <button
+                    onClick={() => setShowBom(!showBom)}
+                    className="w-full flex items-center justify-between px-6 py-4 hover:bg-muted/50 transition-colors"
+                  >
+                    <div className="flex items-center gap-2">
+                      <Package className="h-4 w-4 text-primary" />
+                      <span className="font-bold text-foreground text-sm">Lista de Materiais (BOM)</span>
+                      <span className="text-[10px] bg-primary/10 text-primary font-bold px-2 py-0.5 rounded-full">{bomItems.length} item{bomItems.length !== 1 ? "s" : ""}</span>
+                      {bomItems.length === 0 && <span className="text-[10px] text-amber-500 font-bold">— necessário para controle de estoque</span>}
+                    </div>
+                    <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${showBom ? "rotate-180" : ""}`} />
+                  </button>
+
+                  {showBom && (
+                    <div className="border-t border-border">
+                      {bomItems.length > 0 && (
+                        <div className="divide-y divide-border">
+                          {bomItems.map((b, i) => (
+                            <div key={i} className="flex items-center justify-between px-6 py-3">
+                              <div className="flex items-center gap-3 min-w-0">
+                                <div className="h-1.5 w-1.5 rounded-full bg-primary flex-shrink-0" />
+                                <div className="min-w-0">
+                                  <p className="text-xs font-bold text-foreground">{b.insumo_codigo} — {b.insumo_descricao}</p>
+                                  <p className="text-[10px] text-muted-foreground">{b.quantidade} {b.unidade_medida} por peça produzida</p>
+                                </div>
+                              </div>
+                              <button
+                                onClick={() => setBomItems(prev => prev.filter((_, idx) => idx !== i))}
+                                className="h-7 w-7 flex items-center justify-center rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors flex-shrink-0 ml-3"
+                              >
+                                <X className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      <div className="px-5 py-4 bg-muted/20 space-y-3">
+                        <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Adicionar Insumo à BOM</p>
+                        <div className="flex gap-2">
+                          <select
+                            value={novoBomInsumoId}
+                            onChange={e => setNovoBomInsumoId(e.target.value)}
+                            className="flex-1 h-10 px-3 rounded-xl border border-border bg-input text-foreground text-sm outline-none focus:ring-2 focus:ring-primary transition-all"
+                          >
+                            <option value="">Selecione o insumo</option>
+                            {insumos.filter(i => !bomItems.find(b => b.insumo_id === i.id)).map(i => (
+                              <option key={i.id} value={i.id}>{i.codigo} — {i.descricao}</option>
+                            ))}
+                          </select>
+                          <input
+                            type="number" min="0.001" step="0.001"
+                            placeholder="Qtd/peça"
+                            value={novoBomQtd}
+                            onChange={e => setNovoBomQtd(e.target.value)}
+                            className="w-28 h-10 px-3 rounded-xl border border-border bg-input text-foreground text-sm outline-none focus:ring-2 focus:ring-primary transition-all"
+                          />
+                          <button
+                            onClick={() => {
+                              const ins = insumos.find(i => i.id === novoBomInsumoId)
+                              if (!ins || !novoBomQtd || parseFloat(novoBomQtd) <= 0) return
+                              setBomItems(prev => [...prev, {
+                                insumo_id: ins.id,
+                                insumo_codigo: ins.codigo,
+                                insumo_descricao: ins.descricao,
+                                unidade_medida: ins.unidade_medida,
+                                quantidade: parseFloat(novoBomQtd),
+                              }])
+                              setNovoBomInsumoId("")
+                              setNovoBomQtd("")
+                            }}
+                            disabled={!novoBomInsumoId || !novoBomQtd || parseFloat(novoBomQtd) <= 0}
+                            className="h-10 px-4 flex items-center gap-1 bg-primary text-primary-foreground font-bold text-xs uppercase tracking-widest rounded-xl hover:opacity-90 transition-all disabled:opacity-50"
+                          >
+                            <Plus className="h-3.5 w-3.5" /> Add
+                          </button>
+                        </div>
+                        {insumos.length === 0 && (
+                          <p className="text-[10px] text-amber-500">Cadastre itens na aba Estoque primeiro para montar a BOM.</p>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
                 <Button onClick={handleSaveProduct} disabled={isLoading} className="bg-primary hover:opacity-90 text-primary-foreground font-bold uppercase tracking-widest h-12 px-8 rounded-xl shadow-md transition-all">
                   <Save className="h-5 w-5 mr-2" /> {isLoading ? "Sincronizando..." : "Salvar e Sincronizar Nuvem"}
                 </Button>
