@@ -9,25 +9,27 @@ import { PCPTab } from "@/components/pcp-tab"
 import { ApontamentoTab } from "@/components/apontamento-tab"
 import { ExcecoesTab } from "@/components/excecoes-tab"
 import { EstoqueTab } from "@/components/estoque-tab"
+import { RelatoriosTab } from "@/components/relatorios-tab"
 import { MaquinasTab } from "@/components/maquinas-tab"
 import { ManutencaoTab } from "@/components/manutencao-tab"
 import { OnboardingChecklist } from "@/components/onboarding-checklist"
 import {
   Settings, Sun, Moon, Monitor, BookText, BarChart2, ClipboardCheck,
   CalendarClock, Menu, X, PanelLeftClose, PanelLeftOpen, Factory, Wrench, Key,
-  Copy, Check, Eye, EyeOff, Tag, Boxes
+  Copy, Check, Eye, EyeOff, Tag, Boxes, LineChart
 } from "lucide-react"
 
-type TabId = "gbo" | "pcp" | "apontamento" | "maquinas" | "manutencao" | "excecoes" | "estoque" | "configuracoes"
+type TabId = "gbo" | "pcp" | "apontamento" | "maquinas" | "manutencao" | "excecoes" | "estoque" | "relatorios" | "configuracoes"
 
 const NAV_ITEMS: { id: TabId; label: string; sublabel: string; icon: React.ElementType }[] = [
-  { id: "gbo",        label: "Produto/Roteiro", sublabel: "Gerenciamento Diário",   icon: BarChart2      },
-  { id: "pcp",        label: "PCP",             sublabel: "Programação de Produção", icon: CalendarClock  },
-  { id: "maquinas",   label: "Máquinas",         sublabel: "Postos de Trabalho",     icon: Factory        },
-  { id: "manutencao", label: "Manutenção",        sublabel: "Gestão de Ativos",       icon: Wrench         },
-  { id: "apontamento",label: "Apontamento",       sublabel: "Registro de Produção",   icon: ClipboardCheck },
-  { id: "estoque",    label: "Estoque",           sublabel: "Controle de Inventário", icon: Boxes          },
-  { id: "excecoes",   label: "Exceções",          sublabel: "Motivos de Parada",      icon: Tag            },
+  { id: "gbo",        label: "Produto/Roteiro", sublabel: "Gerenciamento Diário",    icon: BarChart2      },
+  { id: "pcp",        label: "PCP",             sublabel: "Programação de Produção",  icon: CalendarClock  },
+  { id: "maquinas",   label: "Máquinas",         sublabel: "Postos de Trabalho",      icon: Factory        },
+  { id: "manutencao", label: "Manutenção",        sublabel: "Gestão de Ativos",        icon: Wrench         },
+  { id: "apontamento",label: "Apontamento",       sublabel: "Registro de Produção",    icon: ClipboardCheck },
+  { id: "estoque",    label: "Estoque",           sublabel: "Controle de Inventário",  icon: Boxes          },
+  { id: "excecoes",   label: "Exceções",          sublabel: "Motivos de Parada",       icon: Tag            },
+  { id: "relatorios", label: "Relatórios",        sublabel: "Análise de Desempenho",   icon: LineChart      },
 ]
 
 const STORAGE_KEY = "exata_empresa_id"
@@ -553,6 +555,12 @@ export default function ExataApp() {
             {activeTab === "estoque" && (
               <div className="animate-in fade-in duration-300">
                 <EstoqueTab empresaAtivaId={empresaAtivaId} />
+              </div>
+            )}
+
+            {activeTab === "relatorios" && (
+              <div className="animate-in fade-in duration-300">
+                <RelatoriosTab empresaAtivaId={empresaAtivaId} />
               </div>
             )}
 
