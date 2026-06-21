@@ -3,12 +3,12 @@
 import React from "react"
 import { ChevronDown } from "lucide-react"
 
-interface NativeSelectProps extends React.SelectHTMLAttributes<HTMLSelectElement> {
-  size?: "sm" | "md"
+interface NativeSelectProps extends Omit<React.SelectHTMLAttributes<HTMLSelectElement>, "size"> {
+  variant?: "sm" | "md"
 }
 
-export function NativeSelect({ className = "", size = "md", children, ...props }: NativeSelectProps) {
-  const h = size === "sm" ? "h-9 text-xs" : "h-11 text-sm"
+export function NativeSelect({ className = "", variant = "md", children, ...props }: NativeSelectProps) {
+  const h = variant === "sm" ? "h-9 text-xs" : "h-11 text-sm"
   return (
     <div className="relative w-full">
       <select
