@@ -1,96 +1,84 @@
 "use client"
 
-import React, { useState, useEffect, useMemo } from "react"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { useToast } from "@/hooks/use-toast"
+import React, { useState, useEffect, useMemo, useRef, useCallback } from "react"
 import { supabase } from "@/components/supabase"
-import { Plus, Trash2, ClipboardList, TrendingUp, AlertTriangle, CheckCircle2, Clock, Package, Factory } from "lucide-react"
-import { DatePicker } from "@/components/date-picker"
+import { useToast } from "@/hooks/use-toast"
+import {
+  Play, Pause, Square, Plus, Trash2, ClipboardList, TrendingUp,
+  AlertTriangle, CheckCircle2, Clock, Package, Factory, ChevronDown, X
+} from "lucide-react"
 
-// ─── Interfaces de Banco de Dados ─────────────────────────────────────────────
-
-interface SupabaseOrdem {
-  id: string
-  numero_op: string
-  data_programacao: string
-  produto_codigo: string
-  quantidade: number
-  regra_calculo: "soma" | "media" | "gargalo"
-}
-
-interface SupabaseApontamento {
-  id: string
-  ordem_id: string
-  data_apontamento: string
-  hora_inicio: string
-  hora_fim: string
-  pecas_produzidas: number
-  pecas_refugo: number
-  pecas_retrabalho: number
-  observacao?: string
-  maquinas?: { nome: string }
-}
-
-interface SupabaseMaquina {
-  id: string
-  nome: string
-}
-
-// ─── Tipos Locais ─────────────────────────────────────────────────────────────
+// ─── Interfaces ───────────────────────────────────────────────────────────────
 
 interface OrdemProducao {
   id: string
-  opNumber: string
-  date: string
-  productCode: string
-  quantity: number
-  calculationRule: "soma" | "media" | "gargalo"
+  numero_op: string
+  produto_codigo: string
+  produto_descricao?: string
+  quantidade: number
+  data_programacao: string
+  status?: string
+}
+
+interface Operacao {
+  id: string
+  nome: string
+  maquina_id?: string
+  maquina_nome?: string
+  maquina_codigo?: string
+  ordem: number
 }
 
 interface Apontamento {
   id: string
-  ordemId: string
-  dataApontamento: string
-  horaInicio: string
-  horaFim: string
-  pecasProduzidas: number
-  pecasRefugo: number
-  pecasRetrabalho: number
-  observacao: string
-  maquinaNome: string
+  ordem_id: string
+  operacao_id?: string
+  operacao_nome?: string
+  cronometro_total_segundos: number
+  pecas_produzidas: number
+  pecas_refugo: number
+  pecas_retrabalho: number
+  status: string
+  encerramento?: string
+  created_at: string
 }
 
-interface ResumoOP {
-  op: OrdemProducao
-  apontamentos: Apontamento[]
-  totalProduzidas: number
-  totalRefugo: number
-  totalRetrabalho: number
-  percentualConclusao: number
-  fechada: boolean
+interface Pausa {
+  id: string
+  inicio: string
+  fim?: string
+  subgrupo_nome?: string
+  grupo_nome?: string
 }
 
-interface Maquina {
+interface Grupo {
   id: string
   nome: string
+  subgrupos: { id: string; nome: string }[]
 }
+
+interface SessaoAtiva {
+  apontamentoId: string
+  ordemId: string
+  operacaoId: string
+  operacaoNome: string
+  maquinaNome: string
+  inicioTimestamp: number
+  segundosAcumulados: number
+  pausaInicioTimestamp?: number
+  pausaId?: string
+}
+
+const SESSAO_KEY = "exata_apontamento_sessao_"
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function calcularTempoDecorrido(inicio: string, fim: string): number {
-  const [hi, mi] = inicio.split(":").map(Number)
-  const [hf, mf] = fim.split(":").map(Number)
-  return Math.max(0, (hf * 60 + mf) - (hi * 60 + mi))
-}
-
-function formatarMinutos(min: number): string {
-  const h = Math.floor(min / 60)
-  const m = min % 60
-  if (h === 0) return `${m}min`
-  return `${h}h ${m}min`
+function formatarTempo(segundos: number): string {
+  const h = Math.floor(segundos / 3600)
+  const m = Math.floor((segundos % 3600) / 60)
+  const s = segundos % 60
+  if (h > 0) return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`
+  return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`
 }
 
 function badgeStatus(pct: number) {
@@ -99,18 +87,172 @@ function badgeStatus(pct: number) {
   return { label: "Iniciada", classes: "bg-amber-500/10 text-amber-600 border border-amber-500/20" }
 }
 
-function formatTimeMask(value: string): string {
-  let v = value.replace(/\D/g, "")
-  if (v.length > 4) v = v.slice(0, 4)
-  if (v.length >= 3) return `${v.slice(0, 2)}:${v.slice(2)}`
-  return v
+// ─── Modal de Pausa ───────────────────────────────────────────────────────────
+
+function ModalPausa({ grupos, onConfirm, onCancel }: {
+  grupos: Grupo[]
+  onConfirm: (subgrupoId: string) => void
+  onCancel: () => void
+}) {
+  const [grupoId, setGrupoId] = useState("")
+  const [subgrupoId, setSubgrupoId] = useState("")
+  const grupo = grupos.find(g => g.id === grupoId)
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm p-4">
+      <div className="w-full max-w-sm bg-card border border-border rounded-2xl shadow-2xl p-6 space-y-5">
+        <div className="flex items-center justify-between">
+          <h3 className="text-sm font-bold text-foreground">Motivo da Parada</h3>
+          <button onClick={onCancel} className="h-7 w-7 flex items-center justify-center rounded-lg text-muted-foreground hover:bg-muted transition-colors">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="space-y-3">
+          <div className="space-y-1.5">
+            <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Grupo</label>
+            <select
+              value={grupoId}
+              onChange={e => { setGrupoId(e.target.value); setSubgrupoId("") }}
+              className="w-full h-11 px-4 rounded-xl border border-border bg-input text-foreground text-sm outline-none focus:ring-2 focus:ring-primary transition-all"
+            >
+              <option value="">Selecione o grupo</option>
+              {grupos.map(g => <option key={g.id} value={g.id}>{g.nome}</option>)}
+            </select>
+          </div>
+
+          {grupo && (
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Motivo</label>
+              <select
+                value={subgrupoId}
+                onChange={e => setSubgrupoId(e.target.value)}
+                className="w-full h-11 px-4 rounded-xl border border-border bg-input text-foreground text-sm outline-none focus:ring-2 focus:ring-primary transition-all"
+              >
+                <option value="">Selecione o motivo</option>
+                {grupo.subgrupos.map(s => <option key={s.id} value={s.id}>{s.nome}</option>)}
+              </select>
+            </div>
+          )}
+        </div>
+
+        <div className="flex gap-2 pt-1">
+          <button onClick={onCancel} className="flex-1 h-11 rounded-xl border border-border text-sm font-bold text-muted-foreground hover:bg-muted transition-colors">
+            Cancelar
+          </button>
+          <button
+            onClick={() => subgrupoId && onConfirm(subgrupoId)}
+            disabled={!subgrupoId}
+            className="flex-1 h-11 rounded-xl bg-primary text-primary-foreground text-sm font-bold hover:opacity-90 transition-all disabled:opacity-50"
+          >
+            Pausar
+          </button>
+        </div>
+      </div>
+    </div>
+  )
 }
 
-function isValidTime(value: string): boolean {
-  if (!value) return true
-  if (value.length !== 5) return false
-  const [h, m] = value.split(":").map(Number)
-  return h >= 0 && h <= 23 && m >= 0 && m <= 59
+// ─── Modal de Finalizar ────────────────────────────────────────────────────────
+
+function ModalFinalizar({ onConfirm, onCancel }: {
+  onConfirm: (dados: { produzidas: number; refugo: number; retrabalho: number; encerramento: "continuar" | "encerrar" | "encerrar_parcial" }) => void
+  onCancel: () => void
+}) {
+  const [produzidas, setProduzidas] = useState("")
+  const [refugo, setRefugo] = useState("")
+  const [retrabalho, setRetrabalho] = useState("")
+  const [encerramento, setEncerramento] = useState<"continuar" | "encerrar" | "encerrar_parcial">("continuar")
+
+  const handleConfirm = () => {
+    if (!produzidas || parseInt(produzidas) <= 0) return
+    onConfirm({
+      produzidas: parseInt(produzidas),
+      refugo: parseInt(refugo) || 0,
+      retrabalho: parseInt(retrabalho) || 0,
+      encerramento,
+    })
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm p-4">
+      <div className="w-full max-w-sm bg-card border border-border rounded-2xl shadow-2xl p-6 space-y-5">
+        <div className="flex items-center justify-between">
+          <h3 className="text-sm font-bold text-foreground">Registrar Produção</h3>
+          <button onClick={onCancel} className="h-7 w-7 flex items-center justify-center rounded-lg text-muted-foreground hover:bg-muted transition-colors">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="space-y-3">
+          <div className="space-y-1.5">
+            <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Peças Produzidas *</label>
+            <input
+              type="number" min="1" placeholder="Ex: 120"
+              value={produzidas} onChange={e => setProduzidas(e.target.value)}
+              className="w-full h-11 px-4 rounded-xl border border-border bg-input text-foreground text-sm outline-none focus:ring-2 focus:ring-primary transition-all"
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Refugo</label>
+              <input
+                type="number" min="0" placeholder="0"
+                value={refugo} onChange={e => setRefugo(e.target.value)}
+                className="w-full h-11 px-4 rounded-xl border border-border bg-input text-foreground text-sm outline-none focus:ring-2 focus:ring-primary transition-all"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Retrabalho</label>
+              <input
+                type="number" min="0" placeholder="0"
+                value={retrabalho} onChange={e => setRetrabalho(e.target.value)}
+                className="w-full h-11 px-4 rounded-xl border border-border bg-input text-foreground text-sm outline-none focus:ring-2 focus:ring-primary transition-all"
+              />
+            </div>
+          </div>
+
+          <div className="space-y-1.5 pt-1">
+            <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">O que fazer com a OP?</label>
+            <div className="space-y-2">
+              {[
+                { value: "continuar", label: "Continuar produzindo", desc: "Salva este apontamento e segue a OP aberta" },
+                { value: "encerrar", label: "Encerrar OP", desc: "Marca a OP como concluída" },
+                { value: "encerrar_parcial", label: "Encerrar parcialmente", desc: "Encerra com quantidade menor que o planejado" },
+              ].map(op => (
+                <button
+                  key={op.value}
+                  onClick={() => setEncerramento(op.value as any)}
+                  className={`w-full flex items-start gap-3 px-4 py-3 rounded-xl border text-left transition-all
+                    ${encerramento === op.value ? "border-primary bg-primary/5" : "border-border hover:bg-muted/50"}`}
+                >
+                  <div className={`h-4 w-4 rounded-full border-2 flex-shrink-0 mt-0.5 transition-all
+                    ${encerramento === op.value ? "border-primary bg-primary" : "border-muted-foreground/30"}`} />
+                  <div>
+                    <p className={`text-sm font-bold ${encerramento === op.value ? "text-primary" : "text-foreground"}`}>{op.label}</p>
+                    <p className="text-[10px] text-muted-foreground mt-0.5">{op.desc}</p>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <div className="flex gap-2 pt-1">
+          <button onClick={onCancel} className="flex-1 h-11 rounded-xl border border-border text-sm font-bold text-muted-foreground hover:bg-muted transition-colors">
+            Cancelar
+          </button>
+          <button
+            onClick={handleConfirm}
+            disabled={!produzidas || parseInt(produzidas) <= 0}
+            className="flex-1 h-11 rounded-xl bg-primary text-primary-foreground text-sm font-bold hover:opacity-90 transition-all disabled:opacity-50"
+          >
+            Confirmar
+          </button>
+        </div>
+      </div>
+    </div>
+  )
 }
 
 // ─── Componente principal ─────────────────────────────────────────────────────
@@ -120,221 +262,310 @@ export function ApontamentoTab({ empresaAtivaId }: { empresaAtivaId?: string | n
 
   const [ordens, setOrdens] = useState<OrdemProducao[]>([])
   const [apontamentos, setApontamentos] = useState<Apontamento[]>([])
-  const [maquinas, setMaquinas] = useState<Maquina[]>([])
+  const [grupos, setGrupos] = useState<Grupo[]>([])
   const [loading, setLoading] = useState(true)
 
-  // Formulário
-  const [ordemSelecionada, setOrdemSelecionada] = useState("")
-  const [maquinaSelecionada, setMaquinaSelecionada] = useState("none")
-  const [dataApontamento, setDataApontamento] = useState("")
-  const [horaInicio, setHoraInicio] = useState("")
-  const [horaFim, setHoraFim] = useState("")
-  const [pecasProduzidas, setPecasProduzidas] = useState("")
-  const [pecasRefugo, setPecasRefugo] = useState("")
-  const [pecasRetrabalho, setPecasRetrabalho] = useState("")
-  const [observacao, setObservacao] = useState("")
-  const [salvando, setSalvando] = useState(false)
+  // Seleção de OP e operação
+  const [ordemSelecionadaId, setOrdemSelecionadaId] = useState("")
+  const [operacoes, setOperacoes] = useState<Operacao[]>([])
+  const [operacaoSelecionadaId, setOperacaoSelecionadaId] = useState("")
+  const [loadingOps, setLoadingOps] = useState(false)
 
-  // Filtro de OP selecionada no painel de resumo
+  // Sessão ativa (cronômetro)
+  const [sessao, setSessao] = useState<SessaoAtiva | null>(null)
+  const [segundosDisplay, setSegundosDisplay] = useState(0)
+  const [emPausa, setEmPausa] = useState(false)
+  const intervalRef = useRef<NodeJS.Timeout | null>(null)
+
+  // Modais
+  const [showModalPausa, setShowModalPausa] = useState(false)
+  const [showModalFinalizar, setShowModalFinalizar] = useState(false)
+
+  // Painel
   const [opExpandida, setOpExpandida] = useState<string | null>(null)
 
-  // ─── Carga de dados com Filtro Master ─────────────────────────────────────────
+  // ─── Carga inicial ─────────────────────────────────────────────────────────
 
-const loadData = async () => {
+  const loadData = async () => {
     setLoading(true)
     try {
-      let qMaq = supabase.from("maquinas").select("id, nome").neq("status", "inativa")
-      if (empresaAtivaId) qMaq = qMaq.eq("empresa_id", empresaAtivaId)
-      const { data: maqData } = await qMaq
-      setMaquinas((maqData as SupabaseMaquina[]) || [])
+      const [{ data: opsData }, { data: apData }, { data: gData }, { data: sData }] = await Promise.all([
+        supabase.from("ordens_producao")
+          .select("id, numero_op, produto_codigo, quantidade, data_programacao, status")
+          .eq("empresa_id", empresaAtivaId!)
+          .order("data_programacao", { ascending: true }),
+        supabase.from("apontamentos")
+          .select("id, ordem_id, operacao_id, operacao_nome, cronometro_total_segundos, pecas_produzidas, pecas_refugo, pecas_retrabalho, status, encerramento, created_at")
+          .eq("empresa_id", empresaAtivaId!)
+          .order("created_at", { ascending: false }),
+        supabase.from("excecao_grupos").select("id, nome").eq("empresa_id", empresaAtivaId!).order("nome"),
+        supabase.from("excecao_subgrupos").select("id, grupo_id, nome").eq("empresa_id", empresaAtivaId!).order("nome"),
+      ])
 
-      let qOps = supabase.from("ordens_producao").select("*").order("data_programacao", { ascending: true })
-      if (empresaAtivaId) qOps = qOps.eq("empresa_id", empresaAtivaId)
-      const { data: opsData } = await qOps
+      setOrdens((opsData || []) as OrdemProducao[])
+      setApontamentos((apData || []) as Apontamento[])
 
-      const formattedOrdens: OrdemProducao[] = ((opsData as SupabaseOrdem[]) || []).map((op) => ({
-        id: op.id,
-        opNumber: op.numero_op,
-        date: op.data_programacao,
-        productCode: op.produto_codigo,
-        quantity: op.quantidade,
-        calculationRule: op.regra_calculo,
+      const gruposFormatados: Grupo[] = (gData || []).map((g: any) => ({
+        id: g.id,
+        nome: g.nome,
+        subgrupos: (sData || []).filter((s: any) => s.grupo_id === g.id),
       }))
-      setOrdens(formattedOrdens)
-
-      let qAp = supabase.from("apontamentos").select(`*, maquinas (nome)`).order("data_apontamento", { ascending: false })
-      if (empresaAtivaId) qAp = qAp.eq("empresa_id", empresaAtivaId)
-      const { data: apData } = await qAp
-
-      const formattedAp: Apontamento[] = ((apData as SupabaseApontamento[]) || []).map((a) => ({
-        id: a.id,
-        ordemId: a.ordem_id,
-        dataApontamento: a.data_apontamento,
-        horaInicio: a.hora_inicio,
-        horaFim: a.hora_fim,
-        pecasProduzidas: a.pecas_produzidas,
-        pecasRefugo: a.pecas_refugo,
-        pecasRetrabalho: a.pecas_retrabalho,
-        observacao: a.observacao || "",
-        maquinaNome: a.maquinas?.nome || "Manual / Sem Máquina"
-      }))
-      setApontamentos(formattedAp)
-    } catch (e) {
-      // Permanece silencioso, loading state resolve a UI
+      setGrupos(gruposFormatados)
     } finally {
       setLoading(false)
     }
   }
+
   useEffect(() => {
-    loadData()
+    if (empresaAtivaId) {
+      loadData()
+      // Restaura sessão do localStorage
+      const raw = localStorage.getItem(SESSAO_KEY + empresaAtivaId)
+      if (raw) {
+        try {
+          const s: SessaoAtiva = JSON.parse(raw)
+          setSessao(s)
+          setEmPausa(!!s.pausaInicioTimestamp)
+        } catch { }
+      }
+    }
   }, [empresaAtivaId])
 
-  // ─── Resumo por OP ───────────────────────────────────────────────────────────
+  // Cronômetro
+  useEffect(() => {
+    if (intervalRef.current) clearInterval(intervalRef.current)
+    if (!sessao || emPausa) return
 
-  const resumos: ResumoOP[] = useMemo(() => {
-    return ordens.map((op) => {
-      const aps = apontamentos.filter((a) => a.ordemId === op.id)
-      const totalProduzidas = aps.reduce((s, a) => s + a.pecasProduzidas, 0)
-      const totalRefugo = aps.reduce((s, a) => s + a.pecasRefugo, 0)
-      const totalRetrabalho = aps.reduce((s, a) => s + a.pecasRetrabalho, 0)
-      const percentualConclusao = op.quantity > 0 ? Math.min(100, (totalProduzidas / op.quantity) * 100) : 0
-      return {
-        op,
-        apontamentos: aps,
-        totalProduzidas,
-        totalRefugo,
-        totalRetrabalho,
-        percentualConclusao,
-        fechada: totalProduzidas >= op.quantity,
-      }
+    const tick = () => {
+      const agora = Date.now()
+      const decorrido = Math.floor((agora - sessao.inicioTimestamp) / 1000)
+      setSegundosDisplay(sessao.segundosAcumulados + decorrido)
+    }
+    tick()
+    intervalRef.current = setInterval(tick, 1000)
+    return () => { if (intervalRef.current) clearInterval(intervalRef.current) }
+  }, [sessao, emPausa])
+
+  const salvarSessao = useCallback((s: SessaoAtiva | null) => {
+    if (!empresaAtivaId) return
+    if (s) localStorage.setItem(SESSAO_KEY + empresaAtivaId, JSON.stringify(s))
+    else localStorage.removeItem(SESSAO_KEY + empresaAtivaId)
+    setSessao(s)
+  }, [empresaAtivaId])
+
+  // ─── Carrega operações ao selecionar OP ────────────────────────────────────
+
+  useEffect(() => {
+    if (!ordemSelecionadaId) { setOperacoes([]); setOperacaoSelecionadaId(""); return }
+    const ordem = ordens.find(o => o.id === ordemSelecionadaId)
+    if (!ordem) return
+    setLoadingOps(true)
+
+    supabase
+      .from("produtos")
+      .select("id")
+      .eq("codigo", ordem.produto_codigo)
+      .eq("empresa_id", empresaAtivaId!)
+      .single()
+      .then(({ data: prod }) => {
+        if (!prod) { setOperacoes([]); setLoadingOps(false); return }
+        supabase
+          .from("operacoes")
+          .select("id, nome, maquina_id, ordem, maquinas(nome, codigo)")
+          .eq("produto_id", prod.id)
+          .order("ordem")
+          .then(({ data: ops }) => {
+            const formatted: Operacao[] = (ops || []).map((o: any) => ({
+              id: o.id,
+              nome: o.nome,
+              maquina_id: o.maquina_id,
+              maquina_nome: o.maquinas?.nome,
+              maquina_codigo: o.maquinas?.codigo,
+              ordem: o.ordem,
+            }))
+            setOperacoes(formatted)
+            setLoadingOps(false)
+          })
+      })
+  }, [ordemSelecionadaId])
+
+  // ─── Iniciar ───────────────────────────────────────────────────────────────
+
+  const handleIniciar = async () => {
+    if (!ordemSelecionadaId || !operacaoSelecionadaId) {
+      toast({ title: "Selecione a OP e a operação", variant: "destructive" })
+      return
+    }
+    const op = operacoes.find(o => o.id === operacaoSelecionadaId)
+    if (!op) return
+
+    const { data, error } = await supabase
+      .from("apontamentos")
+      .insert({
+        empresa_id: empresaAtivaId,
+        ordem_id: ordemSelecionadaId,
+        operacao_id: operacaoSelecionadaId,
+        operacao_nome: op.nome,
+        maquina_id: op.maquina_id || null,
+        cronometro_inicio: new Date().toISOString(),
+        cronometro_total_segundos: 0,
+        pecas_produzidas: 0,
+        pecas_refugo: 0,
+        pecas_retrabalho: 0,
+        status: "em_andamento",
+        data_apontamento: new Date().toISOString().split("T")[0],
+        hora_inicio: new Date().toTimeString().slice(0, 5),
+        hora_fim: new Date().toTimeString().slice(0, 5),
+      })
+      .select()
+      .single()
+
+    if (error) { toast({ title: "Erro ao iniciar", description: error.message, variant: "destructive" }); return }
+
+    const novaSessao: SessaoAtiva = {
+      apontamentoId: data.id,
+      ordemId: ordemSelecionadaId,
+      operacaoId: operacaoSelecionadaId,
+      operacaoNome: op.nome,
+      maquinaNome: op.maquina_nome ? `${op.maquina_codigo} - ${op.maquina_nome}` : "Manual",
+      inicioTimestamp: Date.now(),
+      segundosAcumulados: 0,
+    }
+    salvarSessao(novaSessao)
+    setEmPausa(false)
+    setSegundosDisplay(0)
+    toast({ title: "▶ Apontamento iniciado", description: op.nome })
+  }
+
+  // ─── Pausar ────────────────────────────────────────────────────────────────
+
+  const handleConfirmarPausa = async (subgrupoId: string) => {
+    if (!sessao) return
+    setShowModalPausa(false)
+
+    const agora = Date.now()
+    const decorrido = Math.floor((agora - sessao.inicioTimestamp) / 1000)
+    const totalAtual = sessao.segundosAcumulados + decorrido
+
+    const { data: pausa, error } = await supabase
+      .from("apontamento_pausas")
+      .insert({
+        empresa_id: empresaAtivaId,
+        apontamento_id: sessao.apontamentoId,
+        subgrupo_id: subgrupoId,
+        inicio: new Date().toISOString(),
+      })
+      .select()
+      .single()
+
+    if (error) { toast({ title: "Erro ao registrar pausa", variant: "destructive" }); return }
+
+    const sessaoAtualizada: SessaoAtiva = {
+      ...sessao,
+      segundosAcumulados: totalAtual,
+      inicioTimestamp: agora,
+      pausaInicioTimestamp: agora,
+      pausaId: pausa.id,
+    }
+    salvarSessao(sessaoAtualizada)
+    setEmPausa(true)
+    toast({ title: "⏸ Em pausa" })
+  }
+
+  // ─── Retomar ───────────────────────────────────────────────────────────────
+
+  const handleRetomar = async () => {
+    if (!sessao?.pausaId) return
+
+    await supabase
+      .from("apontamento_pausas")
+      .update({ fim: new Date().toISOString() })
+      .eq("id", sessao.pausaId)
+
+    const sessaoAtualizada: SessaoAtiva = {
+      ...sessao,
+      inicioTimestamp: Date.now(),
+      pausaInicioTimestamp: undefined,
+      pausaId: undefined,
+    }
+    salvarSessao(sessaoAtualizada)
+    setEmPausa(false)
+    toast({ title: "▶ Produção retomada" })
+  }
+
+  // ─── Finalizar ─────────────────────────────────────────────────────────────
+
+  const handleConfirmarFinalizar = async (dados: {
+    produzidas: number; refugo: number; retrabalho: number
+    encerramento: "continuar" | "encerrar" | "encerrar_parcial"
+  }) => {
+    if (!sessao) return
+    setShowModalFinalizar(false)
+
+    const agora = Date.now()
+    const decorrido = emPausa ? 0 : Math.floor((agora - sessao.inicioTimestamp) / 1000)
+    const totalSegundos = sessao.segundosAcumulados + decorrido
+
+    // Fecha pausa aberta se houver
+    if (sessao.pausaId) {
+      await supabase.from("apontamento_pausas").update({ fim: new Date().toISOString() }).eq("id", sessao.pausaId)
+    }
+
+    const { error } = await supabase
+      .from("apontamentos")
+      .update({
+        cronometro_total_segundos: totalSegundos,
+        pecas_produzidas: dados.produzidas,
+        pecas_refugo: dados.refugo,
+        pecas_retrabalho: dados.retrabalho,
+        status: dados.encerramento === "continuar" ? "aberto" : "fechado",
+        encerramento: dados.encerramento,
+        hora_fim: new Date().toTimeString().slice(0, 5),
+      })
+      .eq("id", sessao.apontamentoId)
+
+    if (error) { toast({ title: "Erro ao finalizar", description: error.message, variant: "destructive" }); return }
+
+    // Se encerrar a OP
+    if (dados.encerramento !== "continuar") {
+      await supabase.from("ordens_producao").update({ status: "encerrada" }).eq("id", sessao.ordemId)
+    }
+
+    salvarSessao(null)
+    setEmPausa(false)
+    setSegundosDisplay(0)
+    await loadData()
+
+    const labels = { continuar: "Apontamento salvo", encerrar: "OP encerrada", encerrar_parcial: "OP encerrada parcialmente" }
+    toast({ title: `✅ ${labels[dados.encerramento]}` })
+  }
+
+  // ─── Resumos por OP ────────────────────────────────────────────────────────
+
+  const resumos = useMemo(() => {
+    return ordens.map(op => {
+      const aps = apontamentos.filter(a => a.ordem_id === op.id)
+      const totalProduzidas = aps.reduce((s, a) => s + (a.pecas_produzidas || 0), 0)
+      const totalRefugo = aps.reduce((s, a) => s + (a.pecas_refugo || 0), 0)
+      const totalRetrabalho = aps.reduce((s, a) => s + (a.pecas_retrabalho || 0), 0)
+      const totalSegundos = aps.reduce((s, a) => s + (a.cronometro_total_segundos || 0), 0)
+      const pct = op.quantidade > 0 ? Math.min(100, (totalProduzidas / op.quantidade) * 100) : 0
+      const fechada = op.status === "encerrada" || totalProduzidas >= op.quantidade
+      return { op, aps, totalProduzidas, totalRefugo, totalRetrabalho, totalSegundos, pct, fechada }
     })
   }, [ordens, apontamentos])
 
-  // ─── Salvar apontamento ──────────────────────────────────────────────────────
-
-  const handleTimeBlur = (value: string, setter: (val: string) => void) => {
-    if (value && !isValidTime(value)) {
-      setter("")
-      toast({ title: "Horário inválido", description: "Use o formato correto (00:00 a 23:59).", variant: "destructive" })
-    }
-  }
-
-  const handleSalvar = async () => {
-    if (!ordemSelecionada || !dataApontamento || !horaInicio || !horaFim || !pecasProduzidas) {
-      toast({ title: "Campos obrigatórios", description: "Preencha OP, data, horários e peças produzidas.", variant: "destructive" })
-      return
-    }
-
-    if (!isValidTime(horaInicio) || !isValidTime(horaFim)) {
-      toast({ title: "Horário inválido", description: "Verifique se os horários de início e fim estão corretos.", variant: "destructive" })
-      return
-    }
-
-    const inicio = horaInicio
-    const fim = horaFim
-    const tempoDecorrido = calcularTempoDecorrido(inicio, fim)
-
-    if (tempoDecorrido <= 0) {
-      toast({ title: "Horário inválido", description: "A hora de fim deve ser posterior à hora de início.", variant: "destructive" })
-      return
-    }
-
-    const produzidas = parseInt(pecasProduzidas) || 0
-    const refugo = parseInt(pecasRefugo) || 0
-    const retrabalho = parseInt(pecasRetrabalho) || 0
-
-    if (produzidas <= 0) {
-      toast({ title: "Quantidade inválida", description: "Peças produzidas deve ser maior que zero.", variant: "destructive" })
-      return
-    }
-
-    const resumoOp = resumos.find((r) => r.op.id === ordemSelecionada)
-    if (resumoOp?.fechada) {
-      toast({ title: "OP já concluída", description: "Esta ordem já atingiu a quantidade total planejada.", variant: "destructive" })
-      return
-    }
-
-    setSalvando(true)
-    try {
-      const maqNome = maquinas.find(m => m.id === maquinaSelecionada)?.nome || "Manual / Sem Máquina"
-
-      const payload = {
-        ordem_id: ordemSelecionada,
-        maquina_id: maquinaSelecionada === "none" ? null : maquinaSelecionada,
-        data_apontamento: dataApontamento,
-        hora_inicio: horaInicio,
-        hora_fim: horaFim,
-        pecas_produzidas: produzidas,
-        pecas_refugo: refugo,
-        pecas_retrabalho: retrabalho,
-        observacao: observacao.trim() || null,
-        ...(empresaAtivaId && { empresa_id: empresaAtivaId })
-      }
-
-      const { data, error } = await supabase.from("apontamentos").insert([payload]).select()
-
-      if (error) throw error
-
-      if (data && data[0]) {
-        const novoAp: Apontamento = {
-          id: data[0].id,
-          ordemId: data[0].ordem_id,
-          dataApontamento: data[0].data_apontamento,
-          horaInicio: data[0].hora_inicio,
-          horaFim: data[0].hora_fim,
-          pecasProduzidas: data[0].pecas_produzidas,
-          pecasRefugo: data[0].pecas_refugo,
-          pecasRetrabalho: data[0].pecas_retrabalho,
-          observacao: data[0].observacao || "",
-          maquinaNome: maqNome
-        }
-        setApontamentos((prev) => [novoAp, ...prev])
-        setOpExpandida(ordemSelecionada)
-      }
-
-      setPecasProduzidas("")
-      setPecasRefugo("")
-      setPecasRetrabalho("")
-      setObservacao("")
-      setHoraInicio("")
-      setHoraFim("")
-      setMaquinaSelecionada("none")
-
-      toast({ title: "✅ Apontamento registrado", description: "Produção sincronizada com sucesso." })
-    } catch (e: any) {
-      toast({ title: "Erro ao salvar", description: e.message, variant: "destructive" })
-    } finally {
-      setSalvando(false)
-    }
-  }
-
-  const handleExcluirApontamento = async (id: string) => {
-    let q = supabase.from("apontamentos").delete().eq("id", id)
-    if (empresaAtivaId) {
-      q = q.eq("empresa_id", empresaAtivaId)
-    }
-    const { error } = await q
-    
-    if (!error) {
-      setApontamentos((prev) => prev.filter((a) => a.id !== id))
-      toast({ title: "Apontamento removido", description: "Registro excluído com sucesso." })
-    }
-  }
-
-  // ─── KPIs globais ────────────────────────────────────────────────────────────
-
   const kpis = useMemo(() => {
     const totalOPs = ordens.length
-    const opsFechadas = resumos.filter((r) => r.fechada).length
-    const totalProduzidas = apontamentos.reduce((s, a) => s + a.pecasProduzidas, 0)
-    const totalRefugo = apontamentos.reduce((s, a) => s + a.pecasRefugo, 0)
+    const opsFechadas = resumos.filter(r => r.fechada).length
+    const totalProduzidas = apontamentos.reduce((s, a) => s + (a.pecas_produzidas || 0), 0)
+    const totalRefugo = apontamentos.reduce((s, a) => s + (a.pecas_refugo || 0), 0)
     const pctRefugo = totalProduzidas + totalRefugo > 0
-      ? ((totalRefugo / (totalProduzidas + totalRefugo)) * 100).toFixed(1)
-      : "0.0"
+      ? ((totalRefugo / (totalProduzidas + totalRefugo)) * 100).toFixed(1) : "0.0"
     return { totalOPs, opsFechadas, totalProduzidas, totalRefugo, pctRefugo }
   }, [resumos, apontamentos, ordens])
 
-  // ─── Render ──────────────────────────────────────────────────────────────────
+  const ordemAtual = ordens.find(o => o.id === (sessao?.ordemId || ordemSelecionadaId))
 
   if (loading) {
     return (
@@ -345,7 +576,22 @@ const loadData = async () => {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pb-12">
+
+      {/* Modais */}
+      {showModalPausa && (
+        <ModalPausa
+          grupos={grupos}
+          onConfirm={handleConfirmarPausa}
+          onCancel={() => setShowModalPausa(false)}
+        />
+      )}
+      {showModalFinalizar && (
+        <ModalFinalizar
+          onConfirm={handleConfirmarFinalizar}
+          onCancel={() => setShowModalFinalizar(false)}
+        />
+      )}
 
       {/* KPIs */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -369,137 +615,155 @@ const loadData = async () => {
 
       <div className="grid gap-6 md:grid-cols-3">
 
-        {/* Formulário de apontamento */}
+        {/* Painel de controle */}
         <div className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden">
           <div className="px-6 py-4 border-b border-border">
-            <h3 className="text-sm font-bold text-foreground">Registrar Apontamento</h3>
-            <p className="text-[11px] text-muted-foreground mt-0.5">Informe o que foi produzido no turno</p>
+            <h3 className="text-sm font-bold text-foreground">Apontamento</h3>
+            <p className="text-[11px] text-muted-foreground mt-0.5">Selecione a OP e a operação para iniciar</p>
           </div>
+
           <div className="p-6 space-y-4">
+            {!sessao ? (
+              <>
+                {/* Seleção de OP */}
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Ordem de Produção</label>
+                  <select
+                    value={ordemSelecionadaId}
+                    onChange={e => { setOrdemSelecionadaId(e.target.value); setOperacaoSelecionadaId("") }}
+                    className="w-full h-11 px-4 rounded-xl border border-border bg-input text-foreground text-sm outline-none focus:ring-2 focus:ring-primary transition-all"
+                  >
+                    <option value="">Selecione a OP</option>
+                    {ordens.filter(o => o.status !== "encerrada").map(op => (
+                      <option key={op.id} value={op.id}>{op.numero_op} — {op.produto_codigo}</option>
+                    ))}
+                  </select>
+                </div>
 
-            <div className="space-y-1.5">
-              <Label className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">Ordem de Produção</Label>
-              <Select value={ordemSelecionada} onValueChange={setOrdemSelecionada}>
-                <SelectTrigger className="bg-input border-border h-10 text-sm">
-                  <SelectValue placeholder="Selecione a OP" />
-                </SelectTrigger>
-                <SelectContent className="bg-card border-border">
-                  {ordens.length === 0 && (
-                    <SelectItem value="none" disabled>Nenhuma OP na carteira</SelectItem>
+                {/* Dados da OP */}
+                {ordemAtual && (
+                  <div className="bg-muted/40 rounded-xl p-4 space-y-1.5 text-xs">
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Produto</span>
+                      <span className="font-bold text-foreground">{ordemAtual.produto_codigo}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Quantidade</span>
+                      <span className="font-bold text-foreground">{ordemAtual.quantidade} peças</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Programada</span>
+                      <span className="font-bold text-foreground">{ordemAtual.data_programacao?.split("-").reverse().join("/")}</span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Seleção de operação */}
+                {ordemSelecionadaId && (
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Operação</label>
+                    {loadingOps ? (
+                      <div className="h-11 rounded-xl border border-border bg-muted animate-pulse" />
+                    ) : operacoes.length === 0 ? (
+                      <p className="text-xs text-muted-foreground px-1">Nenhuma operação no roteiro deste produto.</p>
+                    ) : (
+                      <select
+                        value={operacaoSelecionadaId}
+                        onChange={e => setOperacaoSelecionadaId(e.target.value)}
+                        className="w-full h-11 px-4 rounded-xl border border-border bg-input text-foreground text-sm outline-none focus:ring-2 focus:ring-primary transition-all"
+                      >
+                        <option value="">Selecione a operação</option>
+                        {operacoes.map(op => (
+                          <option key={op.id} value={op.id}>
+                            {op.ordem}. {op.nome}{op.maquina_codigo ? ` — ${op.maquina_codigo}` : ""}
+                          </option>
+                        ))}
+                      </select>
+                    )}
+                  </div>
+                )}
+
+                <button
+                  onClick={handleIniciar}
+                  disabled={!ordemSelecionadaId || !operacaoSelecionadaId}
+                  className="w-full h-12 flex items-center justify-center gap-2 bg-primary text-primary-foreground font-bold uppercase tracking-widest text-xs rounded-xl shadow-md hover:opacity-90 transition-all disabled:opacity-50"
+                >
+                  <Play className="h-4 w-4" /> Iniciar
+                </button>
+              </>
+            ) : (
+              <>
+                {/* Cronômetro ativo */}
+                <div className="bg-muted/40 rounded-xl p-4 text-center space-y-1">
+                  <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Tempo decorrido</p>
+                  <p className={`text-4xl font-black tabular-nums tracking-tight ${emPausa ? "text-amber-500" : "text-foreground"}`}>
+                    {formatarTempo(segundosDisplay)}
+                  </p>
+                  {emPausa && <p className="text-xs font-bold text-amber-500 uppercase tracking-wider">Em pausa</p>}
+                </div>
+
+                <div className="bg-muted/20 rounded-xl p-4 space-y-1.5 text-xs">
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">OP</span>
+                    <span className="font-bold text-foreground">{ordens.find(o => o.id === sessao.ordemId)?.numero_op}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Operação</span>
+                    <span className="font-bold text-foreground">{sessao.operacaoNome}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Máquina</span>
+                    <span className="font-bold text-foreground">{sessao.maquinaNome}</span>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  {emPausa ? (
+                    <button
+                      onClick={handleRetomar}
+                      className="col-span-2 h-11 flex items-center justify-center gap-2 bg-green-600 text-white font-bold text-xs uppercase tracking-widest rounded-xl hover:opacity-90 transition-all"
+                    >
+                      <Play className="h-4 w-4" /> Retomar
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => grupos.length > 0 ? setShowModalPausa(true) : toast({ title: "Cadastre exceções primeiro", description: "Vá em Exceções e crie grupos de parada.", variant: "destructive" })}
+                      className="h-11 flex items-center justify-center gap-2 bg-amber-500 text-white font-bold text-xs uppercase tracking-widest rounded-xl hover:opacity-90 transition-all"
+                    >
+                      <Pause className="h-4 w-4" /> Pausar
+                    </button>
                   )}
-                  {ordens.map((op) => {
-                    const resumo = resumos.find((r) => r.op.id === op.id)
-                    return (
-                      <SelectItem key={op.id} value={op.id} disabled={resumo?.fechada}>
-                        {op.opNumber} — {op.productCode}
-                        {resumo?.fechada ? " ✓" : ""}
-                      </SelectItem>
-                    )
-                  })}
-                </SelectContent>
-              </Select>
-            </div>
+                  {!emPausa && (
+                    <button
+                      onClick={() => setShowModalFinalizar(true)}
+                      className="h-11 flex items-center justify-center gap-2 bg-card border border-border text-foreground font-bold text-xs uppercase tracking-widest rounded-xl hover:bg-muted transition-all"
+                    >
+                      <Square className="h-4 w-4" /> Finalizar
+                    </button>
+                  )}
+                </div>
 
-            <div className="space-y-1.5">
-              <Label className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">Máquina Utilizada</Label>
-              <Select value={maquinaSelecionada} onValueChange={setMaquinaSelecionada}>
-                <SelectTrigger className="bg-input border-border h-10 text-sm">
-                  <SelectValue placeholder="Selecione a Máquina" />
-                </SelectTrigger>
-                <SelectContent className="bg-card border-border">
-                  <SelectItem value="none">Manual / Sem Máquina</SelectItem>
-                  {maquinas.map((maq) => (
-                    <SelectItem key={maq.id} value={maq.id}>
-                      {maq.nome}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-1.5">
-              <Label className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">Data do Apontamento</Label>
-              <DatePicker value={dataApontamento} onChange={setDataApontamento} />
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">Início</Label>
-                <Input 
-                  type="text" 
-                  placeholder="00:00" 
-                  maxLength={5}
-                  value={horaInicio} 
-                  onChange={(e) => setHoraInicio(formatTimeMask(e.target.value))} 
-                  onBlur={(e) => handleTimeBlur(e.target.value, setHoraInicio)}
-                  className="bg-input border-border h-10 text-sm font-medium" 
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">Fim</Label>
-                <Input 
-                  type="text" 
-                  placeholder="00:00" 
-                  maxLength={5}
-                  value={horaFim} 
-                  onChange={(e) => setHoraFim(formatTimeMask(e.target.value))} 
-                  onBlur={(e) => handleTimeBlur(e.target.value, setHoraFim)}
-                  className="bg-input border-border h-10 text-sm font-medium" 
-                />
-              </div>
-            </div>
-
-            {horaInicio.length === 5 && horaFim.length === 5 && calcularTempoDecorrido(horaInicio, horaFim) > 0 && (
-              <div className="flex items-center gap-2 px-3 py-2 bg-primary/5 border border-primary/20 rounded-lg">
-                <Clock className="h-3.5 w-3.5 text-primary flex-shrink-0" />
-                <span className="text-xs text-primary font-bold">
-                  {formatarMinutos(calcularTempoDecorrido(horaInicio, horaFim))} de produção
-                </span>
-              </div>
+                {emPausa && (
+                  <button
+                    onClick={() => setShowModalFinalizar(true)}
+                    className="w-full h-11 flex items-center justify-center gap-2 bg-card border border-border text-foreground font-bold text-xs uppercase tracking-widest rounded-xl hover:bg-muted transition-all"
+                  >
+                    <Square className="h-4 w-4" /> Finalizar mesmo assim
+                  </button>
+                )}
+              </>
             )}
-
-            <div className="space-y-1.5">
-              <Label className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">Peças produzidas</Label>
-              <Input type="number" min="1" placeholder="Ex: 120" value={pecasProduzidas} onChange={(e) => setPecasProduzidas(e.target.value)} className="bg-input border-border h-10 text-sm" />
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">Refugo</Label>
-                <Input type="number" min="0" placeholder="0" value={pecasRefugo} onChange={(e) => setPecasRefugo(e.target.value)} className="bg-input border-border h-10 text-sm" />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">Retrabalho</Label>
-                <Input type="number" min="0" placeholder="0" value={pecasRetrabalho} onChange={(e) => setPecasRetrabalho(e.target.value)} className="bg-input border-border h-10 text-sm" />
-              </div>
-            </div>
-
-            <div className="space-y-1.5">
-              <Label className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">Observação (opcional)</Label>
-              <Input placeholder="Ex: Parada por falta de material" value={observacao} onChange={(e) => setObservacao(e.target.value)} className="bg-input border-border h-10 text-sm" />
-            </div>
-
-            <Button
-              onClick={handleSalvar}
-              disabled={salvando}
-              className="w-full h-11 font-bold uppercase tracking-widest bg-primary hover:opacity-90 text-primary-foreground rounded-xl shadow-md"
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              {salvando ? "Registrando..." : "Registrar Apontamento"}
-            </Button>
           </div>
         </div>
 
-        {/* Painel de OPs com progresso */}
+        {/* Painel de OPs */}
         <div className="md:col-span-2 space-y-4">
           <div className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden">
-            <div className="px-6 py-4 border-b border-border flex items-center justify-between">
-              <div>
-                <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
-                  <TrendingUp className="h-4 w-4 text-primary" /> Acompanhamento de OPs
-                </h3>
-                <p className="text-[11px] text-muted-foreground mt-0.5">Planejado x realizado por ordem de produção</p>
-              </div>
+            <div className="px-6 py-4 border-b border-border">
+              <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
+                <TrendingUp className="h-4 w-4 text-primary" /> Acompanhamento de OPs
+              </h3>
+              <p className="text-[11px] text-muted-foreground mt-0.5">Planejado x realizado por ordem de produção</p>
             </div>
 
             <div className="divide-y divide-border max-h-[600px] overflow-y-auto">
@@ -509,54 +773,46 @@ const loadData = async () => {
                     <ClipboardList className="h-6 w-6 text-muted-foreground" />
                   </div>
                   <p className="text-sm font-bold text-foreground">Nenhuma OP na carteira</p>
-                  <p className="text-xs text-muted-foreground mt-1">Crie ordens de produção no módulo PCP para começar a apontar.</p>
+                  <p className="text-xs text-muted-foreground mt-1">Crie ordens de produção no módulo PCP para começar.</p>
                 </div>
               )}
 
-              {resumos.map((resumo) => {
-                const badge = badgeStatus(resumo.percentualConclusao)
+              {resumos.map(resumo => {
+                const badge = badgeStatus(resumo.pct)
                 const expandida = opExpandida === resumo.op.id
-                const tempoTotal = resumo.apontamentos.reduce(
-                  (s, a) => s + calcularTempoDecorrido(a.horaInicio, a.horaFim), 0
-                )
 
                 return (
                   <div key={resumo.op.id} className="p-5">
-                    {/* Cabeçalho da OP */}
-                    <div
-                      className="flex items-start justify-between cursor-pointer"
-                      onClick={() => setOpExpandida(expandida ? null : resumo.op.id)}
-                    >
+                    <div className="flex items-start justify-between cursor-pointer" onClick={() => setOpExpandida(expandida ? null : resumo.op.id)}>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <span className="text-sm font-bold text-foreground">{resumo.op.opNumber}</span>
-                          <span className="text-[10px] font-bold px-2 py-0.5 bg-primary/10 text-primary rounded-full uppercase">{resumo.op.productCode}</span>
+                          <span className="text-sm font-bold text-foreground">{resumo.op.numero_op}</span>
+                          <span className="text-[10px] font-bold px-2 py-0.5 bg-primary/10 text-primary rounded-full uppercase">{resumo.op.produto_codigo}</span>
                           <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${badge.classes}`}>{badge.label}</span>
+                          {resumo.fechada && <span className="text-[10px] font-bold px-2 py-0.5 bg-green-500/10 text-green-600 rounded-full border border-green-500/20">Encerrada</span>}
                         </div>
                         <p className="text-xs text-muted-foreground mt-1">
-                          Meta: <strong className="text-foreground">{resumo.op.quantity} peças</strong>
-                          {" · "}Programada: <strong className="text-foreground">{resumo.op.date.split("-").reverse().join("/")}</strong>
+                          Meta: <strong className="text-foreground">{resumo.op.quantidade} peças</strong>
+                          {" · "}Programada: <strong className="text-foreground">{resumo.op.data_programacao?.split("-").reverse().join("/")}</strong>
                         </p>
                       </div>
                       <div className="text-right ml-4 flex-shrink-0">
-                        <p className="text-xl font-bold text-foreground">{resumo.percentualConclusao.toFixed(0)}%</p>
-                        <p className="text-[10px] text-muted-foreground">{resumo.totalProduzidas}/{resumo.op.quantity} pç</p>
+                        <p className="text-xl font-bold text-foreground">{resumo.pct.toFixed(0)}%</p>
+                        <p className="text-[10px] text-muted-foreground">{resumo.totalProduzidas}/{resumo.op.quantidade} pç</p>
                       </div>
                     </div>
 
-                    {/* Barra de progresso */}
                     <div className="mt-3 h-2 bg-muted rounded-full overflow-hidden">
                       <div
                         className={`h-full rounded-full transition-all ${resumo.fechada ? "bg-green-500" : "bg-primary"}`}
-                        style={{ width: `${resumo.percentualConclusao}%` }}
+                        style={{ width: `${resumo.pct}%` }}
                       />
                     </div>
 
-                    {/* Métricas rápidas */}
                     <div className="mt-3 flex gap-4 text-[11px]">
-                      {tempoTotal > 0 && (
+                      {resumo.totalSegundos > 0 && (
                         <span className="text-muted-foreground flex items-center gap-1">
-                          <Clock className="h-3 w-3" /> {formatarMinutos(tempoTotal)}
+                          <Clock className="h-3 w-3" /> {formatarTempo(resumo.totalSegundos)}
                         </span>
                       )}
                       {resumo.totalRefugo > 0 && (
@@ -569,47 +825,39 @@ const loadData = async () => {
                           <AlertTriangle className="h-3 w-3" /> {resumo.totalRetrabalho} retrabalho
                         </span>
                       )}
-                      {resumo.apontamentos.length > 0 && (
-                        <span className="text-muted-foreground">{resumo.apontamentos.length} apontamento{resumo.apontamentos.length > 1 ? "s" : ""}</span>
+                      {resumo.aps.length > 0 && (
+                        <span className="text-muted-foreground">{resumo.aps.length} apontamento{resumo.aps.length > 1 ? "s" : ""}</span>
                       )}
                     </div>
 
-                    {/* Apontamentos expandidos */}
-                    {expandida && resumo.apontamentos.length > 0 && (
+                    {expandida && resumo.aps.length > 0 && (
                       <div className="mt-4 space-y-2">
-                        <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">Histórico de apontamentos</p>
-                        {resumo.apontamentos.map((ap) => (
-                          <div key={ap.id} className="flex items-center justify-between p-3 bg-muted/30 border border-border rounded-xl text-xs">
-                            <div className="flex flex-col gap-0.5">
-                              <span className="font-bold text-foreground">
-                                {ap.dataApontamento.split("-").reverse().join("/")} · {ap.horaInicio} — {ap.horaFim}
-                              </span>
-                              <div className="flex items-center gap-1.5 mt-0.5">
-                                <Factory className="h-3 w-3 text-muted-foreground" />
-                                <span className="text-[10px] text-muted-foreground font-medium uppercase">{ap.maquinaNome}</span>
+                        <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">Histórico</p>
+                        {resumo.aps.map(ap => (
+                          <div key={ap.id} className="flex items-start justify-between p-3 bg-muted/30 border border-border rounded-xl text-xs gap-3">
+                            <div className="flex flex-col gap-0.5 min-w-0">
+                              <span className="font-bold text-foreground">{ap.operacao_nome || "Operação"}</span>
+                              <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                                <span className="text-muted-foreground flex items-center gap-1">
+                                  <Clock className="h-3 w-3" /> {formatarTempo(ap.cronometro_total_segundos || 0)}
+                                </span>
+                                <span className="text-foreground font-bold">{ap.pecas_produzidas} pç</span>
+                                {ap.pecas_refugo > 0 && <span className="text-destructive">{ap.pecas_refugo} refugo</span>}
+                                {ap.pecas_retrabalho > 0 && <span className="text-amber-500">{ap.pecas_retrabalho} retrabalho</span>}
                               </div>
-                              <span className="text-muted-foreground mt-0.5">
-                                {ap.pecasProduzidas} pç produzidas
-                                {ap.pecasRefugo > 0 ? ` · ${ap.pecasRefugo} refugo` : ""}
-                                {ap.pecasRetrabalho > 0 ? ` · ${ap.pecasRetrabalho} retrabalho` : ""}
-                              </span>
-                              {ap.observacao && (
-                                <span className="text-muted-foreground/70 italic mt-0.5">{ap.observacao}</span>
+                              {ap.encerramento && ap.encerramento !== "continuar" && (
+                                <span className="text-[10px] text-muted-foreground italic mt-0.5">
+                                  {ap.encerramento === "encerrar" ? "OP encerrada" : "Encerramento parcial"}
+                                </span>
                               )}
                             </div>
-                            <button
-                              onClick={() => handleExcluirApontamento(ap.id)}
-                              className="h-7 w-7 flex items-center justify-center rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors flex-shrink-0 ml-3"
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </button>
                           </div>
                         ))}
                       </div>
                     )}
 
-                    {expandida && resumo.apontamentos.length === 0 && (
-                      <div className="mt-4 px-3 py-4 bg-muted/20 border border-border border-dashed rounded-xl text-center">
+                    {expandida && resumo.aps.length === 0 && (
+                      <div className="mt-4 px-3 py-4 bg-muted/20 border border-dashed border-border rounded-xl text-center">
                         <p className="text-xs text-muted-foreground">Nenhum apontamento para esta OP ainda.</p>
                       </div>
                     )}
