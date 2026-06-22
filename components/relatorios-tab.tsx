@@ -196,7 +196,7 @@ export function RelatoriosTab({ empresaAtivaId }: { empresaAtivaId?: string | nu
 
   const dadosOEE = useMemo(() => {
     const diasPeriodo = Math.max(1, Math.round((new Date(fim).getTime() - new Date(inicio).getTime()) / (1000 * 60 * 60 * 24)))
-    const horasDisponivelDia = 8 // padrão 8h/dia
+    const horasDisponivelDia = 8
     const tempoDisponivelTotal = diasPeriodo * horasDisponivelDia * 3600
 
     return maquinas.map(maq => {
@@ -216,18 +216,25 @@ export function RelatoriosTab({ empresaAtivaId }: { empresaAtivaId?: string | nu
 
       const disponibilidade = tempoDisponivelTotal > 0 ? Math.min(100, (tempoEfetivo / tempoDisponivelTotal) * 100) : 0
 
-      // Performance: compara tempo real com tempo teórico (ciclo planejado * peças)
       const opsMaq = operacoes.filter(o => o.maquina_id === maq.id)
       const tempoTeorico = opsMaq.reduce((s, o) => {
         const fator = o.unidade === "minutes" ? 60 : 1
         return s + o.tempo * fator * totalProduzidas
       }, 0)
+
+      const semCiclo = opsMaq.length === 0 || tempoTeorico === 0
       const performance = tempoEfetivo > 0 && tempoTeorico > 0
         ? Math.min(100, (tempoTeorico / tempoEfetivo) * 100)
         : tempoEfetivo > 0 ? 80 : 0
 
       const qualidade = totalProduzidas > 0 ? (totalBoas / totalProduzidas) * 100 : 0
       const oee = (disponibilidade / 100) * (performance / 100) * (qualidade / 100) * 100
+
+      // Flags de dados insuficientes
+      const avisos: string[] = []
+      if (!maq.tempo_operacional_dia) avisos.push("Tempo operacional/dia não cadastrado — usando 8h como padrão")
+      if (semCiclo) avisos.push("Sem roteiro vinculado à máquina — Performance estimada em 80%")
+      if (apsMAq.length === 0) avisos.push("Sem apontamentos no período")
 
       return {
         maquina: `${maq.codigo}`,
@@ -240,6 +247,8 @@ export function RelatoriosTab({ empresaAtivaId }: { empresaAtivaId?: string | nu
         totalBoas,
         totalRefugo,
         tempoRodando,
+        avisos,
+        dadosCompletos: avisos.length === 0,
       }
     }).filter(d => d.tempoRodando > 0)
   }, [maquinas, apontamentos, pausas, operacoes, inicio, fim])
@@ -292,6 +301,7 @@ export function RelatoriosTab({ empresaAtivaId }: { empresaAtivaId?: string | nu
         planejadoSeg: parseFloat(d.planejadoSeg.toFixed(1)),
         real: d.count > 0 ? parseFloat(((d.totalSeg / d.count) / 60).toFixed(2)) : 0,
         planejado: parseFloat((d.planejadoSeg / 60).toFixed(2)),
+        semPadrao: d.planejadoSeg === 0,
         desvio: d.planejadoSeg > 0 && d.count > 0
           ? parseFloat((((d.totalSeg / d.count) - d.planejadoSeg) / d.planejadoSeg * 100).toFixed(1))
           : 0,
@@ -452,6 +462,23 @@ export function RelatoriosTab({ empresaAtivaId }: { empresaAtivaId?: string | nu
             <EmptyState label="Nenhum apontamento com máquina vinculada no período" />
           ) : (
             <>
+              {/* Avisos de dados insuficientes */}
+              {dadosOEE.some(d => d.avisos.length > 0) && (
+                <div className="bg-amber-500/5 border border-amber-500/20 rounded-2xl p-4 space-y-2">
+                  <div className="flex items-center gap-2 mb-1">
+                    <AlertTriangle className="h-4 w-4 text-amber-500 flex-shrink-0" />
+                    <p className="text-xs font-bold text-amber-500 uppercase tracking-wider">Dados incompletos — OEE pode ser impreciso</p>
+                  </div>
+                  {dadosOEE.filter(d => d.avisos.length > 0).map(d => (
+                    <div key={d.maquina} className="space-y-1">
+                      <p className="text-[10px] font-bold text-foreground">{d.maquina} — {d.maquinaNome}</p>
+                      {d.avisos.map((av, i) => (
+                        <p key={i} className="text-[10px] text-amber-600 pl-3">· {av}</p>
+                      ))}
+                    </div>
+                  ))}
+                </div>
+              )}
               <div className="bg-card border border-border rounded-2xl shadow-sm p-6">
                 <h3 className="text-sm font-bold text-foreground mb-1">OEE por Máquina</h3>
                 <p className="text-[11px] text-muted-foreground mb-5">Meta de classe mundial: 85%</p>
@@ -572,6 +599,17 @@ export function RelatoriosTab({ empresaAtivaId }: { empresaAtivaId?: string | nu
             <EmptyState label="Nenhum apontamento com operação registrada no período" />
           ) : (
             <>
+              {dadosCiclo.some(d => d.semPadrao) && (
+                <div className="bg-amber-500/5 border border-amber-500/20 rounded-2xl px-4 py-3 flex items-start gap-2">
+                  <AlertTriangle className="h-4 w-4 text-amber-500 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-xs font-bold text-amber-500">Operações sem tempo padrão cadastrado</p>
+                    <p className="text-[10px] text-amber-600 mt-0.5">
+                      {dadosCiclo.filter(d => d.semPadrao).map(d => d.nomeCompleto).join(", ")} — o desvio não pode ser calculado. Cadastre o tempo de ciclo no roteiro do produto.
+                    </p>
+                  </div>
+                </div>
+              )}
               <div className="bg-card border border-border rounded-2xl shadow-sm p-6">
                 <h3 className="text-sm font-bold text-foreground mb-1">Tempo de Ciclo Real vs Planejado</h3>
                 <p className="text-[11px] text-muted-foreground mb-5">Em minutos por peça — média do período</p>
