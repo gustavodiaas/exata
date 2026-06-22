@@ -2,317 +2,490 @@
 
 import React, { useState, useEffect, useMemo } from "react"
 import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  LineChart, Line, Legend, Cell, PieChart, Pie
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
+  ResponsiveContainer, LineChart, Line, Legend, Cell
 } from "recharts"
 import { supabase } from "@/components/supabase"
+import { NativeSelect } from "@/components/native-select"
 import {
-  TrendingUp, TrendingDown, Package, AlertTriangle,
-  CheckCircle2, Clock, ChevronDown, RefreshCw, BarChart2,
-  Bell, X, Factory
+  TrendingUp, TrendingDown, Package, AlertTriangle, CheckCircle2,
+  Clock, RefreshCw, Factory, Boxes, Wrench, PlayCircle, PauseCircle,
+  BarChart3, Activity
 } from "lucide-react"
 
-interface SupabaseOrdem {
-  id: string
-  numero_op: string
-  data_programacao: string
-  produto_codigo: string
-  quantidade: number
-}
-
-interface SupabaseApontamento {
-  id: string
-  ordem_id: string
-  data_apontamento: string
-  pecas_produzidas: number
-  pecas_refugo: number
-  pecas_retrabalho: number
-  maquina_id?: string
-}
-
-interface SupabaseCapacidade {
-  data_excecao: string
-  capacidade_global: number
-  tempo_parada: number
-}
-
-interface SupabaseMaquina {
-  id: string
-  nome: string
-}
+// ─── Interfaces ───────────────────────────────────────────────────────────────
 
 interface OrdemProducao {
   id: string
-  opNumber: string
-  date: string
-  productCode: string
-  quantity: number
+  numero_op: string
+  produto_codigo: string
+  quantidade: number
+  data_programacao: string
+  status?: string
 }
 
 interface Apontamento {
   id: string
-  ordemId: string
-  dataApontamento: string
-  pecasProduzidas: number
-  pecasRefugo: number
-  pecasRetrabalho: number
+  ordem_id: string
+  operacao_nome?: string
   maquina_id?: string
+  cronometro_total_segundos: number
+  pecas_produzidas: number
+  pecas_refugo: number
+  pecas_retrabalho: number
+  status: string
+  created_at: string
 }
 
 interface Maquina {
   id: string
   nome: string
+  codigo: string
+  status: string
 }
 
-interface DailyCapacity {
-  date: string
-  globalCapacity: number
-  downtime: number
+interface SaldoEstoque {
+  insumo_id: string
+  saldo_atual: number
+  insumo: { codigo: string; descricao: string; estoque_minimo: number; unidade_medida: string }
 }
 
-type Periodo = "semana" | "mes" | "trimestre" | "custom"
+interface Pausa {
+  apontamento_id: string
+  inicio: string
+  fim?: string
+}
 
-const DEFAULT_SHIFT_CAPACITY_SECONDS = 29880
+function formatNum(n: number, dec = 1) {
+  return n.toLocaleString("pt-BR", { minimumFractionDigits: dec, maximumFractionDigits: dec })
+}
 
-function toStr(d: Date): string {
+function toDateStr(d: Date) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
 }
 
-function addDays(base: string, n: number): string {
-  const d = new Date(base + "T00:00:00")
-  d.setDate(d.getDate() + n)
-  return toStr(d)
-}
-
-function getMondayOfWeek(): string {
-  const d = new Date()
-  const dow = d.getDay()
-  const diff = dow === 0 ? -6 : 1 - dow
-  d.setDate(d.getDate() + diff)
-  return toStr(d)
-}
-
-function formatDateShort(dateStr: string): string {
-  const [, m, d] = dateStr.split("-")
-  return `${d}/${m}`
-}
-
-const PERIODO_LABELS: Record<Periodo, string> = {
-  semana: "Esta semana",
-  mes: "Este mês",
-  trimestre: "Últimos 3 meses",
-  custom: "Personalizado",
-}
-
-interface TooltipProps {
-  active?: boolean
-  payload?: any[]
-  label?: string
-}
-
-const CustomTooltip = ({ active, payload, label }: TooltipProps) => {
+const CustomTooltip = ({ active, payload, label }: any) => {
   if (!active || !payload?.length) return null
   return (
-    <div className="bg-card border border-border rounded-xl shadow-lg px-4 py-3 text-xs">
-      <p className="font-bold text-foreground mb-2">{label}</p>
-      {payload.map((entry) => (
-        <div key={entry.name} className="flex items-center gap-2 mb-1">
-          <span className="h-2 w-2 rounded-full flex-shrink-0" style={{ background: entry.color }} />
-          <span className="text-muted-foreground">{entry.name}:</span>
-          <span className="font-bold text-foreground">{typeof entry.value === "number" ? entry.value.toLocaleString("pt-BR") : entry.value}</span>
-        </div>
+    <div className="bg-card border border-border rounded-xl shadow-lg px-4 py-3 text-xs space-y-1">
+      <p className="font-bold text-foreground mb-1">{label}</p>
+      {payload.map((p: any, i: number) => (
+        <p key={i} style={{ color: p.color }} className="font-medium">
+          {p.name}: <strong>{typeof p.value === "number" ? p.value.toLocaleString("pt-BR") : p.value}</strong>
+        </p>
       ))}
     </div>
   )
 }
 
+// ─── Componente principal ─────────────────────────────────────────────────────
+
 export function DashboardTab({ empresaAtivaId }: { empresaAtivaId: string | null }) {
+  const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
+  const [periodo, setPeriodo] = useState<"hoje" | "semana" | "mes">("hoje")
+
   const [ordens, setOrdens] = useState<OrdemProducao[]>([])
   const [apontamentos, setApontamentos] = useState<Apontamento[]>([])
   const [maquinas, setMaquinas] = useState<Maquina[]>([])
-  const [capacidades, setCapacidades] = useState<DailyCapacity[]>([])
-  const [loading, setLoading] = useState(true)
-  const [refreshing, setRefreshing] = useState(false)
+  const [saldos, setSaldos] = useState<SaldoEstoque[]>([])
+  const [pausas, setPausas] = useState<Pausa[]>([])
+  const [ultimaAtualizacao, setUltimaAtualizacao] = useState<Date>(new Date())
 
-  const [periodo, setPeriodo] = useState<Periodo>("semana")
-  const [showPeriodMenu, setShowPeriodMenu] = useState(false)
-  const [customStart, setCustomStart] = useState("")
-  const [customEnd, setCustomEnd] = useState("")
-  const [dismissedAlerts, setDismissedAlerts] = useState<Set<string>>(new Set())
-
-  const { dateStart, dateEnd } = useMemo(() => {
-    const today = toStr(new Date())
+  const { dataInicio, dataFim } = useMemo(() => {
+    const hoje = new Date()
+    const fim = toDateStr(hoje)
+    if (periodo === "hoje") return { dataInicio: fim, dataFim: fim }
     if (periodo === "semana") {
-      const monday = getMondayOfWeek()
-      return { dateStart: monday, dateEnd: addDays(monday, 4) }
+      const inicio = new Date(hoje)
+      inicio.setDate(hoje.getDate() - 6)
+      return { dataInicio: toDateStr(inicio), dataFim: fim }
     }
-    if (periodo === "mes") {
-      const d = new Date()
-      const start = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`
-      return { dateStart: start, dateEnd: today }
-    }
-    if (periodo === "trimestre") {
-      return { dateStart: addDays(today, -90), dateEnd: today }
-    }
-    return { dateStart: customStart || addDays(today, -30), dateEnd: customEnd || today }
-  }, [periodo, customStart, customEnd])
+    const inicio = new Date(hoje)
+    inicio.setDate(hoje.getDate() - 29)
+    return { dataInicio: toDateStr(inicio), dataFim: fim }
+  }, [periodo])
 
   const loadData = async (silent = false) => {
     if (!empresaAtivaId) return
-
     if (!silent) setLoading(true)
     else setRefreshing(true)
-    
-    try {
-      const fetchTable = async (table: string) => {
-        const response = await fetch("/api/admin/get-dados", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ table, empresaId: empresaAtivaId }),
-        })
-        const result = await response.json()
-        if (!response.ok) throw new Error(result.error)
-        return result.data || []
-      }
 
-      const [opsData, apData, capData, maqData] = await Promise.all([
-        fetchTable("ordens_producao"),
-        fetchTable("apontamentos"),
-        fetchTable("capacidade_diaria"),
-        fetchTable("maquinas"),
+    try {
+      const inicioISO = new Date(dataInicio + "T00:00:00").toISOString()
+      const fimISO = new Date(dataFim + "T23:59:59").toISOString()
+
+      const [{ data: ops }, { data: aps }, { data: mqs }, { data: sal }, { data: pss }] = await Promise.all([
+        supabase.from("ordens_producao")
+          .select("id, numero_op, produto_codigo, quantidade, data_programacao, status")
+          .eq("empresa_id", empresaAtivaId)
+          .order("data_programacao", { ascending: false }),
+        supabase.from("apontamentos")
+          .select("id, ordem_id, operacao_nome, maquina_id, cronometro_total_segundos, pecas_produzidas, pecas_refugo, pecas_retrabalho, status, created_at")
+          .eq("empresa_id", empresaAtivaId)
+          .gte("created_at", inicioISO)
+          .lte("created_at", fimISO),
+        supabase.from("maquinas")
+          .select("id, nome, codigo, status")
+          .eq("empresa_id", empresaAtivaId),
+        supabase.from("saldo_estoque")
+          .select("insumo_id, saldo_atual, insumos(codigo, descricao, estoque_minimo, unidade_medida)")
+          .eq("empresa_id", empresaAtivaId),
+        supabase.from("apontamento_pausas")
+          .select("apontamento_id, inicio, fim")
+          .eq("empresa_id", empresaAtivaId)
+          .gte("inicio", inicioISO),
       ])
 
-      setOrdens(((opsData as SupabaseOrdem[]) || []).map(op => ({
-        id: op.id, opNumber: op.numero_op, date: op.data_programacao,
-        productCode: op.produto_codigo, quantity: op.quantidade,
-      })))
-
-      setApontamentos(((apData as SupabaseApontamento[]) || []).map(a => ({
-        id: a.id, ordemId: a.ordem_id, dataApontamento: a.data_apontamento,
-        pecasProduzidas: a.pecas_produzidas, pecasRefugo: a.pecas_refugo,
-        pecasRetrabalho: a.pecas_retrabalho, maquina_id: a.maquina_id
-      })))
-
-      setCapacidades(((capData as SupabaseCapacidade[]) || []).map(c => ({
-        date: c.data_excecao, globalCapacity: Number(c.capacidade_global), downtime: Number(c.tempo_parada),
-      })))
-
-      setMaquinas((maqData as SupabaseMaquina[]) || [])
-    } catch (e: any) {
-      console.error("Erro ao carregar dashboard:", e.message)
+      setOrdens((ops || []) as OrdemProducao[])
+      setApontamentos((aps || []) as Apontamento[])
+      setMaquinas((mqs || []) as Maquina[])
+      setSaldos((sal || []).map((s: any) => ({
+        insumo_id: s.insumo_id,
+        saldo_atual: s.saldo_atual,
+        insumo: s.insumos,
+      })) as SaldoEstoque[])
+      setPausas((pss || []) as Pausa[])
+      setUltimaAtualizacao(new Date())
     } finally {
       setLoading(false)
       setRefreshing(false)
     }
   }
 
-  useEffect(() => { 
-    if (empresaAtivaId) {
-      loadData() 
-    }
-  }, [empresaAtivaId])
+  useEffect(() => {
+    if (empresaAtivaId) loadData()
+  }, [empresaAtivaId, dataInicio, dataFim])
 
-  const ordensFiltradas = useMemo(() => ordens.filter(op => op.date >= dateStart && op.date <= dateEnd), [ordens, dateStart, dateEnd])
-  const apontamentosFiltrados = useMemo(() => apontamentos.filter(a => a.dataApontamento >= dateStart && a.dataApontamento <= dateEnd), [apontamentos, dateStart, dateEnd])
+  // Auto-refresh a cada 2 minutos
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (empresaAtivaId) loadData(true)
+    }, 120000)
+    return () => clearInterval(interval)
+  }, [empresaAtivaId, dataInicio, dataFim])
+
+  // ─── KPIs ──────────────────────────────────────────────────────────────────
 
   const kpis = useMemo(() => {
-    const totalOPs = ordensFiltradas.length
-    const opsConcluidas = ordensFiltradas.filter(op => {
-      const total = apontamentos.filter(a => a.ordemId === op.id).reduce((s, a) => s + a.pecasProduzidas, 0)
-      return total >= op.quantity
+    const totalProduzidas = apontamentos.reduce((s, a) => s + (a.pecas_produzidas || 0), 0)
+    const totalRefugo = apontamentos.reduce((s, a) => s + (a.pecas_refugo || 0), 0)
+    const taxaRefugo = totalProduzidas + totalRefugo > 0
+      ? (totalRefugo / (totalProduzidas + totalRefugo)) * 100 : 0
+
+    const opsAbertas = ordens.filter(o => o.status !== "encerrada").length
+    const opsConcluidas = ordens.filter(o => o.status === "encerrada").length
+    const opsAtrasadas = ordens.filter(o => {
+      if (o.status === "encerrada") return false
+      return o.data_programacao < toDateStr(new Date())
     }).length
 
-    const totalProduzidas = apontamentosFiltrados.reduce((s, a) => s + a.pecasProduzidas, 0)
-    const totalRefugo = apontamentosFiltrados.reduce((s, a) => s + a.pecasRefugo, 0)
-    const totalRetrabalho = apontamentosFiltrados.reduce((s, a) => s + a.pecasRetrabalho, 0)
-    const taxaRefugo = totalProduzidas + totalRefugo > 0 ? ((totalRefugo / (totalProduzidas + totalRefugo)) * 100) : 0
-    
-    return { totalOPs, opsConcluidas, totalProduzidas, totalRefugo, totalRetrabalho, taxaRefugo }
-  }, [ordensFiltradas, apontamentosFiltrados, apontamentos])
+    const maqAtivas = new Set(apontamentos.filter(a => a.status === "em_andamento").map(a => a.maquina_id)).size
+    const estoquesCriticos = saldos.filter(s => s.saldo_atual <= s.insumo?.estoque_minimo && s.insumo?.estoque_minimo > 0).length
+    const estoquesZerados = saldos.filter(s => s.saldo_atual <= 0).length
+
+    const totalTempoPausa = pausas.reduce((s, p) => {
+      if (!p.fim) return s
+      return s + (new Date(p.fim).getTime() - new Date(p.inicio).getTime()) / 1000
+    }, 0)
+
+    return { totalProduzidas, totalRefugo, taxaRefugo, opsAbertas, opsConcluidas, opsAtrasadas, maqAtivas, estoquesCriticos, estoquesZerados, totalTempoPausa }
+  }, [apontamentos, ordens, saldos, pausas])
+
+  // ─── Produção por máquina ──────────────────────────────────────────────────
 
   const producaoPorMaquina = useMemo(() => {
-    const map: Record<string, number> = {}
-    apontamentosFiltrados.forEach(a => {
-      const maq = maquinas.find(m => m.id === a.maquina_id)
-      const nome = maq ? maq.nome : "Manual / Sem Máquina"
-      map[nome] = (map[nome] || 0) + a.pecasProduzidas
-    })
-    return Object.entries(map).map(([nome, qtd]) => ({ nome, qtd })).sort((a,b) => b.qtd - a.qtd)
-  }, [apontamentosFiltrados, maquinas])
-
-  const alertas = useMemo(() => {
-    const lista: { id: string; tipo: "critico" | "atencao"; titulo: string; descricao: string }[] = []
-    if (kpis.taxaRefugo > 5) {
-      lista.push({ id: "refugo-alto", tipo: "critico", titulo: `Refugo alto: ${kpis.taxaRefugo.toFixed(1)}%`, descricao: "Verifique os processos na fábrica." })
+    const mapa: Record<string, { nome: string; produzidas: number; refugo: number }> = {}
+    for (const ap of apontamentos) {
+      const maq = maquinas.find(m => m.id === ap.maquina_id)
+      const nome = maq ? `${maq.codigo}` : "Manual"
+      if (!mapa[nome]) mapa[nome] = { nome, produzidas: 0, refugo: 0 }
+      mapa[nome].produzidas += ap.pecas_produzidas || 0
+      mapa[nome].refugo += ap.pecas_refugo || 0
     }
-    return lista.filter(a => !dismissedAlerts.has(a.id))
-  }, [kpis, dismissedAlerts])
+    return Object.values(mapa).sort((a, b) => b.produzidas - a.produzidas).slice(0, 8)
+  }, [apontamentos, maquinas])
 
-  if (loading) return <div className="flex h-60 items-center justify-center text-xs text-muted-foreground animate-pulse font-bold uppercase">Carregando painel...</div>
+  // ─── OPs em andamento ─────────────────────────────────────────────────────
+
+  const opsEmAndamento = useMemo(() => {
+    return ordens
+      .filter(o => o.status !== "encerrada")
+      .map(op => {
+        const aps = apontamentos.filter(a => a.ordem_id === op.id)
+        const produzidas = aps.reduce((s, a) => s + (a.pecas_produzidas || 0), 0)
+        const pct = op.quantidade > 0 ? Math.min(100, (produzidas / op.quantidade) * 100) : 0
+        const atrasada = op.data_programacao < toDateStr(new Date())
+        const emAndamento = aps.some(a => a.status === "em_andamento")
+        return { op, produzidas, pct, atrasada, emAndamento }
+      })
+      .sort((a, b) => {
+        if (a.atrasada && !b.atrasada) return -1
+        if (!a.atrasada && b.atrasada) return 1
+        return 0
+      })
+      .slice(0, 6)
+  }, [ordens, apontamentos])
+
+  // ─── Status das máquinas ──────────────────────────────────────────────────
+
+  const statusMaquinas = useMemo(() => {
+    return maquinas.map(maq => {
+      const apAtivo = apontamentos.find(a => a.maquina_id === maq.id && a.status === "em_andamento")
+      const pausaAberta = apAtivo ? pausas.find(p => p.apontamento_id === apAtivo.id && !p.fim) : null
+      const ultimoAp = apontamentos
+        .filter(a => a.maquina_id === maq.id)
+        .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0]
+
+      let statusLabel = "Parada"
+      let statusColor = "text-muted-foreground"
+      let statusBg = "bg-muted/40"
+
+      if (maq.status === "inativa") {
+        statusLabel = "Inativa"
+        statusColor = "text-muted-foreground"
+        statusBg = "bg-muted/20"
+      } else if (apAtivo && pausaAberta) {
+        statusLabel = "Em pausa"
+        statusColor = "text-amber-500"
+        statusBg = "bg-amber-500/10"
+      } else if (apAtivo) {
+        statusLabel = "Produzindo"
+        statusColor = "text-green-600"
+        statusBg = "bg-green-500/10"
+      } else if (ultimoAp) {
+        const horasSemAp = (Date.now() - new Date(ultimoAp.created_at).getTime()) / (1000 * 60 * 60)
+        if (horasSemAp > 4) {
+          statusLabel = "Sem atividade"
+          statusColor = "text-amber-500"
+          statusBg = "bg-amber-500/10"
+        }
+      }
+
+      return { maq, statusLabel, statusColor, statusBg, apAtivo, pausaAberta }
+    })
+  }, [maquinas, apontamentos, pausas])
+
+  if (loading) {
+    return (
+      <div className="flex h-60 items-center justify-center text-xs text-muted-foreground animate-pulse font-bold uppercase tracking-widest">
+        Carregando painel...
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-6 pb-8">
+
+      {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h2 className="text-lg font-bold text-foreground">Dashboard Operacional</h2>
+          <h2 className="text-lg font-bold text-foreground">Dashboard</h2>
+          <p className="text-[11px] text-muted-foreground mt-0.5">
+            Atualizado às {ultimaAtualizacao.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
+          </p>
         </div>
-        <button onClick={() => loadData(true)} className={`h-9 w-9 flex items-center justify-center bg-card border border-border rounded-xl text-muted-foreground hover:text-primary transition-colors ${refreshing ? "animate-spin" : ""}`}>
-          <RefreshCw className="h-4 w-4" />
-        </button>
+        <div className="flex items-center gap-2">
+          <div className="flex gap-1 bg-muted/50 p-1 rounded-xl">
+            {(["hoje", "semana", "mes"] as const).map(p => (
+              <button
+                key={p}
+                onClick={() => setPeriodo(p)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all
+                  ${periodo === p ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+              >
+                {p === "hoje" ? "Hoje" : p === "semana" ? "7 dias" : "30 dias"}
+              </button>
+            ))}
+          </div>
+          <button
+            onClick={() => loadData(true)}
+            className={`h-9 w-9 flex items-center justify-center bg-card border border-border rounded-xl text-muted-foreground hover:text-primary transition-colors ${refreshing ? "animate-spin" : ""}`}
+          >
+            <RefreshCw className="h-4 w-4" />
+          </button>
+        </div>
       </div>
 
+      {/* KPIs principais */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {[
-          { label: "Peças Produzidas", value: kpis.totalProduzidas.toLocaleString("pt-BR"), icon: Package },
-          { label: "Taxa de Refugo", value: `${kpis.taxaRefugo.toFixed(1)}%`, icon: TrendingDown },
-          { label: "OPs Concluídas", value: kpis.opsConcluidas, icon: CheckCircle2 },
-          { label: "Retrabalho", value: kpis.totalRetrabalho, icon: Clock },
-        ].map(({ label, value, icon: Icon }) => (
-          <div key={label} className="bg-card border border-border rounded-2xl p-4 shadow-sm flex items-center gap-4">
-            <div className="h-9 w-9 rounded-xl bg-primary/10 flex items-center justify-center text-primary"><Icon className="h-4 w-4" /></div>
-            <div>
-              <p className="text-[10px] uppercase font-bold text-muted-foreground">{label}</p>
-              <p className="text-lg font-bold text-foreground">{value}</p>
+          {
+            label: "Peças produzidas",
+            value: kpis.totalProduzidas.toLocaleString("pt-BR"),
+            icon: Package,
+            color: "text-primary",
+            sub: `${kpis.totalRefugo} refugo`
+          },
+          {
+            label: "Taxa de refugo",
+            value: `${formatNum(kpis.taxaRefugo)}%`,
+            icon: TrendingDown,
+            color: kpis.taxaRefugo > 5 ? "text-destructive" : kpis.taxaRefugo > 2 ? "text-amber-500" : "text-green-600",
+            sub: kpis.taxaRefugo > 5 ? "Acima do limite" : "Dentro do limite"
+          },
+          {
+            label: "OPs em aberto",
+            value: kpis.opsAbertas,
+            icon: Activity,
+            color: "text-primary",
+            sub: kpis.opsAtrasadas > 0 ? `${kpis.opsAtrasadas} atrasada${kpis.opsAtrasadas > 1 ? "s" : ""}` : `${kpis.opsConcluidas} concluída${kpis.opsConcluidas !== 1 ? "s" : ""}`
+          },
+          {
+            label: "Itens críticos no estoque",
+            value: kpis.estoquesCriticos + kpis.estoquesZerados,
+            icon: Boxes,
+            color: kpis.estoquesCriticos + kpis.estoquesZerados > 0 ? "text-destructive" : "text-green-600",
+            sub: kpis.estoquesZerados > 0 ? `${kpis.estoquesZerados} zerado${kpis.estoquesZerados > 1 ? "s" : ""}` : "Estoque ok"
+          },
+        ].map(({ label, value, icon: Icon, color, sub }) => (
+          <div key={label} className="bg-card border border-border rounded-2xl px-5 py-4 shadow-sm">
+            <div className="flex items-center gap-3 mb-2">
+              <div className="h-9 w-9 flex items-center justify-center rounded-xl bg-muted flex-shrink-0">
+                <Icon className={`h-4 w-4 ${color}`} />
+              </div>
+              <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider leading-tight">{label}</p>
             </div>
+            <p className="text-2xl font-black text-foreground">{value}</p>
+            <p className={`text-[10px] font-bold mt-1 ${color}`}>{sub}</p>
           </div>
         ))}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 bg-card border border-border rounded-2xl p-6 shadow-sm">
-          <div className="flex items-center gap-2 mb-6">
+
+        {/* Status das máquinas em tempo real */}
+        <div className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden">
+          <div className="px-5 py-4 border-b border-border flex items-center gap-2">
             <Factory className="h-4 w-4 text-primary" />
-            <h3 className="text-sm font-bold text-foreground">Produção por Máquina</h3>
+            <h3 className="text-sm font-bold text-foreground">Máquinas agora</h3>
+            <span className="ml-auto flex items-center gap-1">
+              <span className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
+              <span className="text-[10px] text-muted-foreground">Ao vivo</span>
+            </span>
           </div>
+          <div className="divide-y divide-border">
+            {maquinas.length === 0 && (
+              <p className="px-5 py-4 text-xs text-muted-foreground">Nenhuma máquina cadastrada</p>
+            )}
+            {statusMaquinas.map(({ maq, statusLabel, statusColor, statusBg, apAtivo, pausaAberta }) => (
+              <div key={maq.id} className="flex items-center justify-between px-5 py-3">
+                <div className="min-w-0">
+                  <p className="text-xs font-bold text-foreground">{maq.codigo}</p>
+                  <p className="text-[10px] text-muted-foreground truncate">{maq.nome}</p>
+                </div>
+                <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full ${statusBg}`}>
+                  {statusLabel === "Produzindo" && <PlayCircle className="h-3 w-3 text-green-600" />}
+                  {statusLabel === "Em pausa" && <PauseCircle className="h-3 w-3 text-amber-500" />}
+                  {(statusLabel === "Parada" || statusLabel === "Sem atividade" || statusLabel === "Inativa") && (
+                    <span className={`h-1.5 w-1.5 rounded-full ${statusLabel === "Sem atividade" ? "bg-amber-500" : "bg-muted-foreground/40"}`} />
+                  )}
+                  <span className={`text-[10px] font-bold ${statusColor}`}>{statusLabel}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* OPs em andamento */}
+        <div className="lg:col-span-2 bg-card border border-border rounded-2xl shadow-sm overflow-hidden">
+          <div className="px-5 py-4 border-b border-border flex items-center gap-2">
+            <Activity className="h-4 w-4 text-primary" />
+            <h3 className="text-sm font-bold text-foreground">Ordens em aberto</h3>
+            <span className="text-[10px] bg-primary/10 text-primary font-bold px-2 py-0.5 rounded-full ml-1">{kpis.opsAbertas}</span>
+          </div>
+          <div className="divide-y divide-border">
+            {opsEmAndamento.length === 0 && (
+              <div className="px-5 py-8 text-center">
+                <CheckCircle2 className="h-8 w-8 text-green-500 mx-auto mb-2" />
+                <p className="text-sm font-bold text-foreground">Nenhuma OP em aberto</p>
+                <p className="text-xs text-muted-foreground mt-1">Todas as ordens foram encerradas</p>
+              </div>
+            )}
+            {opsEmAndamento.map(({ op, produzidas, pct, atrasada, emAndamento }) => (
+              <div key={op.id} className={`px-5 py-3 ${atrasada ? "bg-destructive/5" : ""}`}>
+                <div className="flex items-center justify-between mb-1.5">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="text-xs font-bold text-foreground">{op.numero_op}</span>
+                    <span className="text-[10px] font-bold px-1.5 py-0.5 bg-primary/10 text-primary rounded-full">{op.produto_codigo}</span>
+                    {atrasada && <span className="text-[10px] font-bold px-1.5 py-0.5 bg-destructive/10 text-destructive rounded-full">Atrasada</span>}
+                    {emAndamento && <span className="text-[10px] font-bold px-1.5 py-0.5 bg-green-500/10 text-green-600 rounded-full flex items-center gap-0.5"><span className="h-1 w-1 rounded-full bg-green-500 animate-pulse" />Rodando</span>}
+                  </div>
+                  <div className="text-right flex-shrink-0 ml-3">
+                    <span className="text-sm font-bold text-foreground">{pct.toFixed(0)}%</span>
+                    <p className="text-[10px] text-muted-foreground">{produzidas}/{op.quantidade} pç</p>
+                  </div>
+                </div>
+                <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+                  <div
+                    className={`h-full rounded-full transition-all ${atrasada ? "bg-destructive" : pct >= 100 ? "bg-green-500" : "bg-primary"}`}
+                    style={{ width: `${pct}%` }}
+                  />
+                </div>
+                <p className="text-[10px] text-muted-foreground mt-1">
+                  Programada: {op.data_programacao.split("-").reverse().join("/")}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Produção por máquina + Estoque crítico */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+        <div className="bg-card border border-border rounded-2xl shadow-sm p-6">
+          <h3 className="text-sm font-bold text-foreground mb-1 flex items-center gap-2">
+            <BarChart3 className="h-4 w-4 text-primary" /> Produção por máquina
+          </h3>
+          <p className="text-[11px] text-muted-foreground mb-4">Peças produzidas no período</p>
           {producaoPorMaquina.length === 0 ? (
-            <div className="h-48 flex items-center justify-center text-xs text-muted-foreground">Sem apontamentos por máquina</div>
+            <div className="h-40 flex items-center justify-center text-xs text-muted-foreground">Sem apontamentos no período</div>
           ) : (
-            <ResponsiveContainer width="100%" height={240}>
+            <ResponsiveContainer width="100%" height={220}>
               <BarChart data={producaoPorMaquina} layout="vertical">
-                <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="hsl(var(--border))" />
-                <XAxis type="number" tick={{ fontSize: 10 }} axisLine={false} />
-                <YAxis dataKey="nome" type="category" tick={{ fontSize: 10 }} axisLine={false} width={100} />
+                <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="hsl(var(--border))" />
+                <XAxis type="number" tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} />
+                <YAxis dataKey="nome" type="category" tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} width={55} />
                 <Tooltip content={<CustomTooltip />} />
-                <Bar dataKey="qtd" fill="#0057FF" radius={[0, 4, 4, 0]} barSize={30} />
+                <Bar dataKey="produzidas" name="Produzidas" fill="hsl(var(--primary))" radius={[0, 4, 4, 0]} barSize={18} />
+                <Bar dataKey="refugo" name="Refugo" fill="#ef4444" radius={[0, 4, 4, 0]} barSize={18} />
               </BarChart>
             </ResponsiveContainer>
           )}
         </div>
 
-        <div className="bg-card border border-border rounded-2xl p-6 shadow-sm">
-          <div className="flex items-center gap-2 mb-4">
+        <div className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden">
+          <div className="px-5 py-4 border-b border-border flex items-center gap-2">
             <AlertTriangle className="h-4 w-4 text-amber-500" />
-            <h3 className="text-sm font-bold text-foreground">Alertas</h3>
+            <h3 className="text-sm font-bold text-foreground">Estoque crítico</h3>
           </div>
-          {alertas.length === 0 ? (
-            <p className="text-xs text-muted-foreground">Tudo operando dentro dos limites.</p>
+          {saldos.filter(s => s.saldo_atual <= (s.insumo?.estoque_minimo ?? 0) || s.saldo_atual <= 0).length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-10 text-center px-5">
+              <CheckCircle2 className="h-8 w-8 text-green-500 mb-2" />
+              <p className="text-sm font-bold text-foreground">Estoque saudável</p>
+              <p className="text-xs text-muted-foreground mt-1">Todos os itens acima do mínimo</p>
+            </div>
           ) : (
-            alertas.map(a => (
-              <div key={a.id} className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl text-xs">
-                <p className="font-bold text-amber-600">{a.titulo}</p>
-                <p className="text-muted-foreground mt-1">{a.descricao}</p>
-              </div>
-            ))
+            <div className="divide-y divide-border max-h-[260px] overflow-y-auto">
+              {saldos
+                .filter(s => s.saldo_atual <= (s.insumo?.estoque_minimo ?? 0) || s.saldo_atual <= 0)
+                .sort((a, b) => a.saldo_atual - b.saldo_atual)
+                .map(s => (
+                  <div key={s.insumo_id} className="flex items-center justify-between px-5 py-3">
+                    <div className="min-w-0">
+                      <p className="text-xs font-bold text-foreground truncate">{s.insumo?.codigo}</p>
+                      <p className="text-[10px] text-muted-foreground truncate">{s.insumo?.descricao}</p>
+                    </div>
+                    <div className="text-right flex-shrink-0 ml-3">
+                      <p className={`text-xs font-bold ${s.saldo_atual <= 0 ? "text-destructive" : "text-amber-500"}`}>
+                        {s.saldo_atual.toFixed(2)} {s.insumo?.unidade_medida}
+                      </p>
+                      <p className="text-[10px] text-muted-foreground">Mín: {s.insumo?.estoque_minimo}</p>
+                    </div>
+                  </div>
+                ))}
+            </div>
           )}
         </div>
       </div>
