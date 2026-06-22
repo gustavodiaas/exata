@@ -10,26 +10,28 @@ import { ApontamentoTab } from "@/components/apontamento-tab"
 import { ExcecoesTab } from "@/components/excecoes-tab"
 import { EstoqueTab } from "@/components/estoque-tab"
 import { RelatoriosTab } from "@/components/relatorios-tab"
+import { DashboardTab } from "@/components/dashboard-tab"
 import { MaquinasTab } from "@/components/maquinas-tab"
 import { ManutencaoTab } from "@/components/manutencao-tab"
 import { OnboardingChecklist } from "@/components/onboarding-checklist"
 import {
   Settings, Sun, Moon, Monitor, BookText, BarChart2, ClipboardCheck,
   CalendarClock, Menu, X, PanelLeftClose, PanelLeftOpen, Factory, Wrench, Key,
-  Copy, Check, Eye, EyeOff, Tag, Boxes, LineChart
+  Copy, Check, Eye, EyeOff, Tag, Boxes, LineChart, Bell, LayoutDashboard, AlertTriangle
 } from "lucide-react"
 
-type TabId = "gbo" | "pcp" | "apontamento" | "maquinas" | "manutencao" | "excecoes" | "estoque" | "relatorios" | "configuracoes"
+type TabId = "dashboard" | "gbo" | "pcp" | "apontamento" | "maquinas" | "manutencao" | "excecoes" | "estoque" | "relatorios" | "configuracoes"
 
 const NAV_ITEMS: { id: TabId; label: string; sublabel: string; icon: React.ElementType }[] = [
-  { id: "gbo",        label: "Produto/Roteiro", sublabel: "Gerenciamento Diário",    icon: BarChart2      },
-  { id: "pcp",        label: "PCP",             sublabel: "Programação de Produção",  icon: CalendarClock  },
-  { id: "maquinas",   label: "Máquinas",         sublabel: "Postos de Trabalho",      icon: Factory        },
-  { id: "manutencao", label: "Manutenção",        sublabel: "Gestão de Ativos",        icon: Wrench         },
-  { id: "apontamento",label: "Apontamento",       sublabel: "Registro de Produção",    icon: ClipboardCheck },
-  { id: "estoque",    label: "Estoque",           sublabel: "Controle de Inventário",  icon: Boxes          },
-  { id: "excecoes",   label: "Exceções",          sublabel: "Motivos de Parada",       icon: Tag            },
-  { id: "relatorios", label: "Relatórios",        sublabel: "Análise de Desempenho",   icon: LineChart      },
+  { id: "dashboard",  label: "Dashboard",       sublabel: "Visão em tempo real",     icon: LayoutDashboard },
+  { id: "gbo",        label: "Produto/Roteiro", sublabel: "Gerenciamento Diário",    icon: BarChart2       },
+  { id: "pcp",        label: "PCP",             sublabel: "Programação de Produção", icon: CalendarClock   },
+  { id: "maquinas",   label: "Máquinas",         sublabel: "Postos de Trabalho",     icon: Factory         },
+  { id: "manutencao", label: "Manutenção",        sublabel: "Gestão de Ativos",       icon: Wrench          },
+  { id: "apontamento",label: "Apontamento",       sublabel: "Registro de Produção",   icon: ClipboardCheck  },
+  { id: "estoque",    label: "Estoque",           sublabel: "Controle de Inventário", icon: Boxes           },
+  { id: "excecoes",   label: "Exceções",          sublabel: "Motivos de Parada",      icon: Tag             },
+  { id: "relatorios", label: "Relatórios",        sublabel: "Análise de Desempenho",  icon: LineChart       },
 ]
 
 const STORAGE_KEY = "exata_empresa_id"
@@ -64,10 +66,12 @@ export default function ExataApp() {
   const [defaultTimeUnit, setDefaultTimeUnit] = useState<"hours" | "minutes" | "seconds">("hours")
   const [isSavingConf,    setIsSavingConf]    = useState(false)
 
-  const [activeTab,    setActiveTab]    = useState<TabId>("gbo")
+  const [activeTab,    setActiveTab]    = useState<TabId>("dashboard")
   const [collapsed,    setCollapsed]    = useState(false)
   const [mobileOpen,   setMobileOpen]   = useState(false)
   const [mounted,      setMounted]      = useState(false)
+  const [showAlertas,  setShowAlertas]  = useState(false)
+  const [alertas,      setAlertas]      = useState<{ id: string; tipo: "critico" | "atencao"; titulo: string; descricao: string; tab?: TabId }[]>([])
   const { theme, setTheme } = useTheme()
   const { toast } = useToast()
 
@@ -89,6 +93,7 @@ export default function ExataApp() {
           if (data) {
             setEmpresaAtivaId(data.id)
             setEmpresaName(data.nome)
+            carregarAlertas(data.id)
             // busca o código da fábrica para exibir nas configurações
             const { data: cod } = await supabase
               .from("codigos_acesso")
@@ -106,7 +111,52 @@ export default function ExataApp() {
     }
   }, [])
 
-  // --- Entrar com código ---
+  // --- Alertas automáticos ---
+  const carregarAlertas = async (empId: string) => {
+    const novosAlertas: typeof alertas = []
+
+    // Estoque crítico
+    const { data: saldos } = await supabase
+      .from("saldo_estoque")
+      .select("saldo_atual, insumos(codigo, estoque_minimo)")
+      .eq("empresa_id", empId)
+
+    for (const s of saldos || []) {
+      const ins = (s as any).insumos
+      if (!ins) continue
+      if (s.saldo_atual <= 0) {
+        novosAlertas.push({ id: `estoque-zero-${(s as any).insumo_id}`, tipo: "critico", titulo: `Estoque zerado: ${ins.codigo}`, descricao: "Sem saldo disponível. Faça um recebimento.", tab: "estoque" })
+      } else if (s.saldo_atual <= ins.estoque_minimo && ins.estoque_minimo > 0) {
+        novosAlertas.push({ id: `estoque-min-${(s as any).insumo_id}`, tipo: "atencao", titulo: `Estoque baixo: ${ins.codigo}`, descricao: `Saldo ${s.saldo_atual.toFixed(2)} abaixo do mínimo de ${ins.estoque_minimo}.`, tab: "estoque" })
+      }
+    }
+
+    // OPs atrasadas
+    const hoje = new Date().toISOString().split("T")[0]
+    const { data: ops } = await supabase
+      .from("ordens_producao")
+      .select("numero_op, data_programacao")
+      .eq("empresa_id", empId)
+      .neq("status", "encerrada")
+      .lt("data_programacao", hoje)
+
+    for (const op of ops || []) {
+      novosAlertas.push({ id: `op-atrasada-${(op as any).numero_op}`, tipo: "critico", titulo: `OP atrasada: ${(op as any).numero_op}`, descricao: `Programada para ${(op as any).data_programacao.split("-").reverse().join("/")} e ainda em aberto.`, tab: "pcp" })
+    }
+
+    // Manutenções pendentes
+    const { data: mants } = await supabase
+      .from("manutencao")
+      .select("id")
+      .eq("empresa_id", empId)
+      .eq("status", "pendente")
+
+    if ((mants?.length ?? 0) > 0) {
+      novosAlertas.push({ id: "manutencao-pendente", tipo: "atencao", titulo: `${mants!.length} OS de manutenção pendente${mants!.length > 1 ? "s" : ""}`, descricao: "Ordens de serviço aguardando execução.", tab: "manutencao" })
+    }
+
+    setAlertas(novosAlertas)
+  }
   const handleCodigo = async () => {
     if (!codigoInput.trim()) return
     setIsChecking(true)
@@ -128,8 +178,7 @@ export default function ExataApp() {
     localStorage.setItem(STORAGE_KEY, emp.id)
     setEmpresaAtivaId(emp.id)
     setEmpresaName(emp.nome)
-
-    // busca código para configurações
+    carregarAlertas(emp.id)
     const { data: cod } = await supabase
       .from("codigos_acesso")
       .select("codigo")
@@ -390,14 +439,58 @@ export default function ExataApp() {
                 </p>
               </div>
             )}
-            <button
-              onClick={() => setCollapsed(!collapsed)}
-              className="h-8 w-8 flex items-center justify-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors flex-shrink-0"
-              title={collapsed ? "Expandir menu" : "Recolher menu"}
-            >
-              {collapsed ? <PanelLeftOpen className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
-            </button>
+            <div className="flex items-center gap-1 flex-shrink-0">
+              {!collapsed && (
+                <button
+                  onClick={() => setShowAlertas(!showAlertas)}
+                  className="relative h-8 w-8 flex items-center justify-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+                  title="Alertas"
+                >
+                  <Bell className="h-4 w-4" />
+                  {alertas.length > 0 && (
+                    <span className={`absolute top-1 right-1 h-2 w-2 rounded-full ${alertas.some(a => a.tipo === "critico") ? "bg-destructive" : "bg-amber-500"}`} />
+                  )}
+                </button>
+              )}
+              <button
+                onClick={() => setCollapsed(!collapsed)}
+                className="h-8 w-8 flex items-center justify-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors flex-shrink-0"
+                title={collapsed ? "Expandir menu" : "Recolher menu"}
+              >
+                {collapsed ? <PanelLeftOpen className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
+              </button>
+            </div>
           </div>
+
+          {/* Painel de alertas */}
+          {showAlertas && !collapsed && (
+            <div className="border-b border-border bg-muted/20">
+              {alertas.length === 0 ? (
+                <div className="px-4 py-3 flex items-center gap-2 text-xs text-muted-foreground">
+                  <Check className="h-3.5 w-3.5 text-green-500" />
+                  Sem alertas ativos
+                </div>
+              ) : (
+                <div className="divide-y divide-border max-h-64 overflow-y-auto">
+                  {alertas.map(a => (
+                    <button
+                      key={a.id}
+                      onClick={() => { if (a.tab) goTab(a.tab); setShowAlertas(false) }}
+                      className="w-full text-left px-4 py-3 hover:bg-muted/50 transition-colors"
+                    >
+                      <div className="flex items-start gap-2">
+                        <AlertTriangle className={`h-3.5 w-3.5 flex-shrink-0 mt-0.5 ${a.tipo === "critico" ? "text-destructive" : "text-amber-500"}`} />
+                        <div className="min-w-0">
+                          <p className="text-[11px] font-bold text-foreground leading-tight">{a.titulo}</p>
+                          <p className="text-[10px] text-muted-foreground mt-0.5 leading-tight">{a.descricao}</p>
+                        </div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
 
           <nav className="flex-1 px-2 py-3 space-y-1">
             {NAV_ITEMS.map((item) => (
@@ -520,6 +613,12 @@ export default function ExataApp() {
                 empresaAtivaId={empresaAtivaId}
                 onGoToTab={(tab) => goTab(tab as any)}
               />
+            )}
+
+            {activeTab === "dashboard" && (
+              <div className="animate-in fade-in duration-300">
+                <DashboardTab empresaAtivaId={empresaAtivaId} />
+              </div>
             )}
 
             {activeTab === "gbo" && (
