@@ -162,30 +162,37 @@ export default function ExataApp() {
     setIsChecking(true)
     setCodigoError("")
 
-    const { data, error } = await supabase
+    // 1. Busca o código
+    const { data: codData, error: codError } = await supabase
       .from("codigos_acesso")
-      .select("empresa_id, empresas(id, nome)")
+      .select("empresa_id")
       .eq("codigo", codigoInput.trim())
       .single()
 
-    if (error || !data) {
+    if (codError || !codData) {
       setCodigoError("Código não encontrado. Verifique e tente novamente.")
       setIsChecking(false)
       return
     }
 
-    const emp = data.empresas as any
-    localStorage.setItem(STORAGE_KEY, emp.id)
-    setEmpresaAtivaId(emp.id)
-    setEmpresaName(emp.nome)
-    carregarAlertas(emp.id)
-    const { data: cod } = await supabase
-      .from("codigos_acesso")
-      .select("codigo")
-      .eq("empresa_id", emp.id)
+    // 2. Busca a empresa separadamente
+    const { data: empData, error: empError } = await supabase
+      .from("empresas")
+      .select("id, nome")
+      .eq("id", codData.empresa_id)
       .single()
-    if (cod) setCodigoAtual(cod.codigo)
 
+    if (empError || !empData) {
+      setCodigoError("Erro ao carregar os dados da fábrica. Tente novamente.")
+      setIsChecking(false)
+      return
+    }
+
+    localStorage.setItem(STORAGE_KEY, empData.id)
+    setEmpresaAtivaId(empData.id)
+    setEmpresaName(empData.nome)
+    setCodigoAtual(codigoInput.trim())
+    carregarAlertas(empData.id)
     setIsChecking(false)
   }
 
