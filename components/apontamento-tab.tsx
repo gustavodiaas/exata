@@ -6,7 +6,7 @@ import { useToast } from "@/hooks/use-toast"
 import { NativeSelect } from "@/components/native-select"
 import {
   Play, Pause, Square, Plus, Trash2, ClipboardList, TrendingUp,
-  AlertTriangle, CheckCircle2, Clock, Package, Factory, ChevronDown, X
+  AlertTriangle, CheckCircle2, Clock, Package, Factory, ChevronDown, X, Wrench
 } from "lucide-react"
 
 // ─── Interfaces ───────────────────────────────────────────────────────────────
@@ -448,6 +448,9 @@ export function ApontamentoTab({ empresaAtivaId }: { empresaAtivaId?: string | n
 
   // ─── Pausar ────────────────────────────────────────────────────────────────
 
+  const [showSugestaoManutencao, setShowSugestaoManutencao] = useState(false)
+  const [subgrupoParada, setSubgrupoParada] = useState<{ nome: string; grupo: string } | null>(null)
+
   const handleConfirmarPausa = async (subgrupoId: string) => {
     if (!sessao) return
     setShowModalPausa(false)
@@ -478,6 +481,22 @@ export function ApontamentoTab({ empresaAtivaId }: { empresaAtivaId?: string | n
     }
     salvarSessao(sessaoAtualizada)
     setEmPausa(true)
+
+    // Verifica se o motivo é de manutenção para sugerir OS
+    const subgrupo = grupos.flatMap(g => g.subgrupos.map(s => ({ ...s, grupo: g.nome }))).find(s => s.id === subgrupoId)
+    if (subgrupo) {
+      const grupoLower = subgrupo.grupo.toLowerCase()
+      const motivoLower = subgrupo.nome.toLowerCase()
+      const ehManutencao = grupoLower.includes("manu") || motivoLower.includes("manu") ||
+        motivoLower.includes("corretiva") || motivoLower.includes("preventiva") ||
+        motivoLower.includes("quebra") || motivoLower.includes("falha")
+      if (ehManutencao) {
+        setSubgrupoParada({ nome: subgrupo.nome, grupo: subgrupo.grupo })
+        setShowSugestaoManutencao(true)
+        return
+      }
+    }
+
     toast({ title: "⏸ Em pausa" })
   }
 
@@ -819,6 +838,33 @@ export function ApontamentoTab({ empresaAtivaId }: { empresaAtivaId?: string | n
 
   const ordemAtual = ordens.find(o => o.id === (sessao?.ordemId || ordemSelecionadaId))
 
+  const criarOSManutencao = async () => {
+    if (!sessao) return
+    const maquinaId = operacoes.find(o => o.id === sessao.operacaoId)?.maquina_id
+    if (!maquinaId) {
+      toast({ title: "⏸ Em pausa", description: "Máquina não identificada para abrir OS automaticamente." })
+      setShowSugestaoManutencao(false)
+      return
+    }
+
+    const { error } = await supabase.from("manutencao").insert({
+      empresa_id: empresaAtivaId,
+      maquina_id: maquinaId,
+      tipo: "corretiva",
+      status: "pendente",
+      descricao: `Parada registrada no apontamento: ${subgrupoParada?.nome ?? "Manutenção"}`,
+      data_abertura: new Date().toISOString().split("T")[0],
+    })
+
+    if (error) {
+      toast({ title: "Erro ao criar OS", description: error.message, variant: "destructive" })
+    } else {
+      toast({ title: "⏸ Em pausa + OS aberta", description: "Ordem de manutenção criada automaticamente." })
+    }
+    setShowSugestaoManutencao(false)
+    setSubgrupoParada(null)
+  }
+
   if (loading) {
     return (
       <div className="flex h-40 items-center justify-center text-muted-foreground text-xs font-bold uppercase tracking-widest animate-pulse">
@@ -831,6 +877,39 @@ export function ApontamentoTab({ empresaAtivaId }: { empresaAtivaId?: string | n
     <div className="space-y-6 pb-12">
 
       {/* Modais */}
+      {/* Modal sugestão de OS de manutenção */}
+      {showSugestaoManutencao && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm p-4">
+          <div className="w-full max-w-sm bg-card border border-border rounded-2xl shadow-2xl p-6 space-y-5">
+            <div className="flex items-start gap-3">
+              <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
+                <Wrench className="h-5 w-5 text-primary" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-foreground">Abrir ordem de manutenção?</h3>
+                <p className="text-xs text-muted-foreground mt-1">
+                  A parada foi registrada com o motivo <strong className="text-foreground">"{subgrupoParada?.nome}"</strong>. Deseja abrir uma OS corretiva automaticamente para esta máquina?
+                </p>
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => { setShowSugestaoManutencao(false); setSubgrupoParada(null); toast({ title: "⏸ Em pausa" }) }}
+                className="flex-1 h-11 rounded-xl border border-border text-sm font-bold text-muted-foreground hover:bg-muted transition-colors"
+              >
+                Não, só pausar
+              </button>
+              <button
+                onClick={criarOSManutencao}
+                className="flex-1 h-11 rounded-xl bg-primary text-primary-foreground text-sm font-bold hover:opacity-90 transition-all"
+              >
+                Abrir OS
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {showModalPausa && (
         <ModalPausa
           grupos={grupos}
