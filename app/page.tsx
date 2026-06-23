@@ -66,6 +66,26 @@ export default function ExataApp() {
   const [defaultTimeUnit, setDefaultTimeUnit] = useState<"hours" | "minutes" | "seconds">("hours")
   const [isSavingConf,    setIsSavingConf]    = useState(false)
 
+  // dados da fábrica
+  const [confNome,        setConfNome]        = useState("")
+  const [confCnpj,        setConfCnpj]        = useState("")
+  const [confEndereco,    setConfEndereco]    = useState("")
+  const [confSegmento,    setConfSegmento]    = useState("")
+  const [confFuncionarios,setConfFuncionarios]= useState("")
+  const [isSavingFabrica, setIsSavingFabrica] = useState(false)
+
+  // metas
+  const [metaOEE,         setMetaOEE]         = useState("85")
+  const [metaRefugo,      setMetaRefugo]       = useState("2")
+  const [metaProdutividade,setMetaProdutividade]= useState("90")
+  const [isSavingMetas,   setIsSavingMetas]   = useState(false)
+
+  // turnos
+  const [turnos,          setTurnos]          = useState<{ id?: string; nome: string; hora_inicio: string; hora_fim: string; dias_semana: string[]; ativo: boolean }[]>([])
+  const [loadingTurnos,   setLoadingTurnos]   = useState(false)
+  const [salvandoTurno,   setSalvandoTurno]   = useState(false)
+  const [novoTurno,       setNovoTurno]       = useState({ nome: "", hora_inicio: "", hora_fim: "", dias_semana: ["1","2","3","4","5"] })
+
   const [activeTab,    setActiveTab]    = useState<TabId>("dashboard")
   const [collapsed,    setCollapsed]    = useState(false)
   const [mobileOpen,   setMobileOpen]   = useState(false)
@@ -94,6 +114,8 @@ export default function ExataApp() {
             setEmpresaAtivaId(data.id)
             setEmpresaName(data.nome)
             carregarAlertas(data.id)
+            carregarConfFabrica(data.id)
+            carregarTurnos(data.id)
             // busca o código da fábrica para exibir nas configurações
             const { data: cod } = await supabase
               .from("codigos_acesso")
@@ -193,6 +215,8 @@ export default function ExataApp() {
     setEmpresaName(empData.nome)
     setCodigoAtual(codigoInput.trim())
     carregarAlertas(empData.id)
+    carregarConfFabrica(empData.id)
+    carregarTurnos(empData.id)
     setIsChecking(false)
   }
 
@@ -257,13 +281,126 @@ export default function ExataApp() {
         unidade_tempo: defaultTimeUnit,
       })
       .eq("id", empresaAtivaId)
-
     if (error) {
       toast({ title: "Erro ao salvar", description: error.message, variant: "destructive" })
     } else {
       toast({ title: "✅ Configurações salvas" })
     }
     setIsSavingConf(false)
+  }
+
+  const carregarConfFabrica = async (empId: string) => {
+    const { data } = await supabase
+      .from("empresas")
+      .select("nome, cnpj, endereco, segmento, num_funcionarios, meta_oee, meta_refugo, meta_produtividade, tempo_padrao, unidade_tempo")
+      .eq("id", empId)
+      .single()
+    if (data) {
+      setConfNome(data.nome ?? "")
+      setConfCnpj(data.cnpj ?? "")
+      setConfEndereco(data.endereco ?? "")
+      setConfSegmento(data.segmento ?? "")
+      setConfFuncionarios(data.num_funcionarios ?? "")
+      setMetaOEE(data.meta_oee?.toString() ?? "85")
+      setMetaRefugo(data.meta_refugo?.toString() ?? "2")
+      setMetaProdutividade(data.meta_produtividade?.toString() ?? "90")
+      setDefaultTime(data.tempo_padrao?.toString() ?? "")
+      setDefaultTimeUnit(data.unidade_tempo ?? "hours")
+    }
+  }
+
+  const handleSaveFabrica = async () => {
+    if (!empresaAtivaId) return
+    setIsSavingFabrica(true)
+    const { error } = await supabase
+      .from("empresas")
+      .update({
+        nome: confNome,
+        cnpj: confCnpj,
+        endereco: confEndereco,
+        segmento: confSegmento,
+        num_funcionarios: confFuncionarios,
+        tempo_padrao: defaultTime ? parseFloat(defaultTime) : null,
+        unidade_tempo: defaultTimeUnit,
+      })
+      .eq("id", empresaAtivaId)
+    if (error) {
+      toast({ title: "Erro ao salvar", description: error.message, variant: "destructive" })
+    } else {
+      setEmpresaName(confNome)
+      toast({ title: "✅ Dados da fábrica salvos" })
+    }
+    setIsSavingFabrica(false)
+  }
+
+  const handleSaveMetas = async () => {
+    if (!empresaAtivaId) return
+    setIsSavingMetas(true)
+    const { error } = await supabase
+      .from("empresas")
+      .update({
+        meta_oee: parseFloat(metaOEE) || 85,
+        meta_refugo: parseFloat(metaRefugo) || 2,
+        meta_produtividade: parseFloat(metaProdutividade) || 90,
+      })
+      .eq("id", empresaAtivaId)
+    if (error) {
+      toast({ title: "Erro ao salvar metas", description: error.message, variant: "destructive" })
+    } else {
+      toast({ title: "✅ Metas salvas" })
+    }
+    setIsSavingMetas(false)
+  }
+
+  const carregarTurnos = async (empId: string) => {
+    setLoadingTurnos(true)
+    const { data } = await supabase
+      .from("turnos")
+      .select("*")
+      .eq("empresa_id", empId)
+      .order("hora_inicio")
+    if (data) setTurnos(data)
+    setLoadingTurnos(false)
+  }
+
+  const handleAddTurno = async () => {
+    if (!novoTurno.nome || !novoTurno.hora_inicio || !novoTurno.hora_fim) return
+    setSalvandoTurno(true)
+    const { data, error } = await supabase
+      .from("turnos")
+      .insert({
+        empresa_id: empresaAtivaId,
+        nome: novoTurno.nome,
+        hora_inicio: novoTurno.hora_inicio,
+        hora_fim: novoTurno.hora_fim,
+        dias_semana: novoTurno.dias_semana,
+        ativo: true,
+      })
+      .select()
+      .single()
+    if (error) {
+      toast({ title: "Erro ao criar turno", description: error.message, variant: "destructive" })
+    } else {
+      setTurnos(prev => [...prev, data])
+      setNovoTurno({ nome: "", hora_inicio: "", hora_fim: "", dias_semana: ["1","2","3","4","5"] })
+      toast({ title: "✅ Turno criado" })
+    }
+    setSalvandoTurno(false)
+  }
+
+  const handleDeleteTurno = async (id: string) => {
+    await supabase.from("turnos").delete().eq("id", id)
+    setTurnos(prev => prev.filter(t => t.id !== id))
+    toast({ title: "Turno removido" })
+  }
+
+  const toggleDiaTurno = (dia: string) => {
+    setNovoTurno(prev => ({
+      ...prev,
+      dias_semana: prev.dias_semana.includes(dia)
+        ? prev.dias_semana.filter(d => d !== dia)
+        : [...prev.dias_semana, dia]
+    }))
   }
 
   // ----------------------------------------------------------------
@@ -676,161 +813,274 @@ export default function ExataApp() {
               </div>
             )}
 
-            {activeTab === "configuracoes" && (
-              <div className="space-y-8 pb-12 animate-in fade-in duration-300">
+{activeTab === "configuracoes" && (
+              <div className="space-y-6 pb-12 animate-in fade-in duration-300">
                 <div>
                   <h2 className="text-lg font-bold text-foreground">Configurações</h2>
                   <p className="text-sm text-muted-foreground mt-0.5">Preferências e personalização do sistema</p>
                 </div>
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
-                  <div className="space-y-6">
 
-                    <div className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden">
-                      <div className="px-6 py-4 border-b border-border">
-                        <h3 className="text-sm font-bold text-foreground">Fábrica</h3>
-                        <p className="text-[11px] text-muted-foreground mt-0.5">Configurações operacionais padrão</p>
-                      </div>
-                      <div className="p-6 space-y-5">
-                        <div className="space-y-1.5">
-                          <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest pl-1">Nome</label>
-                          <input
-                            type="text"
-                            value={empresaName}
-                            disabled
-                            className="w-full h-10 px-4 rounded-xl border border-border bg-muted text-muted-foreground text-sm outline-none cursor-not-allowed"
-                          />
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+                  {/* ── DADOS DA FÁBRICA ── */}
+                  <div className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden">
+                    <div className="px-6 py-4 border-b border-border">
+                      <h3 className="text-sm font-bold text-foreground">Dados da Fábrica</h3>
+                      <p className="text-[11px] text-muted-foreground mt-0.5">Informações gerais e operacionais</p>
+                    </div>
+                    <div className="p-6 space-y-4">
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-1.5 col-span-2">
+                          <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Nome da Fábrica</label>
+                          <input type="text" value={confNome} onChange={e => setConfNome(e.target.value)}
+                            className="w-full h-10 px-4 rounded-xl border border-border bg-input text-foreground text-sm outline-none focus:ring-2 focus:ring-primary transition-all" />
                         </div>
                         <div className="space-y-1.5">
-                          <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest pl-1">Tempo Operacional Padrão</label>
+                          <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">CNPJ</label>
+                          <input type="text" value={confCnpj} onChange={e => setConfCnpj(e.target.value)} placeholder="00.000.000/0000-00"
+                            className="w-full h-10 px-4 rounded-xl border border-border bg-input text-foreground text-sm outline-none focus:ring-2 focus:ring-primary transition-all" />
+                        </div>
+                        <div className="space-y-1.5">
+                          <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Nº Funcionários</label>
+                          <input type="text" value={confFuncionarios} onChange={e => setConfFuncionarios(e.target.value)} placeholder="Ex: 12"
+                            className="w-full h-10 px-4 rounded-xl border border-border bg-input text-foreground text-sm outline-none focus:ring-2 focus:ring-primary transition-all" />
+                        </div>
+                        <div className="space-y-1.5">
+                          <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Segmento</label>
+                          <input type="text" value={confSegmento} onChange={e => setConfSegmento(e.target.value)} placeholder="Ex: Têxtil"
+                            className="w-full h-10 px-4 rounded-xl border border-border bg-input text-foreground text-sm outline-none focus:ring-2 focus:ring-primary transition-all" />
+                        </div>
+                        <div className="space-y-1.5 col-span-2">
+                          <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Endereço</label>
+                          <input type="text" value={confEndereco} onChange={e => setConfEndereco(e.target.value)} placeholder="Rua, número, cidade"
+                            className="w-full h-10 px-4 rounded-xl border border-border bg-input text-foreground text-sm outline-none focus:ring-2 focus:ring-primary transition-all" />
+                        </div>
+                        <div className="space-y-1.5">
+                          <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Tempo Operacional Padrão</label>
                           <div className="flex gap-2">
-                            <input
-                              type="number"
-                              placeholder="Ex: 8"
-                              value={defaultTime}
-                              onChange={(e) => setDefaultTime(e.target.value)}
-                              className="flex-1 h-10 px-4 rounded-xl border border-border bg-input text-foreground text-sm outline-none focus:ring-2 focus:ring-primary transition-all"
-                            />
-                            <select
-                              value={defaultTimeUnit}
-                              onChange={(e: any) => setDefaultTimeUnit(e.target.value)}
-                              className="w-32 h-10 px-3 rounded-xl border border-border bg-input text-foreground text-sm outline-none focus:ring-2 focus:ring-primary transition-all cursor-pointer"
-                            >
+                            <input type="number" placeholder="Ex: 8" value={defaultTime} onChange={e => setDefaultTime(e.target.value)}
+                              className="flex-1 h-10 px-4 rounded-xl border border-border bg-input text-foreground text-sm outline-none focus:ring-2 focus:ring-primary transition-all" />
+                            <select value={defaultTimeUnit} onChange={(e: any) => setDefaultTimeUnit(e.target.value)}
+                              className="w-28 h-10 px-3 rounded-xl border border-border bg-input text-foreground text-sm outline-none focus:ring-2 focus:ring-primary transition-all appearance-none cursor-pointer">
                               <option value="hours">Horas</option>
                               <option value="minutes">Minutos</option>
-                              <option value="seconds">Segundos</option>
                             </select>
                           </div>
                         </div>
-                        <button
-                          onClick={handleSaveConf}
-                          disabled={isSavingConf}
-                          className="w-full h-11 flex items-center justify-center bg-primary text-primary-foreground font-bold uppercase tracking-widest text-[11px] rounded-xl shadow-md hover:opacity-90 transition-all disabled:opacity-50 mt-2"
-                        >
-                          {isSavingConf ? "Gravando..." : "Salvar Configurações"}
-                        </button>
                       </div>
+                      <button onClick={handleSaveFabrica} disabled={isSavingFabrica}
+                        className="w-full h-11 flex items-center justify-center bg-primary text-primary-foreground font-bold uppercase tracking-widest text-[11px] rounded-xl hover:opacity-90 transition-all disabled:opacity-50">
+                        {isSavingFabrica ? "Salvando..." : "Salvar Dados da Fábrica"}
+                      </button>
                     </div>
+                  </div>
 
-                    {/* CÓDIGO DE ACESSO */}
-                    <div className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden">
-                      <div className="px-6 py-4 border-b border-border flex items-center gap-2">
-                        <Key className="h-4 w-4 text-primary" />
-                        <div>
-                          <h3 className="text-sm font-bold text-foreground">Código de Acesso</h3>
-                          <p className="text-[11px] text-muted-foreground mt-0.5">Chave de entrada nesta fábrica</p>
+                  {/* ── METAS DE PRODUÇÃO ── */}
+                  <div className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden">
+                    <div className="px-6 py-4 border-b border-border">
+                      <h3 className="text-sm font-bold text-foreground">Metas de Produção</h3>
+                      <p className="text-[11px] text-muted-foreground mt-0.5">Referências para os semáforos dos relatórios e dashboard</p>
+                    </div>
+                    <div className="p-6 space-y-4">
+                      {[
+                        { label: "OEE mínimo aceitável (%)", value: metaOEE, set: setMetaOEE, desc: "Abaixo deste valor o OEE aparece em vermelho" },
+                        { label: "Taxa de refugo máxima (%)", value: metaRefugo, set: setMetaRefugo, desc: "Acima deste valor o refugo aparece em vermelho" },
+                        { label: "Produtividade mínima (%)", value: metaProdutividade, set: setMetaProdutividade, desc: "Meta geral de produtividade da fábrica" },
+                      ].map(({ label, value, set, desc }) => (
+                        <div key={label} className="space-y-1.5">
+                          <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">{label}</label>
+                          <input type="number" min="0" max="100" step="0.1" value={value} onChange={e => set(e.target.value)}
+                            className="w-full h-10 px-4 rounded-xl border border-border bg-input text-foreground text-sm outline-none focus:ring-2 focus:ring-primary transition-all" />
+                          <p className="text-[10px] text-muted-foreground pl-1">{desc}</p>
                         </div>
-                      </div>
-                      <div className="p-6 space-y-3">
-                        <div className="bg-muted rounded-xl p-4 flex items-center justify-between gap-3">
-                          <span className="text-xl font-black tracking-[0.25em] text-foreground">
-                            {showCodigo ? (codigoAtual ?? "—") : "••••••"}
-                          </span>
-                          <div className="flex items-center gap-2 flex-shrink-0">
-                            <button
-                              onClick={() => setShowCodigo(!showCodigo)}
-                              className="h-8 w-8 flex items-center justify-center rounded-lg border border-border bg-card text-muted-foreground hover:text-foreground hover:bg-muted transition-all"
-                              title={showCodigo ? "Ocultar" : "Mostrar"}
-                            >
-                              {showCodigo ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                            </button>
-                            {codigoAtual && (
-                              <button
-                                onClick={() => copiarCodigo(codigoAtual, setCopiadoConf)}
-                                className="h-8 w-8 flex items-center justify-center rounded-lg border border-border bg-card text-muted-foreground hover:text-foreground hover:bg-muted transition-all"
-                                title="Copiar código"
-                              >
-                                {copiadoConf ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
-                              </button>
-                            )}
+                      ))}
+                      <button onClick={handleSaveMetas} disabled={isSavingMetas}
+                        className="w-full h-11 flex items-center justify-center bg-primary text-primary-foreground font-bold uppercase tracking-widest text-[11px] rounded-xl hover:opacity-90 transition-all disabled:opacity-50 mt-2">
+                        {isSavingMetas ? "Salvando..." : "Salvar Metas"}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* ── TURNOS ── */}
+                  <div className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden lg:col-span-2">
+                    <div className="px-6 py-4 border-b border-border">
+                      <h3 className="text-sm font-bold text-foreground">Turnos de Produção</h3>
+                      <p className="text-[11px] text-muted-foreground mt-0.5">Defina os turnos para cálculos precisos de OEE e disponibilidade</p>
+                    </div>
+                    <div className="p-6 space-y-4">
+                      {/* Turnos existentes */}
+                      {loadingTurnos ? (
+                        <p className="text-xs text-muted-foreground animate-pulse">Carregando turnos...</p>
+                      ) : turnos.length > 0 ? (
+                        <div className="space-y-2">
+                          {turnos.map(t => {
+                            const diasLabel = ["D","S","T","Q","Q","S","S"]
+                            return (
+                              <div key={t.id} className="flex items-center justify-between p-4 bg-muted/30 border border-border rounded-xl">
+                                <div className="flex items-center gap-4 min-w-0">
+                                  <div>
+                                    <p className="text-sm font-bold text-foreground">{t.nome}</p>
+                                    <p className="text-[10px] text-muted-foreground">{t.hora_inicio} — {t.hora_fim}</p>
+                                  </div>
+                                  <div className="flex gap-1">
+                                    {[0,1,2,3,4,5,6].map(d => (
+                                      <span key={d} className={`text-[9px] font-bold h-5 w-5 rounded-full flex items-center justify-center
+                                        ${t.dias_semana?.includes(String(d)) ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"}`}>
+                                        {diasLabel[d]}
+                                      </span>
+                                    ))}
+                                  </div>
+                                </div>
+                                <button onClick={() => t.id && handleDeleteTurno(t.id)}
+                                  className="h-8 w-8 flex items-center justify-center rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors flex-shrink-0 ml-3">
+                                  <X className="h-4 w-4" />
+                                </button>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      ) : (
+                        <p className="text-xs text-muted-foreground">Nenhum turno cadastrado.</p>
+                      )}
+
+                      {/* Novo turno */}
+                      <div className="border border-dashed border-border rounded-xl p-4 space-y-3">
+                        <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Adicionar turno</p>
+                        <div className="grid grid-cols-3 gap-3">
+                          <div className="space-y-1.5">
+                            <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Nome</label>
+                            <input type="text" value={novoTurno.nome} onChange={e => setNovoTurno(p => ({...p, nome: e.target.value}))} placeholder="Ex: Manhã"
+                              className="w-full h-10 px-3 rounded-xl border border-border bg-input text-foreground text-sm outline-none focus:ring-2 focus:ring-primary transition-all" />
+                          </div>
+                          <div className="space-y-1.5">
+                            <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Início</label>
+                            <input type="time" value={novoTurno.hora_inicio} onChange={e => setNovoTurno(p => ({...p, hora_inicio: e.target.value}))}
+                              className="w-full h-10 px-3 rounded-xl border border-border bg-input text-foreground text-sm outline-none focus:ring-2 focus:ring-primary transition-all" />
+                          </div>
+                          <div className="space-y-1.5">
+                            <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Fim</label>
+                            <input type="time" value={novoTurno.hora_fim} onChange={e => setNovoTurno(p => ({...p, hora_fim: e.target.value}))}
+                              className="w-full h-10 px-3 rounded-xl border border-border bg-input text-foreground text-sm outline-none focus:ring-2 focus:ring-primary transition-all" />
                           </div>
                         </div>
-                        <p className="text-[10px] text-muted-foreground">
-                          Compartilhe apenas com pessoas autorizadas a acessar esta fábrica.
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden">
-                      <div className="px-6 py-4 border-b border-border">
-                        <h3 className="text-sm font-bold text-foreground">Aparência</h3>
-                        <p className="text-[11px] text-muted-foreground mt-0.5">Escolha como o sistema é exibido na sua tela</p>
-                      </div>
-                      <div className="p-6 space-y-3">
-                        {mounted && (
-                          <React.Fragment>
-                            {[
-                              { value: "light",  label: "Claro",  description: "Fundo branco, ideal para ambientes iluminados",                    icon: Sun     },
-                              { value: "dark",   label: "Escuro", description: "Fundo escuro, reduz fadiga visual à noite",                        icon: Moon    },
-                              { value: "system", label: "Sistema",description: "Segue automaticamente as configurações do seu dispositivo",        icon: Monitor },
-                            ].map(({ value, label, description, icon: Icon }) => (
-                              <button
-                                key={value}
-                                onClick={() => setTheme(value)}
-                                className={`w-full flex items-center gap-4 px-4 py-4 rounded-xl border transition-all text-left
-                                  ${theme === value ? "border-primary bg-primary/5 shadow-sm" : "border-border hover:bg-muted/50"}`}
-                              >
-                                <div className={`h-9 w-9 flex items-center justify-center rounded-lg flex-shrink-0
-                                  ${theme === value ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"}`}>
-                                  <Icon className="h-4 w-4" />
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                  <p className={`text-sm font-bold ${theme === value ? "text-primary" : "text-foreground"}`}>{label}</p>
-                                  <p className="text-[11px] text-muted-foreground mt-0.5">{description}</p>
-                                </div>
-                                <div className={`h-4 w-4 rounded-full border-2 flex-shrink-0 transition-all
-                                  ${theme === value ? "border-primary bg-primary" : "border-muted-foreground/30"}`}>
-                                  {theme === value && <div className="h-full w-full rounded-full bg-primary-foreground scale-50" />}
-                                </div>
+                        <div className="space-y-1.5">
+                          <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Dias da semana</label>
+                          <div className="flex gap-2">
+                            {[["0","Dom"],["1","Seg"],["2","Ter"],["3","Qua"],["4","Qui"],["5","Sex"],["6","Sáb"]].map(([val, label]) => (
+                              <button key={val} onClick={() => toggleDiaTurno(val)}
+                                className={`flex-1 h-9 rounded-lg text-[10px] font-bold transition-all
+                                  ${novoTurno.dias_semana.includes(val) ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-muted/80"}`}>
+                                {label}
                               </button>
                             ))}
-                          </React.Fragment>
-                        )}
+                          </div>
+                        </div>
+                        <button onClick={handleAddTurno} disabled={salvandoTurno || !novoTurno.nome || !novoTurno.hora_inicio || !novoTurno.hora_fim}
+                          className="w-full h-11 flex items-center justify-center gap-2 bg-primary text-primary-foreground font-bold uppercase tracking-widest text-[11px] rounded-xl hover:opacity-90 transition-all disabled:opacity-50">
+                          {salvandoTurno ? "Criando..." : "Adicionar Turno"}
+                        </button>
                       </div>
                     </div>
                   </div>
 
+                  {/* ── CÓDIGO DE ACESSO ── */}
                   <div className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden">
+                    <div className="px-6 py-4 border-b border-border flex items-center gap-2">
+                      <Key className="h-4 w-4 text-primary" />
+                      <div>
+                        <h3 className="text-sm font-bold text-foreground">Código de Acesso</h3>
+                        <p className="text-[11px] text-muted-foreground mt-0.5">Chave de entrada nesta fábrica</p>
+                      </div>
+                    </div>
+                    <div className="p-6 space-y-3">
+                      <div className="bg-muted rounded-xl p-4 flex items-center justify-between gap-3">
+                        <span className="text-xl font-black tracking-[0.25em] text-foreground">
+                          {showCodigo ? (codigoAtual ?? "—") : "••••••"}
+                        </span>
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          <button onClick={() => setShowCodigo(!showCodigo)}
+                            className="h-8 w-8 flex items-center justify-center rounded-lg border border-border bg-card text-muted-foreground hover:text-foreground hover:bg-muted transition-all"
+                            title={showCodigo ? "Ocultar" : "Mostrar"}>
+                            {showCodigo ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                          </button>
+                          {codigoAtual && (
+                            <button onClick={() => copiarCodigo(codigoAtual, setCopiadoConf)}
+                              className="h-8 w-8 flex items-center justify-center rounded-lg border border-border bg-card text-muted-foreground hover:text-foreground hover:bg-muted transition-all"
+                              title="Copiar código">
+                              {copiadoConf ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                      <p className="text-[10px] text-muted-foreground">Compartilhe apenas com pessoas autorizadas a acessar esta fábrica.</p>
+                    </div>
+                  </div>
+
+                  {/* ── APARÊNCIA ── */}
+                  <div className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden">
+                    <div className="px-6 py-4 border-b border-border">
+                      <h3 className="text-sm font-bold text-foreground">Aparência</h3>
+                      <p className="text-[11px] text-muted-foreground mt-0.5">Escolha como o sistema é exibido na sua tela</p>
+                    </div>
+                    <div className="p-6 space-y-3">
+                      {mounted && (
+                        <React.Fragment>
+                          {[
+                            { value: "light",  label: "Claro",  description: "Fundo branco, ideal para ambientes iluminados", icon: Sun },
+                            { value: "dark",   label: "Escuro", description: "Fundo escuro, reduz fadiga visual à noite",       icon: Moon },
+                            { value: "system", label: "Sistema",description: "Segue automaticamente as configurações do dispositivo", icon: Monitor },
+                          ].map(({ value, label, description, icon: Icon }) => (
+                            <button key={value} onClick={() => setTheme(value)}
+                              className={`w-full flex items-center gap-4 px-4 py-4 rounded-xl border transition-all text-left
+                                ${theme === value ? "border-primary bg-primary/5 shadow-sm" : "border-border hover:bg-muted/50"}`}>
+                              <div className={`h-9 w-9 flex items-center justify-center rounded-lg flex-shrink-0
+                                ${theme === value ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"}`}>
+                                <Icon className="h-4 w-4" />
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className={`text-sm font-bold ${theme === value ? "text-primary" : "text-foreground"}`}>{label}</p>
+                                <p className="text-[11px] text-muted-foreground mt-0.5">{description}</p>
+                              </div>
+                              <div className={`h-4 w-4 rounded-full border-2 flex-shrink-0 transition-all
+                                ${theme === value ? "border-primary bg-primary" : "border-muted-foreground/30"}`}>
+                                {theme === value && <div className="h-full w-full rounded-full bg-primary-foreground scale-50" />}
+                              </div>
+                            </button>
+                          ))}
+                        </React.Fragment>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* ── MANUAL TÉCNICO ── */}
+                  <div className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden lg:col-span-2">
                     <div className="px-6 py-4 border-b border-border">
                       <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
                         <BookText className="h-4 w-4 text-primary" /> Manual Técnico
                       </h3>
-                      <p className="text-[11px] text-muted-foreground mt-0.5">Protocolo de execução e instruções de uso</p>
+                      <p className="text-[11px] text-muted-foreground mt-0.5">Guia rápido de uso do sistema</p>
                     </div>
-                    <div className="p-6 space-y-5 text-sm leading-relaxed text-foreground">
-                      <div className="space-y-2">
-                        <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Produto/Roteiro — Gerenciamento Diário</p>
-                        <p className="text-sm text-foreground/80">Cadastre o produto, adicione as operações com seus tempos de ciclo e salve para sincronizar com o PCP.</p>
-                      </div>
-                      <div className="border-t border-border pt-4 space-y-2">
-                        <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">PCP — Programação de Produção</p>
-                        <p className="text-sm text-foreground/80">Utiliza lógica Heijunka para nivelar a carga de produção. Crie ordens, configure capacidades por turno e visualize o fluxo no quadro de nivelamento.</p>
-                      </div>
-                      <div className="border-t border-border pt-4 space-y-2">
-                        <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Código de Acesso</p>
-                        <p className="text-sm text-foreground/80">Seu código de 6 caracteres é a única chave de acesso à sua fábrica. Compartilhe apenas com quem deve ter acesso. Para consultá-lo, acesse o banco de dados ou entre em contato com o suporte.</p>
-                      </div>
+                    <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6 text-sm">
+                      {[
+                        { title: "Produto/Roteiro", desc: "Cadastre produtos com operações, tempos de ciclo e BOM (lista de materiais). A BOM é obrigatória para o controle automático de estoque." },
+                        { title: "PCP", desc: "Programe ordens de produção com lógica Heijunka. Visualize no Kanban, calendário ou lista. Arraste OPs entre datas." },
+                        { title: "Máquinas", desc: "Cadastre postos de trabalho com capacidade diária e tempo de setup. Vincule às operações do roteiro." },
+                        { title: "Apontamento", desc: "Selecione a OP e a operação, inicie o cronômetro e monitore o semáforo de eficiência em tempo real. Pausas registram o motivo." },
+                        { title: "Estoque", desc: "Receba material manualmente. O consumo de MP e a entrada de PA são automáticos ao encerrar OPs. Custo médio ponderado calculado automaticamente." },
+                        { title: "Exceções", desc: "Crie grupos e motivos de parada. Ao pausar um apontamento com motivo de manutenção, o sistema sugere abrir uma OS automaticamente." },
+                        { title: "Manutenção", desc: "Gerencie ordens de serviço corretivas e preventivas por ativo. Status atualizável diretamente na lista." },
+                        { title: "Relatórios", desc: "OEE por máquina, refugo por produto, ciclo real vs planejado, consumo de materiais e ranking de paradas. Filtros por período." },
+                        { title: "Dashboard", desc: "Visão em tempo real: status das máquinas, OPs em andamento com progresso, estoque crítico e produção por máquina. Auto-refresh a cada 2 minutos." },
+                        { title: "Código de Acesso", desc: "O código de 6 caracteres é a única forma de entrar na fábrica. Compartilhe com cuidado. Qualquer dispositivo com o código acessa os mesmos dados." },
+                      ].map(({ title, desc }) => (
+                        <div key={title} className="space-y-1 border-l-2 border-primary/30 pl-3">
+                          <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">{title}</p>
+                          <p className="text-sm text-foreground/80 leading-relaxed">{desc}</p>
+                        </div>
+                      ))}
                     </div>
                   </div>
+
                 </div>
               </div>
             )}
