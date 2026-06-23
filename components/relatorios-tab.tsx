@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useMemo } from "react"
 import { supabase } from "@/components/supabase"
 import { NativeSelect } from "@/components/native-select"
+import { NativeDateInput } from "@/components/native-select"
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
   LineChart, Line, CartesianGrid, Legend, Cell
@@ -408,10 +409,8 @@ export function RelatoriosTab({ empresaAtivaId }: { empresaAtivaId?: string | nu
           </NativeSelect>
           {periodo === "custom" && (
             <>
-              <input type="date" value={dataInicio} onChange={e => setDataInicio(e.target.value)}
-                className="h-9 px-3 rounded-xl border border-border bg-input text-foreground text-xs outline-none focus:ring-2 focus:ring-primary transition-all" />
-              <input type="date" value={dataFim} onChange={e => setDataFim(e.target.value)}
-                className="h-9 px-3 rounded-xl border border-border bg-input text-foreground text-xs outline-none focus:ring-2 focus:ring-primary transition-all" />
+              <NativeDateInput value={dataInicio} onChange={e => setDataInicio(e.target.value)} />
+              <NativeDateInput value={dataFim} onChange={e => setDataFim(e.target.value)} />
             </>
           )}
           <button onClick={loadData} className="h-9 w-9 flex items-center justify-center rounded-xl border border-border text-muted-foreground hover:bg-muted transition-colors">
