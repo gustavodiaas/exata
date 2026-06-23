@@ -25,3 +25,41 @@ export function NativeSelect({ className = "", variant = "md", children, ...prop
     </div>
   )
 }
+
+interface NativeDateInputProps extends React.InputHTMLAttributes<HTMLInputElement> {}
+
+export function NativeDateInput({ className = "", ...props }: NativeDateInputProps) {
+  return (
+    <div className="relative w-full">
+      <input
+        {...props}
+        type="date"
+        className={`
+          w-full h-9 pl-4 pr-4 rounded-xl border border-border bg-input text-foreground text-xs
+          outline-none focus:ring-2 focus:ring-primary transition-all cursor-pointer
+          [color-scheme:light] dark:[color-scheme:dark]
+          ${className}
+        `}
+      />
+    </div>
+  )
+}
+
+interface NativeTimeInputProps extends React.InputHTMLAttributes<HTMLInputElement> {}
+
+export function NativeTimeInput({ className = "", ...props }: NativeTimeInputProps) {
+  return (
+    <div className="relative w-full">
+      <input
+        {...props}
+        type="time"
+        className={`
+          w-full h-10 pl-4 pr-4 rounded-xl border border-border bg-input text-foreground text-sm
+          outline-none focus:ring-2 focus:ring-primary transition-all cursor-pointer
+          [color-scheme:light] dark:[color-scheme:dark]
+          ${className}
+        `}
+      />
+    </div>
+  )
+}
