@@ -420,6 +420,10 @@ export function GBOTab({ user, empresaAtivaId }: { user: { id: string }, empresa
     setProductSearch("")
     setExpandedProduct(null)
     loadBomDoProduto(product.code)
+
+    // Scroll para o topo para revelar o gráfico
+    window.scrollTo({ top: 0, behavior: "smooth" })
+
     toast({ title: "✅ Produto Carregado", description: `Roteiro "${product.description}" carregado para edição.` })
   }
 
@@ -527,7 +531,7 @@ export function GBOTab({ user, empresaAtivaId }: { user: { id: string }, empresa
       <input ref={fileInputRef} type="file" accept=".xlsx,.xls" onChange={handleFileChange} className="hidden" />
 
       <div className="flex flex-col xl:flex-row gap-8 pb-12 print:p-0">
-        <div className="xl:w-[35%] flex flex-col gap-6 print:hidden">
+        <div className="xl:w-[35%] flex flex-col gap-6 print:hidden order-2 xl:order-1">
 
           <div className="bg-card p-6 rounded-2xl shadow-sm border border-border space-y-4">
             <div className="flex items-center justify-between border-b border-border pb-2">
@@ -779,7 +783,7 @@ export function GBOTab({ user, empresaAtivaId }: { user: { id: string }, empresa
           </div>
         </div>
 
-        <div className="xl:w-[65%] flex flex-col gap-6 print:w-full">
+        <div className="xl:w-[65%] flex flex-col gap-6 print:w-full order-1 xl:order-2">
           {operations.length > 0 ? (
             <React.Fragment>
               <div className="print:hidden">
