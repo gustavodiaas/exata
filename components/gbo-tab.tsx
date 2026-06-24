@@ -342,7 +342,8 @@ export function GBOTab({ user, empresaAtivaId }: { user: { id: string }, empresa
         tempo: op.time,
         unidade: op.unit,
         setup_time: op.setupTime,
-        maquina_id: op.maquina_id || null
+        maquina_id: op.maquina_id || null,
+        empresa_id: empresaAtivaId || null,
       }))
 
       const { error: opsError } = await supabase.from("operacoes").insert(opsToInsert)
