@@ -32,28 +32,23 @@ export function MaquinasTab({ user, empresaAtivaId }: { user: any, empresaAtivaI
   const [observacao, setObservacao] = useState("")
 
   useEffect(() => {
-    if (user && empresaAtivaId) {
+    if (empresaAtivaId) {
       loadMaquinas()
     }
-  }, [user, empresaAtivaId])
+  }, [empresaAtivaId])
 
   const loadMaquinas = async () => {
     if (!empresaAtivaId) return
 
     try {
-      const response = await fetch("/api/admin/get-dados", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ table: "maquinas", empresaId: empresaAtivaId }),
-      })
-      
-      const result = await response.json()
-      if (!response.ok) throw new Error(result.error)
-      
-      let data = result.data || []
-      data = data.sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+      const { data, error } = await supabase
+        .from("maquinas")
+        .select("*")
+        .eq("empresa_id", empresaAtivaId)
+        .order("created_at", { ascending: false })
 
-      setMaquinas(data as Maquina[])
+      if (error) throw error
+      setMaquinas((data || []) as Maquina[])
     } catch (e: any) {
       toast({ title: "Erro de conexão", description: "Não foi possível carregar o parque fabril.", variant: "destructive" })
     } finally {
