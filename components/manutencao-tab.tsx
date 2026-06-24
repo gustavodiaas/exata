@@ -30,47 +30,31 @@ export function ManutencaoTab({ user, empresaAtivaId }: { user: any, empresaAtiv
   const [descricao, setDescricao] = useState("")
 
   useEffect(() => {
-    if (user && empresaAtivaId) {
+    if (empresaAtivaId) {
       loadData()
     }
-  }, [user, empresaAtivaId])
+  }, [empresaAtivaId])
 
   const loadData = async () => {
     if (!empresaAtivaId) return
 
     try {
-      const fetchTable = async (table: string) => {
-        const response = await fetch("/api/admin/get-dados", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ table, empresaId: empresaAtivaId }),
-        })
-        const result = await response.json()
-        if (!response.ok) throw new Error(result.error)
-        return result.data || []
-      }
-
-      const [maqData, manDataRaw] = await Promise.all([
-        fetchTable("maquinas"),
-        fetchTable("manutencao")
+      const [{ data: maqData, error: maqError }, { data: manDataRaw, error: manError }] = await Promise.all([
+        supabase.from("maquinas").select("*").eq("empresa_id", empresaAtivaId),
+        supabase.from("manutencao").select("*, maquinas(nome, codigo)").eq("empresa_id", empresaAtivaId).order("data_programada")
       ])
 
-      const manData = manDataRaw
-        .sort((a: any, b: any) => new Date(a.data_programada).getTime() - new Date(b.data_programada).getTime())
-        .map((m: any) => {
-          const maq = maqData.find((mq: any) => mq.id === m.maquina_id)
-          return {
-            ...m,
-            maquinas: maq ? { nome: maq.nome, codigo: maq.codigo } : null
-          }
-        })
+      if (maqError) throw maqError
+      if (manError) throw manError
 
-      setMaquinas(maqData)
-      setRegistros(manData.map((m: any) => ({ 
-        ...m, 
+      const manData = (manDataRaw || []).map((m: any) => ({
+        ...m,
         maquina_nome: m.maquinas?.nome,
-        maquina_codigo: m.maquinas?.codigo
-      })))
+        maquina_codigo: m.maquinas?.codigo,
+      }))
+
+      setMaquinas(maqData || [])
+      setRegistros(manData)
     } catch (e) {
       toast({ title: "Erro", description: "Falha ao carregar dados.", variant: "destructive" })
     } finally {
