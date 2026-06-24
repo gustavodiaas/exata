@@ -236,34 +236,32 @@ export function GBOTab({ user, empresaAtivaId }: { user: { id: string }, empresa
   const addOperation = () => {
     const nameValidation = validateText(newOperationName)
     const timeValidation = validateNumber(newOperationTime)
-    const setupValidation = validateNumber(newOperationSetup)
     const newErrors: typeof errors = {}
-    
+
     if (!nameValidation.isValid) newErrors.operationName = nameValidation.error
     if (!timeValidation.isValid) newErrors.operationTime = timeValidation.error
-    if (!setupValidation.isValid) newErrors.operationSetup = setupValidation.error
-    
+
     setErrors(newErrors)
-    
-    if (!nameValidation.isValid || !timeValidation.isValid || !setupValidation.isValid) {
+
+    if (!nameValidation.isValid || !timeValidation.isValid) {
       toast({ title: "Dados inválidos", description: "Verifique os campos destacados.", variant: "destructive" })
       return
     }
-    
+
     const maq = maquinasGlobais.find(m => m.id === newOperationMaquinaId)
     const token = `${Date.now()}-${Math.random().toString(36).substring(2, 7)}`
-    
+
     const newOperation: Operation = {
       id: token,
       name: newOperationName.trim(),
       time: Number.parseFloat(newOperationTime),
-      setupTime: Number.parseFloat(newOperationSetup),
+      setupTime: newOperationSetup ? Number.parseFloat(newOperationSetup) : 0,
       unit: timeUnit,
       maquina_id: newOperationMaquinaId || undefined,
       maquina_nome: maq ? maq.nome : undefined,
       maquina_codigo: maq ? maq.codigo : undefined
     }
-    
+
     setOperations([...operations, newOperation])
     setNewOperationName("")
     setNewOperationTime("")
@@ -297,12 +295,15 @@ export function GBOTab({ user, empresaAtivaId }: { user: { id: string }, empresa
     setProductCode("")
     setProductName("")
     setOperations([])
+    setBomItems([])
     setCalcType("takt")
     setTimeUnit("minutes")
     setNewOperationName("")
     setNewOperationTime("")
     setNewOperationSetup("")
     setNewOperationMaquinaId("")
+    setNovoBomInsumoId("")
+    setNovoBomQtd("")
     setErrors({})
     toast({ title: "Novo produto", description: "Campos limpos. Cadastre o novo produto." })
   }
@@ -747,7 +748,7 @@ export function GBOTab({ user, empresaAtivaId }: { user: { id: string }, empresa
               <input type="number" step="0.01" min="0" placeholder="Tempo de Setup" value={newOperationSetup} onKeyPress={handleKeyPress}
                 onChange={(e) => { setNewOperationSetup(e.target.value); if (errors.operationSetup) setErrors((p) => ({ ...p, operationSetup: undefined })) }}
                 className="w-full h-12 px-4 rounded-xl border border-border bg-input text-foreground text-sm outline-none focus:ring-2 focus:ring-primary transition-all" />
-              <button onClick={addOperation} disabled={!newOperationName.trim() || !newOperationTime.trim() || !newOperationSetup.trim() || isLoading}
+              <button onClick={addOperation} disabled={!newOperationName.trim() || !newOperationTime.trim() || isLoading}
                 className="w-full h-12 flex items-center justify-center bg-primary text-primary-foreground rounded-xl font-bold text-xs uppercase tracking-widest shadow-md hover:opacity-90 transition-all disabled:opacity-50 disabled:cursor-not-allowed mt-2">
                 <Plus className="h-4 w-4 mr-2" /> Adicionar
               </button>
