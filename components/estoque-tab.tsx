@@ -3,7 +3,15 @@
 import React, { useState, useEffect, useMemo } from "react"
 import { supabase } from "@/components/supabase"
 import { useToast } from "@/hooks/use-toast"
-import { NativeSelect } from "@/components/native-select"
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import {
   Package, TrendingUp, TrendingDown, ArrowLeftRight, Plus, X,
   AlertTriangle, CheckCircle2, Search, ChevronDown, RefreshCw,
@@ -166,16 +174,25 @@ function ModalRecebimento({ insumos, localId, empresaAtivaId, onSuccess, onCance
         <div className="space-y-3">
           <div className="space-y-1.5">
             <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Item</label>
-            <NativeSelect value={insumoId} onChange={e => setInsumoId(e.target.value)}>
-              <option value="">Selecione o item</option>
-              {["materia_prima", "semi_acabado", "produto_acabado"].map(tipo => (
-                <optgroup key={tipo} label={TIPO_LABELS[tipo]}>
-                  {insumos.filter(i => i.tipo === tipo).map(i => (
-                    <option key={i.id} value={i.id}>{i.codigo} — {i.descricao}</option>
-                  ))}
-                </optgroup>
-              ))}
-            </NativeSelect>
+            <Select value={insumoId} onValueChange={setInsumoId}>
+              <SelectTrigger className="w-full h-11 px-4 rounded-xl border border-border bg-input text-foreground text-sm outline-none focus:ring-2 focus:ring-primary transition-all">
+                <SelectValue placeholder="Selecione o item" />
+              </SelectTrigger>
+              <SelectContent>
+                {["materia_prima", "semi_acabado", "produto_acabado"].map(tipo => {
+                  const itens = insumos.filter(i => i.tipo === tipo)
+                  if (itens.length === 0) return null
+                  return (
+                    <SelectGroup key={tipo}>
+                      <SelectLabel className="text-[10px] uppercase text-muted-foreground">{TIPO_LABELS[tipo]}</SelectLabel>
+                      {itens.map(i => (
+                        <SelectItem key={i.id} value={i.id}>{i.codigo} - {i.descricao}</SelectItem>
+                      ))}
+                    </SelectGroup>
+                  )
+                })}
+              </SelectContent>
+            </Select>
           </div>
 
           {insumoSel && (
@@ -307,12 +324,16 @@ function ModalAjuste({ insumos, localId, empresaAtivaId, saldos, onSuccess, onCa
         <div className="space-y-3">
           <div className="space-y-1.5">
             <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Item</label>
-            <NativeSelect value={insumoId} onChange={e => { setInsumoId(e.target.value); setQuantidadeReal("") }}>
-              <option value="">Selecione o item</option>
-              {insumos.map(i => (
-                <option key={i.id} value={i.id}>{i.codigo} — {i.descricao}</option>
-              ))}
-            </NativeSelect>
+            <Select value={insumoId} onValueChange={val => { setInsumoId(val); setQuantidadeReal("") }}>
+              <SelectTrigger className="w-full h-11 px-4 rounded-xl border border-border bg-input text-foreground text-sm outline-none focus:ring-2 focus:ring-primary transition-all">
+                <SelectValue placeholder="Selecione o item" />
+              </SelectTrigger>
+              <SelectContent>
+                {insumos.map(i => (
+                  <SelectItem key={i.id} value={i.id}>{i.codigo} - {i.descricao}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           {saldoAtual && (
@@ -620,12 +641,17 @@ export function EstoqueTab({ empresaAtivaId }: { empresaAtivaId?: string | null 
                 className="w-full h-9 pl-9 pr-3 rounded-lg border border-border bg-input text-foreground text-xs outline-none focus:ring-2 focus:ring-primary transition-all"
               />
             </div>
-            <NativeSelect variant="sm" value={filtroTipo} onChange={e => setFiltroTipo(e.target.value)} className="w-auto">
-              <option value="todos">Todos os tipos</option>
-              <option value="materia_prima">Matéria-Prima</option>
-              <option value="semi_acabado">Semi-Acabado</option>
-              <option value="produto_acabado">Produto Acabado</option>
-            </NativeSelect>
+            <Select value={filtroTipo} onValueChange={setFiltroTipo}>
+              <SelectTrigger className="w-[180px] h-9 rounded-lg border border-border bg-input text-foreground text-xs">
+                <SelectValue placeholder="Todos os tipos" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">Todos os tipos</SelectItem>
+                <SelectItem value="materia_prima">Matéria-Prima</SelectItem>
+                <SelectItem value="semi_acabado">Semi-Acabado</SelectItem>
+                <SelectItem value="produto_acabado">Produto Acabado</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
 
           {saldosFiltrados.length === 0 ? (
@@ -709,15 +735,20 @@ export function EstoqueTab({ empresaAtivaId }: { empresaAtivaId?: string | null 
                 className="w-full h-9 pl-9 pr-3 rounded-lg border border-border bg-input text-foreground text-xs outline-none focus:ring-2 focus:ring-primary transition-all"
               />
             </div>
-            <NativeSelect variant="sm" value={filtroMov} onChange={e => setFiltroMov(e.target.value)} className="w-auto">
-              <option value="todos">Todos os tipos</option>
-              <option value="entrada">Recebimento</option>
-              <option value="saida_producao">Consumo OP</option>
-              <option value="entrada_producao">Produção Acabada</option>
-              <option value="ajuste_positivo">Ajuste +</option>
-              <option value="ajuste_negativo">Ajuste -</option>
-              <option value="refugo">Refugo</option>
-            </NativeSelect>
+            <Select value={filtroMov} onValueChange={setFiltroMov}>
+              <SelectTrigger className="w-[180px] h-9 rounded-lg border border-border bg-input text-foreground text-xs">
+                <SelectValue placeholder="Todos os tipos" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">Todos os tipos</SelectItem>
+                <SelectItem value="entrada">Recebimento</SelectItem>
+                <SelectItem value="saida_producao">Consumo OP</SelectItem>
+                <SelectItem value="entrada_producao">Produção Acabada</SelectItem>
+                <SelectItem value="ajuste_positivo">Ajuste +</SelectItem>
+                <SelectItem value="ajuste_negativo">Ajuste -</SelectItem>
+                <SelectItem value="refugo">Refugo</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
 
           {movFiltradas.length === 0 ? (
@@ -809,11 +840,16 @@ export function EstoqueTab({ empresaAtivaId }: { empresaAtivaId?: string | null 
                   </div>
                   <div className="space-y-1.5">
                     <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Tipo *</label>
-                    <NativeSelect value={novoItem.tipo} onChange={e => setNovoItem(p => ({ ...p, tipo: e.target.value }))}>
-                      <option value="materia_prima">Matéria-Prima</option>
-                      <option value="semi_acabado">Semi-Acabado</option>
-                      <option value="produto_acabado">Produto Acabado</option>
-                    </NativeSelect>
+                    <Select value={novoItem.tipo} onValueChange={val => setNovoItem(p => ({ ...p, tipo: val }))}>
+                      <SelectTrigger className="w-full h-10 px-4 rounded-xl border border-border bg-input text-foreground text-sm outline-none focus:ring-2 focus:ring-primary transition-all">
+                        <SelectValue placeholder="Selecione o tipo" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="materia_prima">Matéria-Prima</SelectItem>
+                        <SelectItem value="semi_acabado">Semi-Acabado</SelectItem>
+                        <SelectItem value="produto_acabado">Produto Acabado</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
                   <div className="space-y-1.5">
                     <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Unidade *</label>
