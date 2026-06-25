@@ -187,10 +187,10 @@ export function GBOTab({ user, empresaAtivaId }: { user: { id: string }, empresa
   }
 
   useEffect(() => {
-    if (user) {
+    if (empresaAtivaId) {
       loadMaquinas()
       loadInsumos()
-      const savedSession = localStorage.getItem(`exata_session_${user.id}`)
+      const savedSession = localStorage.getItem(`exata_session_${empresaAtivaId}`)
       if (savedSession) {
         try {
           const parsed = JSON.parse(savedSession)
@@ -200,7 +200,7 @@ export function GBOTab({ user, empresaAtivaId }: { user: { id: string }, empresa
           if (parsed.calcType) setCalcType(parsed.calcType)
           if (parsed.timeUnit) setTimeUnit(parsed.timeUnit)
         } catch (e) {
-          // Ignorado: falha ao fazer parse do localStorage apenas recomeça limpo
+          // Ignorado
         }
       }
       loadSavedProducts()
@@ -208,13 +208,13 @@ export function GBOTab({ user, empresaAtivaId }: { user: { id: string }, empresa
     setIsLoaded(true)
     window.addEventListener("sync_gbo_products", loadSavedProducts)
     return () => window.removeEventListener("sync_gbo_products", loadSavedProducts)
-  }, [user, empresaAtivaId])
+  }, [empresaAtivaId])
 
   useEffect(() => {
-    if (isLoaded && user) {
-      localStorage.setItem(`exata_session_${user.id}`, JSON.stringify({ operations, productCode, productName, calcType, timeUnit }))
+    if (isLoaded && empresaAtivaId) {
+      localStorage.setItem(`exata_session_${empresaAtivaId}`, JSON.stringify({ operations, productCode, productName, calcType, timeUnit }))
     }
-  }, [operations, productCode, productName, calcType, timeUnit, isLoaded, user])
+  }, [operations, productCode, productName, calcType, timeUnit, isLoaded, empresaAtivaId])
 
   const totalCycleTime = useMemo(() => {
     if (operations.length === 0) return 0
