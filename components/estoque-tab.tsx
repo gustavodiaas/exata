@@ -18,8 +18,6 @@ import {
   Boxes, ClipboardList, BarChart3, Filter
 } from "lucide-react"
 
-// ─── Interfaces ───────────────────────────────────────────────────────────────
-
 interface Insumo {
   id: string
   codigo: string
@@ -86,8 +84,6 @@ function formatBRL(n: number) {
   return n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })
 }
 
-// ─── Modal de Recebimento ─────────────────────────────────────────────────────
-
 function ModalRecebimento({ insumos, localId, empresaAtivaId, onSuccess, onCancel }: {
   insumos: Insumo[]
   localId: string
@@ -115,7 +111,6 @@ function ModalRecebimento({ insumos, localId, empresaAtivaId, onSuccess, onCance
     const qtd = parseFloat(quantidade)
     const custo = parseFloat(custoUnitario)
 
-    // Busca saldo atual
     const { data: saldoAtual } = await supabase
       .from("saldo_estoque")
       .select("saldo_atual, custo_medio")
@@ -127,12 +122,10 @@ function ModalRecebimento({ insumos, localId, empresaAtivaId, onSuccess, onCance
     const custoMedioAnterior = saldoAtual?.custo_medio ?? 0
     const saldoPosterior = saldoAnterior + qtd
 
-    // Custo médio ponderado
     const novosCustoMedio = saldoAnterior === 0
       ? custo
       : ((saldoAnterior * custoMedioAnterior) + (qtd * custo)) / saldoPosterior
 
-    // Upsert saldo
     await supabase.from("saldo_estoque").upsert({
       empresa_id: empresaAtivaId,
       insumo_id: insumoId,
@@ -141,7 +134,6 @@ function ModalRecebimento({ insumos, localId, empresaAtivaId, onSuccess, onCance
       updated_at: new Date().toISOString(),
     }, { onConflict: "empresa_id,insumo_id" })
 
-    // Registra movimentação
     await supabase.from("movimentacoes_estoque").insert({
       empresa_id: empresaAtivaId,
       insumo_id: insumoId,
@@ -162,7 +154,7 @@ function ModalRecebimento({ insumos, localId, empresaAtivaId, onSuccess, onCance
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm p-4">
+    <div className="fixed inset-0 z-40 flex items-center justify-center bg-background/80 backdrop-blur-sm p-4">
       <div className="w-full max-w-md bg-card border border-border rounded-2xl shadow-2xl p-6 space-y-5">
         <div className="flex items-center justify-between">
           <h3 className="text-sm font-bold text-foreground">Recebimento de Material</h3>
@@ -174,23 +166,19 @@ function ModalRecebimento({ insumos, localId, empresaAtivaId, onSuccess, onCance
         <div className="space-y-3">
           <div className="space-y-1.5">
             <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Item</label>
-            <Select value={insumoId} onValueChange={setInsumoId}>
+            <Select value={insumoId || undefined} onValueChange={setInsumoId}>
               <SelectTrigger className="w-full h-11 px-4 rounded-xl border border-border bg-input text-foreground text-sm outline-none focus:ring-2 focus:ring-primary transition-all">
                 <SelectValue placeholder="Selecione o item" />
               </SelectTrigger>
-              <SelectContent>
-                {["materia_prima", "semi_acabado", "produto_acabado"].map(tipo => {
-                  const itens = insumos.filter(i => i.tipo === tipo)
-                  if (itens.length === 0) return null
-                  return (
-                    <SelectGroup key={tipo}>
-                      <SelectLabel className="text-[10px] uppercase text-muted-foreground">{TIPO_LABELS[tipo]}</SelectLabel>
-                      {itens.map(i => (
-                        <SelectItem key={i.id} value={i.id}>{i.codigo} - {i.descricao}</SelectItem>
-                      ))}
-                    </SelectGroup>
-                  )
-                })}
+              <SelectContent className="z-[60]">
+                {["materia_prima", "semi_acabado", "produto_acabado"].map(tipo => (
+                  <SelectGroup key={tipo}>
+                    <SelectLabel className="text-[10px] uppercase text-muted-foreground">{TIPO_LABELS[tipo]}</SelectLabel>
+                    {insumos.filter(i => i.tipo === tipo).map(i => (
+                      <SelectItem key={i.id} value={i.id}>{i.codigo} - {i.descricao}</SelectItem>
+                    ))}
+                  </SelectGroup>
+                ))}
               </SelectContent>
             </Select>
           </div>
@@ -255,8 +243,6 @@ function ModalRecebimento({ insumos, localId, empresaAtivaId, onSuccess, onCance
   )
 }
 
-// ─── Modal de Ajuste ──────────────────────────────────────────────────────────
-
 function ModalAjuste({ insumos, localId, empresaAtivaId, saldos, onSuccess, onCancel }: {
   insumos: Insumo[]
   localId: string
@@ -312,7 +298,7 @@ function ModalAjuste({ insumos, localId, empresaAtivaId, saldos, onSuccess, onCa
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm p-4">
+    <div className="fixed inset-0 z-40 flex items-center justify-center bg-background/80 backdrop-blur-sm p-4">
       <div className="w-full max-w-md bg-card border border-border rounded-2xl shadow-2xl p-6 space-y-5">
         <div className="flex items-center justify-between">
           <h3 className="text-sm font-bold text-foreground">Ajuste de Inventário</h3>
@@ -324,11 +310,11 @@ function ModalAjuste({ insumos, localId, empresaAtivaId, saldos, onSuccess, onCa
         <div className="space-y-3">
           <div className="space-y-1.5">
             <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Item</label>
-            <Select value={insumoId} onValueChange={val => { setInsumoId(val); setQuantidadeReal("") }}>
+            <Select value={insumoId || undefined} onValueChange={val => { setInsumoId(val); setQuantidadeReal("") }}>
               <SelectTrigger className="w-full h-11 px-4 rounded-xl border border-border bg-input text-foreground text-sm outline-none focus:ring-2 focus:ring-primary transition-all">
                 <SelectValue placeholder="Selecione o item" />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="z-[60]">
                 {insumos.map(i => (
                   <SelectItem key={i.id} value={i.id}>{i.codigo} - {i.descricao}</SelectItem>
                 ))}
@@ -394,8 +380,6 @@ function ModalAjuste({ insumos, localId, empresaAtivaId, saldos, onSuccess, onCa
   )
 }
 
-// ─── Componente principal ─────────────────────────────────────────────────────
-
 export function EstoqueTab({ empresaAtivaId }: { empresaAtivaId?: string | null }) {
   const { toast } = useToast()
   const [abaAtiva, setAbaAtiva] = useState<Aba>("saldo")
@@ -407,22 +391,17 @@ export function EstoqueTab({ empresaAtivaId }: { empresaAtivaId?: string | null 
   const [locais, setLocais] = useState<LocalEstoque[]>([])
   const [localPadrao, setLocalPadrao] = useState<string>("")
 
-  // Cadastro de item
   const [showNovoItem, setShowNovoItem] = useState(false)
   const [novoItem, setNovoItem] = useState({ codigo: "", descricao: "", unidade_medida: "", preco_unitario: "", estoque_minimo: "", tipo: "materia_prima" })
   const [salvandoItem, setSalvandoItem] = useState(false)
 
-  // Filtros
   const [busca, setBusca] = useState("")
   const [filtroTipo, setFiltroTipo] = useState("todos")
   const [filtroMov, setFiltroMov] = useState("todos")
   const [buscaMov, setBuscaMov] = useState("")
 
-  // Modais
   const [showRecebimento, setShowRecebimento] = useState(false)
   const [showAjuste, setShowAjuste] = useState(false)
-
-  // ─── Carga ──────────────────────────────────────────────────────────────────
 
   const loadData = async () => {
     setLoading(true)
@@ -468,8 +447,6 @@ export function EstoqueTab({ empresaAtivaId }: { empresaAtivaId?: string | null 
     if (empresaAtivaId) loadData()
   }, [empresaAtivaId])
 
-  // ─── KPIs ──────────────────────────────────────────────────────────────────
-
   const kpis = useMemo(() => {
     const valorTotal = saldos.reduce((s, x) => s + x.valor_total, 0)
     const totalItens = insumos.length
@@ -479,8 +456,6 @@ export function EstoqueTab({ empresaAtivaId }: { empresaAtivaId?: string | null 
     const pa = saldos.filter(s => s.insumo.tipo === "produto_acabado").reduce((s, x) => s + x.valor_total, 0)
     return { valorTotal, totalItens, abaixoMinimo, zerados, mp, pa }
   }, [saldos, insumos])
-
-  // ─── Cadastro de item ───────────────────────────────────────────────────────
 
   const handleSalvarItem = async () => {
     if (!novoItem.codigo || !novoItem.descricao || !novoItem.unidade_medida) return
@@ -504,8 +479,6 @@ export function EstoqueTab({ empresaAtivaId }: { empresaAtivaId?: string | null 
     }
     setSalvandoItem(false)
   }
-
-  // ─── Filtros ────────────────────────────────────────────────────────────────
 
   const saldosFiltrados = useMemo(() => {
     return saldos.filter(s => {
@@ -542,7 +515,6 @@ export function EstoqueTab({ empresaAtivaId }: { empresaAtivaId?: string | null 
   return (
     <div className="space-y-6 pb-12">
 
-      {/* Modais */}
       {showRecebimento && (
         <ModalRecebimento
           insumos={insumos}
@@ -563,7 +535,6 @@ export function EstoqueTab({ empresaAtivaId }: { empresaAtivaId?: string | null 
         />
       )}
 
-      {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h2 className="text-lg font-bold text-foreground">Estoque</h2>
@@ -594,7 +565,6 @@ export function EstoqueTab({ empresaAtivaId }: { empresaAtivaId?: string | null 
         </div>
       </div>
 
-      {/* KPIs */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {[
           { label: "Valor total em estoque", value: formatBRL(kpis.valorTotal), icon: BarChart3, color: "text-primary" },
@@ -614,7 +584,6 @@ export function EstoqueTab({ empresaAtivaId }: { empresaAtivaId?: string | null 
         ))}
       </div>
 
-      {/* Abas internas */}
       <div className="flex gap-1 bg-muted/50 p-1 rounded-xl w-fit">
         {ABAS.map(aba => (
           <button
@@ -629,7 +598,6 @@ export function EstoqueTab({ empresaAtivaId }: { empresaAtivaId?: string | null 
         ))}
       </div>
 
-      {/* ─── ABA: SALDO ──────────────────────────────────────────────────────── */}
       {abaAtiva === "saldo" && (
         <div className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden">
           <div className="px-5 py-4 border-b border-border flex items-center gap-3 flex-wrap">
@@ -723,7 +691,6 @@ export function EstoqueTab({ empresaAtivaId }: { empresaAtivaId?: string | null 
         </div>
       )}
 
-      {/* ─── ABA: MOVIMENTAÇÕES ──────────────────────────────────────────────── */}
       {abaAtiva === "movimentacoes" && (
         <div className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden">
           <div className="px-5 py-4 border-b border-border flex items-center gap-3 flex-wrap">
@@ -808,7 +775,6 @@ export function EstoqueTab({ empresaAtivaId }: { empresaAtivaId?: string | null 
         </div>
       )}
 
-      {/* ─── ABA: ITENS ──────────────────────────────────────────────────────── */}
       {abaAtiva === "itens" && (
         <div className="space-y-4">
           <div className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden">
