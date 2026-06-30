@@ -111,7 +111,7 @@ export default function ExataApp() {
         .select("id, nome")
         .eq("id", savedId)
         .single()
-        .then(async ({ data }) => {
+        .then(async ({ data, error }) => {
           if (data) {
             setEmpresaAtivaId(data.id)
             setEmpresaName(data.nome)
@@ -125,8 +125,13 @@ export default function ExataApp() {
               .eq("empresa_id", data.id)
               .single()
             if (cod) setCodigoAtual(cod.codigo)
-          } else {
+          } else if (error && error.code === "PGRST116") {
+            // PGRST116 = nenhuma linha encontrada -> empresa realmente não existe mais
             localStorage.removeItem(STORAGE_KEY)
+          } else if (error) {
+            // Erro de rede/timeout/outro -> NÃO desloga, apenas tenta de novo
+            console.error("Falha ao validar sessão salva, mantendo login local:", error)
+            setEmpresaAtivaId(savedId)
           }
           setAuthLoading(false)
         })
