@@ -286,9 +286,9 @@ export function ApontamentoTab({ empresaAtivaId }: { empresaAtivaId?: string | n
   const loadData = async () => {
     setLoading(true)
     try {
-      const [{ data: opsData }, { data: apData }, { data: gData }, { data: sData }] = await Promise.all([
+      const [opsRes, apRes, gRes, sRes] = await Promise.all([
         supabase.from("ordens_producao")
-          .select("id, numero_op, produto_codigo, quantidade, data_programacao, status")
+          .select("id, numero_op, produto_codigo, quantidade, data_programacao")
           .eq("empresa_id", empresaAtivaId!)
           .order("data_programacao", { ascending: true }),
         supabase.from("apontamentos")
@@ -299,15 +299,27 @@ export function ApontamentoTab({ empresaAtivaId }: { empresaAtivaId?: string | n
         supabase.from("excecao_subgrupos").select("id, grupo_id, nome").eq("empresa_id", empresaAtivaId!).order("nome"),
       ])
 
-      setOrdens((opsData || []) as OrdemProducao[])
-      setApontamentos((apData || []) as Apontamento[])
+      if (opsRes.error) {
+        console.error("Erro buscar OPs:", opsRes.error)
+        toast({ title: "Falha ao buscar OPs", description: opsRes.error.message, variant: "destructive" })
+      }
+      
+      if (apRes.error) {
+        console.error("Erro buscar Apontamentos:", apRes.error)
+        toast({ title: "Falha ao buscar Apontamentos", description: apRes.error.message, variant: "destructive" })
+      }
 
-      const gruposFormatados: Grupo[] = (gData || []).map((g: any) => ({
+      setOrdens((opsRes.data || []) as OrdemProducao[])
+      setApontamentos((apRes.data || []) as Apontamento[])
+
+      const gruposFormatados: Grupo[] = (gRes.data || []).map((g: any) => ({
         id: g.id,
         nome: g.nome,
-        subgrupos: (sData || []).filter((s: any) => s.grupo_id === g.id),
+        subgrupos: (sRes.data || []).filter((s: any) => s.grupo_id === g.id),
       }))
       setGrupos(gruposFormatados)
+    } catch (err) {
+      console.error("Erro critico na carga:", err)
     } finally {
       setLoading(false)
     }
@@ -821,7 +833,10 @@ export function ApontamentoTab({ empresaAtivaId }: { empresaAtivaId?: string | n
       const totalRetrabalho = aps.reduce((s, a) => s + (a.pecas_retrabalho || 0), 0)
       const totalSegundos = aps.reduce((s, a) => s + (a.cronometro_total_segundos || 0), 0)
       const pct = op.quantidade > 0 ? Math.min(100, (totalProduzidas / op.quantidade) * 100) : 0
-      const fechada = op.status === "encerrada" || totalProduzidas >= op.quantidade
+      
+      const foiEncerradaManualmente = aps.some(a => a.encerramento === "encerrar" || a.encerramento === "encerrar_parcial")
+      const fechada = foiEncerradaManualmente || totalProduzidas >= op.quantidade
+      
       return { op, aps, totalProduzidas, totalRefugo, totalRetrabalho, totalSegundos, pct, fechada }
     })
   }, [ordens, apontamentos])
@@ -1020,8 +1035,8 @@ export function ApontamentoTab({ empresaAtivaId }: { empresaAtivaId?: string | n
                   <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Ordem de Produção</label>
                   <NativeSelect value={ordemSelecionadaId} onChange={e => { setOrdemSelecionadaId(e.target.value); setOperacaoSelecionadaId("") }}>
                     <option value="">Selecione a OP</option>
-                    {ordens.filter(o => o.status !== "encerrada").map(op => (
-                      <option key={op.id} value={op.id}>{op.numero_op} — {op.produto_codigo}</option>
+                    {resumos.filter(r => !r.fechada).map(r => (
+                      <option key={r.op.id} value={r.op.id}>{r.op.numero_op} — {r.op.produto_codigo}</option>
                     ))}
                   </NativeSelect>
                 </div>
