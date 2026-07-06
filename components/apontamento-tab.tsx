@@ -63,6 +63,7 @@ interface SessaoAtiva {
   ordemId: string
   operacaoId: string
   operacaoNome: string
+  maquinaId?: string
   maquinaNome: string
   inicioTimestamp: number
   segundosAcumulados: number
@@ -265,13 +266,13 @@ export function ApontamentoTab({ empresaAtivaId }: { empresaAtivaId?: string | n
   const [operacaoSelecionadaId, setOperacaoSelecionadaId] = useState("")
   const [loadingOps, setLoadingOps] = useState(false)
 
-  // Sessão ativa (cronômetro)
-  const [sessao, setSessao] = useState<SessaoAtiva | null>(null)
-  const [segundosDisplay, setSegundosDisplay] = useState(0)
-  const [emPausa, setEmPausa] = useState(false)
+  // Sessões ativas (pode ter mais de uma rodando ao mesmo tempo, uma por operação/máquina)
+  const [sessoes, setSessoes] = useState<SessaoAtiva[]>([])
+  const [segundosMap, setSegundosMap] = useState<Record<string, number>>({})
   const intervalRef = useRef<NodeJS.Timeout | null>(null)
 
-  // Modais
+  // Modais (sessaoEmAcaoId identifica qual sessão da lista está sendo pausada/finalizada)
+  const [sessaoEmAcaoId, setSessaoEmAcaoId] = useState<string | null>(null)
   const [showModalPausa, setShowModalPausa] = useState(false)
   const [showModalFinalizar, setShowModalFinalizar] = useState(false)
   const [dadosFinalizar, setDadosFinalizar] = useState<{ produzidas: number; refugo: number; retrabalho: number; encerramento: "continuar" | "encerrar" | "encerrar_parcial" } | null>(null)
@@ -328,38 +329,43 @@ export function ApontamentoTab({ empresaAtivaId }: { empresaAtivaId?: string | n
   useEffect(() => {
     if (empresaAtivaId) {
       loadData()
-      // Restaura sessão do localStorage
+      // Restaura sessões do localStorage (aceita formato antigo, um objeto único, por compatibilidade)
       const raw = localStorage.getItem(SESSAO_KEY + empresaAtivaId)
       if (raw) {
         try {
-          const s: SessaoAtiva = JSON.parse(raw)
-          setSessao(s)
-          setEmPausa(!!s.pausaInicioTimestamp)
+          const parsed = JSON.parse(raw)
+          const lista: SessaoAtiva[] = Array.isArray(parsed) ? parsed : [parsed]
+          setSessoes(lista)
         } catch { }
       }
     }
   }, [empresaAtivaId])
 
-  // Cronômetro
+  // Cronômetro — atualiza o tempo decorrido de todas as sessões ativas a cada segundo
   useEffect(() => {
     if (intervalRef.current) clearInterval(intervalRef.current)
-    if (!sessao || emPausa) return
+    if (sessoes.length === 0) { setSegundosMap({}); return }
 
     const tick = () => {
       const agora = Date.now()
-      const decorrido = Math.floor((agora - sessao.inicioTimestamp) / 1000)
-      setSegundosDisplay(sessao.segundosAcumulados + decorrido)
+      const novo: Record<string, number> = {}
+      for (const s of sessoes) {
+        novo[s.apontamentoId] = s.pausaInicioTimestamp
+          ? s.segundosAcumulados
+          : s.segundosAcumulados + Math.floor((agora - s.inicioTimestamp) / 1000)
+      }
+      setSegundosMap(novo)
     }
     tick()
     intervalRef.current = setInterval(tick, 1000)
     return () => { if (intervalRef.current) clearInterval(intervalRef.current) }
-  }, [sessao, emPausa])
+  }, [sessoes])
 
-  const salvarSessao = useCallback((s: SessaoAtiva | null) => {
+  const salvarSessoes = useCallback((s: SessaoAtiva[]) => {
     if (!empresaAtivaId) return
-    if (s) localStorage.setItem(SESSAO_KEY + empresaAtivaId, JSON.stringify(s))
+    if (s.length > 0) localStorage.setItem(SESSAO_KEY + empresaAtivaId, JSON.stringify(s))
     else localStorage.removeItem(SESSAO_KEY + empresaAtivaId)
-    setSessao(s)
+    setSessoes(s)
   }, [empresaAtivaId])
 
   // ─── Carrega operações ao selecionar OP ────────────────────────────────────
@@ -408,6 +414,11 @@ export function ApontamentoTab({ empresaAtivaId }: { empresaAtivaId?: string | n
     const op = operacoes.find(o => o.id === operacaoSelecionadaId)
     if (!op) return
 
+    if (sessoes.some(s => s.operacaoId === operacaoSelecionadaId)) {
+      toast({ title: "Essa operação já está em andamento", description: "Finalize ou pause antes de iniciar de novo.", variant: "destructive" })
+      return
+    }
+
     // Busca tempo planejado da operação no banco para ter unidade correta
     const { data: opDb } = await supabase
       .from("operacoes")
@@ -447,14 +458,15 @@ export function ApontamentoTab({ empresaAtivaId }: { empresaAtivaId?: string | n
       ordemId: ordemSelecionadaId,
       operacaoId: operacaoSelecionadaId,
       operacaoNome: op.nome,
+      maquinaId: op.maquina_id,
       maquinaNome: op.maquina_nome ? `${op.maquina_codigo} - ${op.maquina_nome}` : "Manual",
       inicioTimestamp: Date.now(),
       segundosAcumulados: 0,
       cicloPlanejadoSeg,
     }
-    salvarSessao(novaSessao)
-    setEmPausa(false)
-    setSegundosDisplay(0)
+    salvarSessoes([...sessoes, novaSessao])
+    setOrdemSelecionadaId("")
+    setOperacaoSelecionadaId("")
     toast({ title: "▶ Apontamento iniciado", description: op.nome })
   }
 
@@ -464,6 +476,7 @@ export function ApontamentoTab({ empresaAtivaId }: { empresaAtivaId?: string | n
   const [subgrupoParada, setSubgrupoParada] = useState<{ nome: string; grupo: string } | null>(null)
 
   const handleConfirmarPausa = async (subgrupoId: string) => {
+    const sessao = sessoes.find(s => s.apontamentoId === sessaoEmAcaoId)
     if (!sessao) return
     setShowModalPausa(false)
 
@@ -491,8 +504,7 @@ export function ApontamentoTab({ empresaAtivaId }: { empresaAtivaId?: string | n
       pausaInicioTimestamp: agora,
       pausaId: pausa.id,
     }
-    salvarSessao(sessaoAtualizada)
-    setEmPausa(true)
+    salvarSessoes(sessoes.map(s => s.apontamentoId === sessao.apontamentoId ? sessaoAtualizada : s))
 
     // Verifica se o motivo é de manutenção para sugerir OS
     const subgrupo = grupos.flatMap(g => g.subgrupos.map(s => ({ ...s, grupo: g.nome }))).find(s => s.id === subgrupoId)
@@ -514,7 +526,8 @@ export function ApontamentoTab({ empresaAtivaId }: { empresaAtivaId?: string | n
 
   // ─── Retomar ───────────────────────────────────────────────────────────────
 
-  const handleRetomar = async () => {
+  const handleRetomar = async (apontamentoId: string) => {
+    const sessao = sessoes.find(s => s.apontamentoId === apontamentoId)
     if (!sessao?.pausaId) return
 
     await supabase
@@ -528,8 +541,7 @@ export function ApontamentoTab({ empresaAtivaId }: { empresaAtivaId?: string | n
       pausaInicioTimestamp: undefined,
       pausaId: undefined,
     }
-    salvarSessao(sessaoAtualizada)
-    setEmPausa(false)
+    salvarSessoes(sessoes.map(s => s.apontamentoId === sessao.apontamentoId ? sessaoAtualizada : s))
     toast({ title: "▶ Produção retomada" })
   }
 
@@ -547,6 +559,7 @@ export function ApontamentoTab({ empresaAtivaId }: { empresaAtivaId?: string | n
       return
     }
 
+    const sessao = sessoes.find(s => s.apontamentoId === sessaoEmAcaoId)
     const ordem = ordens.find(o => o.id === sessao?.ordemId)
     if (!ordem) { handleConfirmarFinalizar(dados); return }
 
@@ -607,11 +620,13 @@ export function ApontamentoTab({ empresaAtivaId }: { empresaAtivaId?: string | n
     produzidas: number; refugo: number; retrabalho: number
     encerramento: "continuar" | "encerrar" | "encerrar_parcial"
   }) => {
+    const sessao = sessoes.find(s => s.apontamentoId === sessaoEmAcaoId)
     if (!sessao) return
     setShowModalFinalizar(false)
 
+    const emPausaAtual = !!sessao.pausaInicioTimestamp
     const agora = Date.now()
-    const decorrido = emPausa ? 0 : Math.floor((agora - sessao.inicioTimestamp) / 1000)
+    const decorrido = emPausaAtual ? 0 : Math.floor((agora - sessao.inicioTimestamp) / 1000)
     const totalSegundos = sessao.segundosAcumulados + decorrido
 
     // Fecha pausa aberta se houver
@@ -814,9 +829,8 @@ export function ApontamentoTab({ empresaAtivaId }: { empresaAtivaId?: string | n
       }
     }
 
-    salvarSessao(null)
-    setEmPausa(false)
-    setSegundosDisplay(0)
+    salvarSessoes(sessoes.filter(s => s.apontamentoId !== sessao.apontamentoId))
+    setSessaoEmAcaoId(null)
     await loadData()
 
     const labels = { continuar: "Apontamento salvo", encerrar: "OP encerrada e estoque atualizado", encerrar_parcial: "OP encerrada parcialmente e estoque atualizado" }
@@ -851,11 +865,12 @@ export function ApontamentoTab({ empresaAtivaId }: { empresaAtivaId?: string | n
     return { totalOPs, opsFechadas, totalProduzidas, totalRefugo, pctRefugo }
   }, [resumos, apontamentos, ordens])
 
-  const ordemAtual = ordens.find(o => o.id === (sessao?.ordemId || ordemSelecionadaId))
+  const ordemAtual = ordens.find(o => o.id === ordemSelecionadaId)
 
   const criarOSManutencao = async () => {
+    const sessao = sessoes.find(s => s.apontamentoId === sessaoEmAcaoId)
     if (!sessao) return
-    const maquinaId = operacoes.find(o => o.id === sessao.operacaoId)?.maquina_id
+    const maquinaId = sessao.maquinaId
     if (!maquinaId) {
       toast({ title: "⏸ Em pausa", description: "Máquina não identificada para abrir OS automaticamente." })
       setShowSugestaoManutencao(false)
@@ -1024,79 +1039,80 @@ export function ApontamentoTab({ empresaAtivaId }: { empresaAtivaId?: string | n
         <div className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden">
           <div className="px-6 py-4 border-b border-border">
             <h3 className="text-sm font-bold text-foreground">Apontamento</h3>
-            <p className="text-[11px] text-muted-foreground mt-0.5">Selecione a OP e a operação para iniciar</p>
+            <p className="text-[11px] text-muted-foreground mt-0.5">
+              {sessoes.length > 0 ? `${sessoes.length} operação${sessoes.length > 1 ? "ões" : ""} em andamento` : "Selecione a OP e a operação para iniciar"}
+            </p>
           </div>
 
           <div className="p-6 space-y-4">
-            {!sessao ? (
-              <>
-                {/* Seleção de OP */}
-                <div className="space-y-1.5">
-                  <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Ordem de Produção</label>
-                  <NativeSelect value={ordemSelecionadaId} onChange={e => { setOrdemSelecionadaId(e.target.value); setOperacaoSelecionadaId("") }}>
-                    <option value="">Selecione a OP</option>
-                    {resumos.filter(r => !r.fechada).map(r => (
-                      <option key={r.op.id} value={r.op.id}>{r.op.numero_op} — {r.op.produto_codigo}</option>
-                    ))}
-                  </NativeSelect>
+            {/* Formulário de início — sempre visível, pode iniciar outra sessão mesmo com sessões já rodando */}
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Ordem de Produção</label>
+              <NativeSelect value={ordemSelecionadaId} onChange={e => { setOrdemSelecionadaId(e.target.value); setOperacaoSelecionadaId("") }}>
+                <option value="">Selecione a OP</option>
+                {resumos.filter(r => !r.fechada).map(r => (
+                  <option key={r.op.id} value={r.op.id}>{r.op.numero_op} — {r.op.produto_codigo}</option>
+                ))}
+              </NativeSelect>
+            </div>
+
+            {ordemAtual && (
+              <div className="bg-muted/40 rounded-xl p-4 space-y-1.5 text-xs">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Produto</span>
+                  <span className="font-bold text-foreground">{ordemAtual.produto_codigo}</span>
                 </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Quantidade</span>
+                  <span className="font-bold text-foreground">{ordemAtual.quantidade} peças</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Programada</span>
+                  <span className="font-bold text-foreground">{ordemAtual.data_programacao?.split("-").reverse().join("/")}</span>
+                </div>
+              </div>
+            )}
 
-                {/* Dados da OP */}
-                {ordemAtual && (
-                  <div className="bg-muted/40 rounded-xl p-4 space-y-1.5 text-xs">
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Produto</span>
-                      <span className="font-bold text-foreground">{ordemAtual.produto_codigo}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Quantidade</span>
-                      <span className="font-bold text-foreground">{ordemAtual.quantidade} peças</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Programada</span>
-                      <span className="font-bold text-foreground">{ordemAtual.data_programacao?.split("-").reverse().join("/")}</span>
-                    </div>
-                  </div>
+            {ordemSelecionadaId && (
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Operação</label>
+                {loadingOps ? (
+                  <div className="h-11 rounded-xl border border-border bg-muted animate-pulse" />
+                ) : operacoes.length === 0 ? (
+                  <p className="text-xs text-muted-foreground px-1">Nenhuma operação no roteiro deste produto.</p>
+                ) : (
+                  <NativeSelect value={operacaoSelecionadaId} onChange={e => setOperacaoSelecionadaId(e.target.value)}>
+                    <option value="">Selecione a operação</option>
+                    {operacoes.map(op => {
+                      const jaRodando = sessoes.some(s => s.operacaoId === op.id)
+                      return (
+                        <option key={op.id} value={op.id} disabled={jaRodando}>
+                          {op.ordem}. {op.nome}{op.maquina_codigo ? ` — ${op.maquina_codigo}` : ""}{jaRodando ? " (já em andamento)" : ""}
+                        </option>
+                      )
+                    })}
+                  </NativeSelect>
                 )}
+              </div>
+            )}
 
-                {/* Seleção de operação */}
-                {ordemSelecionadaId && (
-                  <div className="space-y-1.5">
-                    <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Operação</label>
-                    {loadingOps ? (
-                      <div className="h-11 rounded-xl border border-border bg-muted animate-pulse" />
-                    ) : operacoes.length === 0 ? (
-                      <p className="text-xs text-muted-foreground px-1">Nenhuma operação no roteiro deste produto.</p>
-                    ) : (
-                      <NativeSelect value={operacaoSelecionadaId} onChange={e => setOperacaoSelecionadaId(e.target.value)}>
-                        <option value="">Selecione a operação</option>
-                        {operacoes.map(op => (
-                          <option key={op.id} value={op.id}>
-                            {op.ordem}. {op.nome}{op.maquina_codigo ? ` — ${op.maquina_codigo}` : ""}
-                          </option>
-                        ))}
-                      </NativeSelect>
-                    )}
-                  </div>
-                )}
+            <button
+              onClick={handleIniciar}
+              disabled={!ordemSelecionadaId || !operacaoSelecionadaId}
+              className="w-full h-12 flex items-center justify-center gap-2 bg-primary text-primary-foreground font-bold uppercase tracking-widest text-xs rounded-xl shadow-md hover:opacity-90 transition-all disabled:opacity-50"
+            >
+              <Play className="h-4 w-4" /> Iniciar
+            </button>
 
-                <button
-                  onClick={handleIniciar}
-                  disabled={!ordemSelecionadaId || !operacaoSelecionadaId}
-                  className="w-full h-12 flex items-center justify-center gap-2 bg-primary text-primary-foreground font-bold uppercase tracking-widest text-xs rounded-xl shadow-md hover:opacity-90 transition-all disabled:opacity-50"
-                >
-                  <Play className="h-4 w-4" /> Iniciar
-                </button>
-              </>
-            ) : (
-              <>
-                {/* Cronômetro ativo com semáforo */}
-                {(() => {
-                  const ciclo = sessao.cicloPlanejadoSeg
-                  const pct = ciclo && ciclo > 0 && segundosDisplay > 0
-                    ? (segundosDisplay / ciclo) * 100
-                    : null
-                  const semaforo = emPausa
+            {/* Lista de sessões ativas, uma por operação/máquina */}
+            {sessoes.length > 0 && (
+              <div className="space-y-3 pt-2 border-t border-border">
+                {sessoes.map(s => {
+                  const segundosDisplay = segundosMap[s.apontamentoId] ?? s.segundosAcumulados
+                  const emPausaEsta = !!s.pausaInicioTimestamp
+                  const ciclo = s.cicloPlanejadoSeg
+                  const pct = ciclo && ciclo > 0 && segundosDisplay > 0 ? (segundosDisplay / ciclo) * 100 : null
+                  const semaforo = emPausaEsta
                     ? { cor: "text-amber-500", bg: "bg-amber-500/10", borda: "border-amber-500/30", label: "Em pausa", barra: "bg-amber-500" }
                     : pct === null
                     ? { cor: "text-foreground", bg: "bg-muted/40", borda: "border-transparent", label: "Sem ciclo padrão", barra: "bg-primary" }
@@ -1107,82 +1123,62 @@ export function ApontamentoTab({ empresaAtivaId }: { empresaAtivaId?: string | n
                     : { cor: "text-destructive", bg: "bg-destructive/10", borda: "border-destructive/30", label: "Tempo estourado", barra: "bg-destructive" }
 
                   return (
-                    <div className={`rounded-xl p-4 text-center space-y-2 border ${semaforo.bg} ${semaforo.borda} transition-all`}>
-                      <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Tempo decorrido</p>
-                      <p className={`text-4xl font-black tabular-nums tracking-tight ${semaforo.cor}`}>
-                        {formatarTempo(segundosDisplay)}
-                      </p>
-                      <p className={`text-[10px] font-bold uppercase tracking-wider ${semaforo.cor}`}>
-                        {semaforo.label}
-                      </p>
-                      {ciclo && ciclo > 0 && (
-                        <div className="space-y-1 pt-1">
-                          <div className="h-1.5 bg-muted rounded-full overflow-hidden">
-                            <div
-                              className={`h-full rounded-full transition-all ${semaforo.barra}`}
-                              style={{ width: `${Math.min(100, pct ?? 0)}%` }}
-                            />
+                    <div key={s.apontamentoId} className="rounded-xl border border-border p-3 space-y-3">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="font-bold text-foreground">{ordens.find(o => o.id === s.ordemId)?.numero_op}</span>
+                        <span className="text-muted-foreground">{s.maquinaNome}</span>
+                      </div>
+                      <p className="text-[11px] text-muted-foreground -mt-2">{s.operacaoNome}</p>
+
+                      <div className={`rounded-xl p-3 text-center space-y-1 border ${semaforo.bg} ${semaforo.borda} transition-all`}>
+                        <p className={`text-3xl font-black tabular-nums tracking-tight ${semaforo.cor}`}>
+                          {formatarTempo(segundosDisplay)}
+                        </p>
+                        <p className={`text-[10px] font-bold uppercase tracking-wider ${semaforo.cor}`}>
+                          {semaforo.label}
+                        </p>
+                        {ciclo && ciclo > 0 && (
+                          <div className="space-y-1 pt-1">
+                            <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+                              <div className={`h-full rounded-full transition-all ${semaforo.barra}`} style={{ width: `${Math.min(100, pct ?? 0)}%` }} />
+                            </div>
+                            <p className="text-[10px] text-muted-foreground">
+                              Ciclo padrão: {formatarTempo(ciclo)}{pct !== null && ` — ${pct.toFixed(0)}%`}
+                            </p>
                           </div>
-                          <p className="text-[10px] text-muted-foreground">
-                            Ciclo padrão: {formatarTempo(ciclo)}
-                            {pct !== null && ` — ${pct.toFixed(0)}%`}
-                          </p>
-                        </div>
-                      )}
+                        )}
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2">
+                        {emPausaEsta ? (
+                          <button
+                            onClick={() => handleRetomar(s.apontamentoId)}
+                            className="col-span-2 h-10 flex items-center justify-center gap-2 bg-green-600 text-white font-bold text-xs uppercase tracking-widest rounded-xl hover:opacity-90 transition-all"
+                          >
+                            <Play className="h-4 w-4" /> Retomar
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => {
+                              setSessaoEmAcaoId(s.apontamentoId)
+                              grupos.length > 0 ? setShowModalPausa(true) : toast({ title: "Cadastre exceções primeiro", description: "Vá em Exceções e crie grupos de parada.", variant: "destructive" })
+                            }}
+                            className="h-10 flex items-center justify-center gap-2 bg-amber-500 text-white font-bold text-xs uppercase tracking-widest rounded-xl hover:opacity-90 transition-all"
+                          >
+                            <Pause className="h-4 w-4" /> Pausar
+                          </button>
+                        )}
+                        <button
+                          onClick={() => { setSessaoEmAcaoId(s.apontamentoId); setShowModalFinalizar(true) }}
+                          className={`h-10 flex items-center justify-center gap-2 bg-card border border-border text-foreground font-bold text-xs uppercase tracking-widest rounded-xl hover:bg-muted transition-all ${emPausaEsta ? "col-span-2" : ""}`}
+                        >
+                          <Square className="h-4 w-4" /> Finalizar
+                        </button>
+                      </div>
                     </div>
                   )
-                })()}
-
-                <div className="bg-muted/20 rounded-xl p-4 space-y-1.5 text-xs">
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">OP</span>
-                    <span className="font-bold text-foreground">{ordens.find(o => o.id === sessao.ordemId)?.numero_op}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Operação</span>
-                    <span className="font-bold text-foreground">{sessao.operacaoNome}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Máquina</span>
-                    <span className="font-bold text-foreground">{sessao.maquinaNome}</span>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-2">
-                  {emPausa ? (
-                    <button
-                      onClick={handleRetomar}
-                      className="col-span-2 h-11 flex items-center justify-center gap-2 bg-green-600 text-white font-bold text-xs uppercase tracking-widest rounded-xl hover:opacity-90 transition-all"
-                    >
-                      <Play className="h-4 w-4" /> Retomar
-                    </button>
-                  ) : (
-                    <button
-                      onClick={() => grupos.length > 0 ? setShowModalPausa(true) : toast({ title: "Cadastre exceções primeiro", description: "Vá em Exceções e crie grupos de parada.", variant: "destructive" })}
-                      className="h-11 flex items-center justify-center gap-2 bg-amber-500 text-white font-bold text-xs uppercase tracking-widest rounded-xl hover:opacity-90 transition-all"
-                    >
-                      <Pause className="h-4 w-4" /> Pausar
-                    </button>
-                  )}
-                  {!emPausa && (
-                    <button
-                      onClick={() => setShowModalFinalizar(true)}
-                      className="h-11 flex items-center justify-center gap-2 bg-card border border-border text-foreground font-bold text-xs uppercase tracking-widest rounded-xl hover:bg-muted transition-all"
-                    >
-                      <Square className="h-4 w-4" /> Finalizar
-                    </button>
-                  )}
-                </div>
-
-                {emPausa && (
-                  <button
-                    onClick={() => setShowModalFinalizar(true)}
-                    className="w-full h-11 flex items-center justify-center gap-2 bg-card border border-border text-foreground font-bold text-xs uppercase tracking-widest rounded-xl hover:bg-muted transition-all"
-                  >
-                    <Square className="h-4 w-4" /> Finalizar mesmo assim
-                  </button>
-                )}
-              </>
+                })}
+              </div>
             )}
           </div>
         </div>
