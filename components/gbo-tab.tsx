@@ -104,12 +104,13 @@ export function GBOTab({ user, empresaAtivaId }: { user: { id: string }, empresa
   const { toast } = useToast()
 
   const loadMaquinas = async () => {
+    if (!empresaAtivaId) return
     try {
-      let q = supabase.from("maquinas").select("id, nome, codigo, tempo_setup_padrao").neq("status", "inativa")
-      if (empresaAtivaId) {
-        q = q.eq("empresa_id", empresaAtivaId)
-      }
-      const { data } = await q
+      const { data } = await supabase
+        .from("maquinas")
+        .select("id, nome, codigo, tempo_setup_padrao")
+        .neq("status", "inativa")
+        .eq("empresa_id", empresaAtivaId)
       if (data) setMaquinasGlobais(data as MaquinaDatabase[])
     } catch (e) {
       // Ignorado silenciosamente
@@ -152,17 +153,13 @@ export function GBOTab({ user, empresaAtivaId }: { user: { id: string }, empresa
   }
 
   const loadSavedProducts = async () => {
+    if (!empresaAtivaId) return
     try {
-      let q = supabase
+      const { data: prods, error } = await supabase
         .from("produtos")
         .select(`id, codigo, descricao, operacoes (nome, tempo, unidade, ordem, setup_time, maquina_id)`)
         .order("ordem", { foreignTable: "operacoes" })
-
-      if (empresaAtivaId) {
-        q = q.eq("empresa_id", empresaAtivaId)
-      }
-
-      const { data: prods, error } = await q
+        .eq("empresa_id", empresaAtivaId)
 
       if (error) throw error
 
@@ -429,12 +426,12 @@ export function GBOTab({ user, empresaAtivaId }: { user: { id: string }, empresa
   }
 
   const handleDeleteProduct = async (code: string) => {
+    if (!empresaAtivaId) {
+      toast({ title: "Erro ao excluir", description: "Empresa não identificada. Recarregue a página.", variant: "destructive" })
+      return
+    }
     try {
-      let q = supabase.from("produtos").delete().eq("codigo", code)
-      if (empresaAtivaId) {
-        q = q.eq("empresa_id", empresaAtivaId)
-      }
-      await q
+      await supabase.from("produtos").delete().eq("codigo", code).eq("empresa_id", empresaAtivaId)
       
       const updated = savedProducts.filter((p) => p.code !== code)
       setSavedProducts(updated)
