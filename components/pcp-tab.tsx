@@ -194,19 +194,13 @@ export function PCPTab({ empresaAtivaId }: { empresaAtivaId?: string | null }) {
   const [draggingId, setDraggingId] = useState<string | null>(null)
 
   const loadData = async () => {
+    if (!empresaAtivaId) { setLoading(false); return }
     setLoading(true)
     try {
-      let qMaquinas = supabase.from("maquinas").select("*")
-      let qProdutos = supabase.from("produtos").select("*, operacoes(*)")
-      let qOrdens = supabase.from("ordens_producao").select("*")
-      let qCapacidade = supabase.from("capacidade_diaria").select("*")
-
-      if (empresaAtivaId) {
-        qMaquinas = qMaquinas.eq("empresa_id", empresaAtivaId)
-        qProdutos = qProdutos.eq("empresa_id", empresaAtivaId)
-        qOrdens = qOrdens.eq("empresa_id", empresaAtivaId)
-        qCapacidade = qCapacidade.eq("empresa_id", empresaAtivaId)
-      }
+      const qMaquinas = supabase.from("maquinas").select("*").eq("empresa_id", empresaAtivaId)
+      const qProdutos = supabase.from("produtos").select("*, operacoes(*)").eq("empresa_id", empresaAtivaId)
+      const qOrdens = supabase.from("ordens_producao").select("*").eq("empresa_id", empresaAtivaId)
+      const qCapacidade = supabase.from("capacidade_diaria").select("*").eq("empresa_id", empresaAtivaId)
 
       const [{ data: maqData }, { data: prodsData }, { data: opsData }, { data: capData }] = await Promise.all([
         qMaquinas, qProdutos, qOrdens, qCapacidade
