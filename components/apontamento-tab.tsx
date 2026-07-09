@@ -257,6 +257,7 @@ export function ApontamentoTab({ empresaAtivaId }: { empresaAtivaId?: string | n
 
   const [ordens, setOrdens] = useState<OrdemProducao[]>([])
   const [apontamentos, setApontamentos] = useState<Apontamento[]>([])
+  const [ultimaOperacaoPorProduto, setUltimaOperacaoPorProduto] = useState<Record<string, string>>({})
   const [grupos, setGrupos] = useState<Grupo[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -287,7 +288,7 @@ export function ApontamentoTab({ empresaAtivaId }: { empresaAtivaId?: string | n
   const loadData = async () => {
     setLoading(true)
     try {
-      const [opsRes, apRes, gRes, sRes] = await Promise.all([
+      const [opsRes, apRes, gRes, sRes, prodRes] = await Promise.all([
         supabase.from("ordens_producao")
           .select("id, numero_op, produto_codigo, quantidade, data_programacao")
           .eq("empresa_id", empresaAtivaId!)
@@ -298,6 +299,7 @@ export function ApontamentoTab({ empresaAtivaId }: { empresaAtivaId?: string | n
           .order("created_at", { ascending: false }),
         supabase.from("excecao_grupos").select("id, nome").eq("empresa_id", empresaAtivaId!).order("nome"),
         supabase.from("excecao_subgrupos").select("id, grupo_id, nome").eq("empresa_id", empresaAtivaId!).order("nome"),
+        supabase.from("produtos").select("codigo, operacoes(id, ordem)").eq("empresa_id", empresaAtivaId!),
       ])
 
       if (opsRes.error) {
@@ -312,6 +314,16 @@ export function ApontamentoTab({ empresaAtivaId }: { empresaAtivaId?: string | n
 
       setOrdens((opsRes.data || []) as OrdemProducao[])
       setApontamentos((apRes.data || []) as Apontamento[])
+
+      // Mapeia produto -> id da última operação do roteiro (a que entrega a peça pronta)
+      const mapaUltimaOp: Record<string, string> = {}
+      for (const p of (prodRes.data || []) as any[]) {
+        const opsRoteiro = (p.operacoes || []) as { id: string; ordem: number }[]
+        if (opsRoteiro.length === 0) continue
+        const ultima = opsRoteiro.reduce((a, b) => (b.ordem > a.ordem ? b : a))
+        mapaUltimaOp[p.codigo] = ultima.id
+      }
+      setUltimaOperacaoPorProduto(mapaUltimaOp)
 
       const gruposFormatados: Grupo[] = (gRes.data || []).map((g: any) => ({
         id: g.id,
@@ -842,7 +854,13 @@ export function ApontamentoTab({ empresaAtivaId }: { empresaAtivaId?: string | n
   const resumos = useMemo(() => {
     return ordens.map(op => {
       const aps = apontamentos.filter(a => a.ordem_id === op.id)
-      const totalProduzidas = aps.reduce((s, a) => s + (a.pecas_produzidas || 0), 0)
+      const ultimaOperacaoId = ultimaOperacaoPorProduto[op.produto_codigo]
+      // Peças prontas da OP = as que passaram pela última etapa do roteiro,
+      // não a soma de todas as etapas (senão a mesma peça conta 1x por operação)
+      const apsUltimaEtapa = ultimaOperacaoId
+        ? aps.filter(a => a.operacao_id === ultimaOperacaoId)
+        : aps
+      const totalProduzidas = apsUltimaEtapa.reduce((s, a) => s + (a.pecas_produzidas || 0), 0)
       const totalRefugo = aps.reduce((s, a) => s + (a.pecas_refugo || 0), 0)
       const totalRetrabalho = aps.reduce((s, a) => s + (a.pecas_retrabalho || 0), 0)
       const totalSegundos = aps.reduce((s, a) => s + (a.cronometro_total_segundos || 0), 0)
@@ -853,7 +871,7 @@ export function ApontamentoTab({ empresaAtivaId }: { empresaAtivaId?: string | n
       
       return { op, aps, totalProduzidas, totalRefugo, totalRetrabalho, totalSegundos, pct, fechada }
     })
-  }, [ordens, apontamentos])
+  }, [ordens, apontamentos, ultimaOperacaoPorProduto])
 
   const kpis = useMemo(() => {
     const totalOPs = ordens.length
