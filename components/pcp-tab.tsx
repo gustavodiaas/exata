@@ -650,7 +650,7 @@ export function PCPTab({ empresaAtivaId }: { empresaAtivaId?: string | null }) {
                         return (
                           <div
                             key={date}
-                            className={`flex flex-col rounded-xl border transition-colors ${draggingId ? "border-primary/30 bg-primary/5" : isToday ? "border-primary/50 bg-primary/5" : "border-border bg-muted/10"}`}
+                            className={`flex flex-col min-h-0 rounded-xl border transition-colors ${draggingId ? "border-primary/30 bg-primary/5" : isToday ? "border-primary/50 bg-primary/5" : "border-border bg-muted/10"}`}
                             onDragOver={handleDragOver}
                             onDrop={(e) => handleDrop(e, date)}
                           >
@@ -680,7 +680,7 @@ export function PCPTab({ empresaAtivaId }: { empresaAtivaId?: string | null }) {
                               </div>
                             </div>
 
-                            <div className="p-1.5 flex flex-col gap-1.5 flex-1 overflow-y-auto max-h-[320px]">
+                            <div className="p-1.5 flex flex-col gap-1.5 flex-1 min-h-0 overflow-y-auto max-h-[320px]">
                               {daySlices.length === 0 && (
                                 <div className="flex-1 flex items-center justify-center py-6">
                                   <span className="text-[10px] text-muted-foreground/50">Livre</span>
