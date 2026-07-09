@@ -27,6 +27,7 @@ interface OrdemProducao {
 interface Apontamento {
   id: string
   ordem_id: string
+  operacao_id?: string
   operacao_nome?: string
   maquina_id?: string
   cronometro_total_segundos: number
@@ -90,6 +91,7 @@ export function DashboardTab({ empresaAtivaId }: { empresaAtivaId: string | null
   const [maquinas, setMaquinas] = useState<Maquina[]>([])
   const [saldos, setSaldos] = useState<SaldoEstoque[]>([])
   const [pausas, setPausas] = useState<Pausa[]>([])
+  const [ultimaOperacaoPorProduto, setUltimaOperacaoPorProduto] = useState<Record<string, string>>({})
   const [ultimaAtualizacao, setUltimaAtualizacao] = useState<Date>(new Date())
 
   const { dataInicio, dataFim } = useMemo(() => {
@@ -115,13 +117,13 @@ export function DashboardTab({ empresaAtivaId }: { empresaAtivaId: string | null
       const inicioISO = new Date(dataInicio + "T00:00:00").toISOString()
       const fimISO = new Date(dataFim + "T23:59:59").toISOString()
 
-      const [{ data: ops }, { data: aps }, { data: mqs }, { data: sal }, { data: pss }] = await Promise.all([
+      const [{ data: ops }, { data: aps }, { data: mqs }, { data: sal }, { data: pss }, { data: prods }] = await Promise.all([
         supabase.from("ordens_producao")
           .select("id, numero_op, produto_codigo, quantidade, data_programacao, status")
           .eq("empresa_id", empresaAtivaId)
           .order("data_programacao", { ascending: false }),
         supabase.from("apontamentos")
-          .select("id, ordem_id, operacao_nome, maquina_id, cronometro_total_segundos, pecas_produzidas, pecas_refugo, pecas_retrabalho, status, created_at")
+          .select("id, ordem_id, operacao_id, operacao_nome, maquina_id, cronometro_total_segundos, pecas_produzidas, pecas_refugo, pecas_retrabalho, status, created_at")
           .eq("empresa_id", empresaAtivaId)
           .gte("created_at", inicioISO)
           .lte("created_at", fimISO),
@@ -135,6 +137,9 @@ export function DashboardTab({ empresaAtivaId }: { empresaAtivaId: string | null
           .select("apontamento_id, inicio, fim")
           .eq("empresa_id", empresaAtivaId)
           .gte("inicio", inicioISO),
+        supabase.from("produtos")
+          .select("codigo, operacoes(id, ordem)")
+          .eq("empresa_id", empresaAtivaId),
       ])
 
       setOrdens((ops || []) as OrdemProducao[])
@@ -146,6 +151,17 @@ export function DashboardTab({ empresaAtivaId }: { empresaAtivaId: string | null
         insumo: s.insumos,
       })) as SaldoEstoque[])
       setPausas((pss || []) as Pausa[])
+
+      // Mapeia produto -> id da última operação do roteiro (a que realmente entrega a peça pronta)
+      const mapaUltimaOp: Record<string, string> = {}
+      for (const p of (prods || []) as any[]) {
+        const opsRoteiro = (p.operacoes || []) as { id: string; ordem: number }[]
+        if (opsRoteiro.length === 0) continue
+        const ultima = opsRoteiro.reduce((a, b) => (b.ordem > a.ordem ? b : a))
+        mapaUltimaOp[p.codigo] = ultima.id
+      }
+      setUltimaOperacaoPorProduto(mapaUltimaOp)
+
       setUltimaAtualizacao(new Date())
     } finally {
       setLoading(false)
@@ -213,7 +229,13 @@ export function DashboardTab({ empresaAtivaId }: { empresaAtivaId: string | null
       .filter(o => o.status !== "encerrada")
       .map(op => {
         const aps = apontamentos.filter(a => a.ordem_id === op.id)
-        const produzidas = aps.reduce((s, a) => s + (a.pecas_produzidas || 0), 0)
+        const ultimaOperacaoId = ultimaOperacaoPorProduto[op.produto_codigo]
+        // Progresso real da OP = peças que passaram pela última etapa do roteiro,
+        // não a soma de todas as etapas (senão uma peça é contada 1x por operação)
+        const apsUltimaEtapa = ultimaOperacaoId
+          ? aps.filter(a => a.operacao_id === ultimaOperacaoId)
+          : aps
+        const produzidas = apsUltimaEtapa.reduce((s, a) => s + (a.pecas_produzidas || 0), 0)
         const pct = op.quantidade > 0 ? Math.min(100, (produzidas / op.quantidade) * 100) : 0
         const atrasada = op.data_programacao < toDateStr(new Date())
         const emAndamento = aps.some(a => a.status === "em_andamento")
@@ -225,7 +247,7 @@ export function DashboardTab({ empresaAtivaId }: { empresaAtivaId: string | null
         return 0
       })
       .slice(0, 6)
-  }, [ordens, apontamentos])
+  }, [ordens, apontamentos, ultimaOperacaoPorProduto])
 
   // ─── Status das máquinas ──────────────────────────────────────────────────
 
