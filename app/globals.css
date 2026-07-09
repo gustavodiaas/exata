@@ -56,31 +56,31 @@
 }
 
 .dark {
-  /* Modo Escuro: Fundo Azul Royal */
-  --background: 222 65% 10%;
-  --foreground: 210 40% 98%;
+  /* Modo Escuro: Preto premium, estilo macOS dark — não mais azul como estrutura */
+  --background: 220 15% 4%;
+  --foreground: 210 20% 97%;
 
-  /* Elementos em Azul Escuro */
-  --card: 222 60% 15%;
-  --card-foreground: 210 40% 98%;
-  --popover: 222 60% 15%;
-  --popover-foreground: 210 40% 98%;
-  --card-alpha: 0.78;
+  /* Cards/menus/painéis: cinza-fumê neutro translúcido, não azulado */
+  --card: 220 12% 11%;
+  --card-foreground: 210 20% 97%;
+  --popover: 220 14% 10%;
+  --popover-foreground: 210 20% 97%;
+  --card-alpha: 0.64;
 
-  /* Azul — levemente mais claro no escuro, pra manter contraste */
+  /* Azul — só como cor de destaque (botões, ativo, foco), nunca como fundo estrutural */
   --primary: 212 100% 54%;
   --primary-foreground: 0 0% 100%;
 
-  --secondary: 222 60% 20%;
-  --secondary-foreground: 210 40% 98%;
-  --muted: 222 60% 20%;
-  --muted-foreground: 215 20.2% 65.1%;
+  --secondary: 220 10% 16%;
+  --secondary-foreground: 210 20% 97%;
+  --muted: 220 10% 15%;
+  --muted-foreground: 215 12% 68%;
   --accent: 212 100% 54%;
   --accent-foreground: 0 0% 100%;
   --destructive: 0 62.8% 30.6%;
   --destructive-foreground: 210 40% 98%;
-  --border: 222 60% 20%;
-  --input: 222 60% 15%;
+  --border: 220 10% 20%;
+  --input: 220 12% 12%;
   --ring: 212 100% 54%;
 }
 
@@ -99,9 +99,9 @@ body {
 
 .dark body {
   background:
-    radial-gradient(circle at 15% 20%, hsl(212 100% 54% / 0.14), transparent 30%),
-    radial-gradient(circle at 85% 80%, hsl(211 100% 50% / 0.08), transparent 32%),
-    hsl(var(--background));
+    radial-gradient(circle at 12% 18%, hsl(0 0% 100% / 0.04), transparent 22%),
+    radial-gradient(circle at 85% 78%, hsl(212 100% 54% / 0.05), transparent 30%),
+    linear-gradient(180deg, #000000 0%, #050608 45%, #0a0b0d 100%);
   background-attachment: fixed;
 }
 
@@ -115,7 +115,12 @@ body {
 
 .dark .bg-card,
 .dark .bg-popover {
-  box-shadow: 0 18px 44px rgb(0 0 0 / 0.32), inset 0 1px 0 rgb(255 255 255 / 0.04);
+  backdrop-filter: blur(26px) saturate(180%);
+  -webkit-backdrop-filter: blur(26px) saturate(180%);
+  box-shadow:
+    0 12px 36px rgb(0 0 0 / 0.32),
+    inset 0 1px 0 rgb(255 255 255 / 0.05),
+    inset 0 -1px 0 rgb(0 0 0 / 0.18);
 }
 
 /* Navegadores sem suporte a backdrop-filter: cai pra fundo opaco, sem perder legibilidade */
@@ -137,6 +142,11 @@ body {
   background-color: hsl(var(--card) / var(--card-alpha));
   backdrop-filter: blur(20px) saturate(160%);
   -webkit-backdrop-filter: blur(20px) saturate(160%);
+}
+
+.dark .glass-panel {
+  backdrop-filter: blur(26px) saturate(180%);
+  -webkit-backdrop-filter: blur(26px) saturate(180%);
 }
 
 /* Scrollbar customizada usada em draggable-operations-list e pcp-tab */
