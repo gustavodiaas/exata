@@ -640,20 +640,21 @@ export function PCPTab({ empresaAtivaId }: { empresaAtivaId?: string | null }) {
                       </button>
                     </div>
 
-                    <div className="grid grid-cols-5 gap-2 min-h-[300px]">
-                      {weekDays.map((date, idx) => {
-                        const dayData = heijunkaDashboard[date]
-                        const maxOccupation = dayData?.maxOccupation ?? 0
-                        const daySlices = computeSlices.filter((s) => s.sliceDate === date)
-                        const isToday = date === todayStr
+                    <div className="overflow-x-auto custom-scrollbar pb-2 -mx-1 px-1">
+                      <div className="flex gap-2 min-h-[300px]">
+                        {weekDays.map((date, idx) => {
+                          const dayData = heijunkaDashboard[date]
+                          const maxOccupation = dayData?.maxOccupation ?? 0
+                          const daySlices = computeSlices.filter((s) => s.sliceDate === date)
+                          const isToday = date === todayStr
 
-                        return (
-                          <div
-                            key={date}
-                            className={`flex flex-col min-h-0 rounded-xl border transition-colors ${draggingId ? "border-primary/30 bg-primary/5" : isToday ? "border-primary/50 bg-primary/5" : "border-border bg-muted/10"}`}
-                            onDragOver={handleDragOver}
-                            onDrop={(e) => handleDrop(e, date)}
-                          >
+                          return (
+                            <div
+                              key={date}
+                              className={`flex flex-col min-h-0 flex-1 min-w-[210px] rounded-xl border transition-colors ${draggingId ? "border-primary/30 bg-primary/5" : isToday ? "border-primary/50 bg-primary/5" : "border-border bg-muted/10"}`}
+                              onDragOver={handleDragOver}
+                              onDrop={(e) => handleDrop(e, date)}
+                            >
                             <div className={`p-2.5 border-b rounded-t-xl ${isToday ? "border-primary/30 bg-primary/10" : "border-border bg-muted/30"}`}>
                               <div className="flex items-center justify-between mb-1">
                                 <span className={`text-[10px] font-bold uppercase tracking-wider ${isToday ? "text-primary" : "text-muted-foreground"}`}>
@@ -735,6 +736,7 @@ export function PCPTab({ empresaAtivaId }: { empresaAtivaId?: string | null }) {
                           </div>
                         )
                       })}
+                    </div>
                     </div>
                   </div>
                 )}
