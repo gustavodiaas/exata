@@ -8,7 +8,7 @@ import { GBOTab } from "@/components/gbo-tab"
 import { PCPTab } from "@/components/pcp-tab"
 import { ApontamentoTab } from "@/components/apontamento-tab"
 import { ExcecoesTab } from "@/components/excecoes-tab"
-import { EstoqueTab } from "@/components/estoque-tab"
+import { EstoqueTab, ABAS_CONFIG as ESTOQUE_ABAS_CONFIG, type Aba as EstoqueAba } from "@/components/estoque-tab"
 import { RelatoriosTab, RELATORIOS_CONFIG, type RelatoId } from "@/components/relatorios-tab"
 import { DashboardTab } from "@/components/dashboard-tab"
 import { MaquinasTab } from "@/components/maquinas-tab"
@@ -90,6 +90,7 @@ export default function ExataApp() {
 
   const [activeTab,    setActiveTab]    = useState<TabId>("dashboard")
   const [relatorioAtivo, setRelatorioAtivo] = useState<RelatoId>("oee")
+  const [estoqueAbaAtiva, setEstoqueAbaAtiva] = useState<EstoqueAba>("saldo")
   const [collapsed,    setCollapsed]    = useState(false)
   const [mobileOpen,   setMobileOpen]   = useState(false)
   const [mounted,      setMounted]      = useState(false)
@@ -686,6 +687,20 @@ export default function ExataApp() {
                     ))}
                   </div>
                 )}
+                {item.id === "estoque" && activeTab === "estoque" && !collapsed && (
+                  <div className="ml-4 pl-3 border-l-2 border-border space-y-0.5 py-1">
+                    {ESTOQUE_ABAS_CONFIG.map((a) => (
+                      <button
+                        key={a.id}
+                        onClick={() => setEstoqueAbaAtiva(a.id)}
+                        className={`w-full text-left px-3 py-2 rounded-lg text-xs font-bold transition-colors
+                          ${estoqueAbaAtiva === a.id ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-muted hover:text-foreground"}`}
+                      >
+                        {a.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </React.Fragment>
             ))}
           </nav>
@@ -765,6 +780,20 @@ export default function ExataApp() {
                             ${relatorioAtivo === r.id ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-muted hover:text-foreground"}`}
                         >
                           {r.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  {item.id === "estoque" && isActive && (
+                    <div className="ml-6 pl-3 border-l-2 border-border space-y-0.5 py-1">
+                      {ESTOQUE_ABAS_CONFIG.map((a) => (
+                        <button
+                          key={a.id}
+                          onClick={() => { setEstoqueAbaAtiva(a.id); setMobileOpen(false) }}
+                          className={`w-full text-left px-3 py-2 rounded-lg text-xs font-bold transition-colors
+                            ${estoqueAbaAtiva === a.id ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-muted hover:text-foreground"}`}
+                        >
+                          {a.label}
                         </button>
                       ))}
                     </div>
@@ -854,7 +883,7 @@ export default function ExataApp() {
 
             {activeTab === "estoque" && (
               <div className="animate-in fade-in duration-300">
-                <EstoqueTab empresaAtivaId={empresaAtivaId} />
+                <EstoqueTab empresaAtivaId={empresaAtivaId} abaSelecionada={estoqueAbaAtiva} onChangeAba={setEstoqueAbaAtiva} />
               </div>
             )}
 
