@@ -182,6 +182,23 @@ export function PCPTab({ empresaAtivaId }: { empresaAtivaId?: string | null }) {
   const weekDays = useMemo(() => getWeekDays(currentMonday), [currentMonday])
 
   const [opNumber, setOpNumber] = useState("")
+  const [showOpSuggestions, setShowOpSuggestions] = useState(false)
+
+  // Busca por número da OP ou nome/código do produto — só entre OPs já existentes
+  const opSuggestions = useMemo(() => {
+    const q = opNumber.trim().toLowerCase()
+    if (!q) return []
+    return orders
+      .filter(o => {
+        const prod = products.find(p => p.code === o.productCode)
+        return (
+          o.opNumber.toLowerCase().includes(q) ||
+          o.productCode.toLowerCase().includes(q) ||
+          (prod?.description || "").toLowerCase().includes(q)
+        )
+      })
+      .slice(0, 8)
+  }, [opNumber, orders, products])
   const [opDate, setOpDate] = useState("")
   const [opProductCode, setOpProductCode] = useState("")
   const [opQuantity, setOpQuantity] = useState("")
@@ -514,7 +531,97 @@ export function PCPTab({ empresaAtivaId }: { empresaAtivaId?: string | null }) {
   return (
     <div className="space-y-6">
 
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid gap-4 md:grid-cols-2 items-start">
+
+        <Card className="bg-card border-border shadow-sm">
+          <CardHeader
+            className="cursor-pointer select-none"
+            onClick={() => setDemandaAberta(v => !v)}
+          >
+            <CardTitle className="text-lg flex items-center justify-between">
+              <span>Programar Demanda Diária</span>
+              <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${demandaAberta ? "rotate-180" : ""}`} />
+            </CardTitle>
+            <CardDescription>Insira ordens de produção na fila de nivelamento</CardDescription>
+          </CardHeader>
+          {demandaAberta && (
+          <CardContent className="space-y-4">
+            <div className="space-y-1.5 relative">
+              <Label className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Número da OP</Label>
+              <Input
+                placeholder="Número da OP ou nome do produto..."
+                value={opNumber}
+                onChange={(e) => { setOpNumber(e.target.value); setShowOpSuggestions(true) }}
+                onFocus={() => setShowOpSuggestions(true)}
+                onBlur={() => setTimeout(() => setShowOpSuggestions(false), 150)}
+                className="bg-input border-border h-10"
+              />
+              {showOpSuggestions && opSuggestions.length > 0 && (
+                <div className="absolute z-20 top-full left-0 right-0 mt-1 bg-card border border-border rounded-xl shadow-lg max-h-56 overflow-y-auto">
+                  {opSuggestions.map(o => {
+                    const prod = products.find(p => p.code === o.productCode)
+                    return (
+                      <button
+                        key={o.id}
+                        type="button"
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => {
+                          setOpNumber(o.opNumber)
+                          setOpProductCode(o.productCode)
+                          setShowOpSuggestions(false)
+                        }}
+                        className="w-full text-left px-3 py-2 hover:bg-muted/60 transition-colors flex items-center justify-between gap-2"
+                      >
+                        <span className="text-xs font-bold text-foreground">{o.opNumber}</span>
+                        <span className="text-[10px] text-muted-foreground truncate">{o.productCode}{prod ? ` — ${prod.description}` : ""}</span>
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Data de Início</Label>
+              <DatePicker value={opDate} onChange={setOpDate} />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Produto / Roteiro</Label>
+              <Select value={opProductCode} onValueChange={setOpProductCode}>
+                <SelectTrigger className="bg-input border-border h-10"><SelectValue placeholder="Selecione o Roteiro" /></SelectTrigger>
+                <SelectContent className="bg-card border-border">
+                  {products.map((p) => <SelectItem key={p.code} value={p.code}>{p.code} - {p.description}</SelectItem>)}
+                  {products.length === 0 && <SelectItem value="none" disabled>Nenhum roteiro salvo</SelectItem>}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Quantidade Solicitada</Label>
+              <Input type="number" placeholder="Ex: 150" value={opQuantity} onChange={(e) => setOpQuantity(e.target.value)} className="bg-input border-border h-10" />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Regra de Tempo Base</Label>
+              <Select value={opRule} onValueChange={(v: "soma" | "media" | "gargalo") => setOpRule(v)}>
+                <SelectTrigger className="bg-input border-border h-10"><SelectValue /></SelectTrigger>
+                <SelectContent className="bg-card border-border">
+                  <SelectItem value="soma">Soma dos Tempos do Roteiro</SelectItem>
+                  <SelectItem value="media">Média dos Tempos</SelectItem>
+                  <SelectItem value="gargalo">Tempo da Operação Gargalo</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-center justify-between p-3 bg-muted/30 border border-border rounded-lg">
+              <div className="flex flex-col gap-0.5">
+                <Label className="text-xs font-bold">Agrupar Setup?</Label>
+                <span className="text-[10px] text-muted-foreground">Zera setup desta OP</span>
+              </div>
+              <Switch checked={opGroupSetup} onCheckedChange={setOpGroupSetup} />
+            </div>
+            <Button className="w-full h-10 font-bold uppercase tracking-wider bg-primary hover:opacity-90 text-primary-foreground" onClick={handleAddOP}>
+              <Plus className="h-4 w-4 mr-2" /> Inserir Ordem
+            </Button>
+          </CardContent>
+          )}
+        </Card>
 
         <Card className="bg-card border-border shadow-sm">
           <CardHeader
@@ -573,66 +680,6 @@ export function PCPTab({ empresaAtivaId }: { empresaAtivaId?: string | null }) {
                 </div>
               </div>
             )}
-          </CardContent>
-          )}
-        </Card>
-
-        <Card className="bg-card border-border shadow-sm">
-          <CardHeader
-            className="cursor-pointer select-none"
-            onClick={() => setDemandaAberta(v => !v)}
-          >
-            <CardTitle className="text-lg flex items-center justify-between">
-              <span>Programar Demanda Diária</span>
-              <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${demandaAberta ? "rotate-180" : ""}`} />
-            </CardTitle>
-            <CardDescription>Insira ordens de produção na fila de nivelamento</CardDescription>
-          </CardHeader>
-          {demandaAberta && (
-          <CardContent className="space-y-4">
-            <div className="space-y-1.5">
-              <Label className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Número da OP</Label>
-              <Input placeholder="Ex: OP-2026-001" value={opNumber} onChange={(e) => setOpNumber(e.target.value)} className="bg-input border-border h-10" />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Data de Início</Label>
-              <DatePicker value={opDate} onChange={setOpDate} />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Produto / Roteiro</Label>
-              <Select value={opProductCode} onValueChange={setOpProductCode}>
-                <SelectTrigger className="bg-input border-border h-10"><SelectValue placeholder="Selecione o Roteiro" /></SelectTrigger>
-                <SelectContent className="bg-card border-border">
-                  {products.map((p) => <SelectItem key={p.code} value={p.code}>{p.code} - {p.description}</SelectItem>)}
-                  {products.length === 0 && <SelectItem value="none" disabled>Nenhum roteiro salvo</SelectItem>}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Quantidade Solicitada</Label>
-              <Input type="number" placeholder="Ex: 150" value={opQuantity} onChange={(e) => setOpQuantity(e.target.value)} className="bg-input border-border h-10" />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Regra de Tempo Base</Label>
-              <Select value={opRule} onValueChange={(v: "soma" | "media" | "gargalo") => setOpRule(v)}>
-                <SelectTrigger className="bg-input border-border h-10"><SelectValue /></SelectTrigger>
-                <SelectContent className="bg-card border-border">
-                  <SelectItem value="soma">Soma dos Tempos do Roteiro</SelectItem>
-                  <SelectItem value="media">Média dos Tempos</SelectItem>
-                  <SelectItem value="gargalo">Tempo da Operação Gargalo</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="flex items-center justify-between p-3 bg-muted/30 border border-border rounded-lg">
-              <div className="flex flex-col gap-0.5">
-                <Label className="text-xs font-bold">Agrupar Setup?</Label>
-                <span className="text-[10px] text-muted-foreground">Zera setup desta OP</span>
-              </div>
-              <Switch checked={opGroupSetup} onCheckedChange={setOpGroupSetup} />
-            </div>
-            <Button className="w-full h-10 font-bold uppercase tracking-wider bg-primary hover:opacity-90 text-primary-foreground" onClick={handleAddOP}>
-              <Plus className="h-4 w-4 mr-2" /> Inserir Ordem
-            </Button>
           </CardContent>
           )}
         </Card>
