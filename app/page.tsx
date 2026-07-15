@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState, useEffect } from "react"
+import React, { useState, useEffect, useRef } from "react"
 import { useTheme } from "next-themes"
 import { supabase } from "@/components/supabase"
 import { useToast } from "@/hooks/use-toast"
@@ -96,6 +96,25 @@ export default function ExataApp() {
   const [alertas,      setAlertas]      = useState<{ id: string; tipo: "critico" | "atencao"; titulo: string; descricao: string; tab?: TabId }[]>([])
   const { theme, setTheme } = useTheme()
   const { toast } = useToast()
+  const faixaTelaRef = useRef<"celular" | "notebook" | "monitor" | null>(null)
+
+  // --- Sidebar se adapta ao tamanho da tela (notebook menor recolhe sozinho, monitor grande expande) ---
+  // Só reage quando MUDA de faixa de tamanho, então o toggle manual do usuário
+  // continua funcionando livremente enquanto ele ficar na mesma faixa.
+  useEffect(() => {
+    const ajustar = () => {
+      const largura = window.innerWidth
+      const faixa = largura < 1024 ? "celular" : largura < 1400 ? "notebook" : "monitor"
+      if (faixaTelaRef.current === faixa) return
+      faixaTelaRef.current = faixa
+      if (faixa === "notebook") setCollapsed(true)
+      if (faixa === "monitor") setCollapsed(false)
+      if (faixa !== "celular") setMobileOpen(false)
+    }
+    ajustar()
+    window.addEventListener("resize", ajustar)
+    return () => window.removeEventListener("resize", ajustar)
+  }, [])
 
   // --- Inicialização ---
   useEffect(() => {
