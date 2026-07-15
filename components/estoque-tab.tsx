@@ -14,7 +14,7 @@ import { NativeSelect } from "@/components/native-select"
 import {
   Package, TrendingUp, TrendingDown, ArrowLeftRight, Plus, X,
   AlertTriangle, CheckCircle2, Search, RefreshCw,
-  Boxes, ClipboardList, BarChart3
+  Boxes, BarChart3
 } from "lucide-react"
 
 interface Insumo {
@@ -57,7 +57,13 @@ interface LocalEstoque {
   nome: string
 }
 
-type Aba = "saldo" | "movimentacoes" | "itens" | "recebimento" | "ajuste"
+export type Aba = "saldo" | "movimentacoes" | "itens"
+
+export const ABAS_CONFIG: { id: Aba; label: string }[] = [
+  { id: "saldo", label: "Saldo" },
+  { id: "movimentacoes", label: "Movimentações" },
+  { id: "itens", label: "Itens" },
+]
 
 const TIPO_LABELS: Record<string, string> = {
   materia_prima: "Matéria-Prima",
@@ -374,9 +380,19 @@ function ModalAjuste({ insumos, localId, empresaAtivaId, saldos, onSuccess, onCa
   )
 }
 
-export function EstoqueTab({ empresaAtivaId }: { empresaAtivaId?: string | null }) {
+export function EstoqueTab({
+  empresaAtivaId,
+  abaSelecionada,
+  onChangeAba,
+}: {
+  empresaAtivaId?: string | null
+  abaSelecionada?: Aba
+  onChangeAba?: (id: Aba) => void
+}) {
   const { toast } = useToast()
-  const [abaAtiva, setAbaAtiva] = useState<Aba>("saldo")
+  const [abaAtivaInterna, setAbaAtivaInterna] = useState<Aba>("saldo")
+  const abaAtiva = abaSelecionada ?? abaAtivaInterna
+  const setAbaAtiva = onChangeAba ?? setAbaAtivaInterna
   const [loading, setLoading] = useState(true)
 
   const [insumos, setInsumos] = useState<Insumo[]>([])
@@ -500,12 +516,6 @@ export function EstoqueTab({ empresaAtivaId }: { empresaAtivaId?: string | null 
     )
   }
 
-  const ABAS: { id: Aba; label: string; icon: React.ElementType }[] = [
-    { id: "saldo", label: "Saldo", icon: Boxes },
-    { id: "movimentacoes", label: "Movimentações", icon: ArrowLeftRight },
-    { id: "itens", label: "Itens", icon: ClipboardList },
-  ]
-
   return (
     <div className="space-y-6 pb-12">
 
@@ -578,19 +588,10 @@ export function EstoqueTab({ empresaAtivaId }: { empresaAtivaId?: string | null 
         ))}
       </div>
 
-      <div className="flex gap-1 bg-muted/50 p-1 rounded-xl w-fit">
-        {ABAS.map(aba => (
-          <button
-            key={aba.id}
-            onClick={() => setAbaAtiva(aba.id)}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-all
-              ${abaAtiva === aba.id ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
-          >
-            <aba.icon className="h-3.5 w-3.5" />
-            {aba.label}
-          </button>
-        ))}
-      </div>
+      {/* Seletor de aba: agora fica no submenu da barra lateral */}
+      <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
+        Visualizando: <span className="text-primary">{ABAS_CONFIG.find(a => a.id === abaAtiva)?.label}</span>
+      </p>
 
       {abaAtiva === "saldo" && (
         <div className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden">
