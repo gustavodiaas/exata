@@ -10,7 +10,7 @@ import { Switch } from "@/components/ui/switch"
 import {
   Plus, Trash2, Calendar, ShieldAlert, TrendingUp,
   Columns3, CalendarDays, ListOrdered, GripVertical,
-  ChevronLeft, ChevronRight, AlertTriangle, Factory
+  ChevronLeft, ChevronRight, ChevronDown, AlertTriangle, Factory
 } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { supabase } from "@/components/supabase"
@@ -175,6 +175,8 @@ export function PCPTab({ empresaAtivaId }: { empresaAtivaId?: string | null }) {
   const [loading, setLoading] = useState(true)
 
   const [viewMode, setViewMode] = useState<"kanban" | "calendario" | "lista">("kanban")
+  const [excecoesAbertas, setExcecoesAbertas] = useState(false)
+  const [demandaAberta, setDemandaAberta] = useState(false)
 
   const [currentMonday, setCurrentMonday] = useState<string>(() => getMondayOfWeek(toStr(new Date())))
   const weekDays = useMemo(() => getWeekDays(currentMonday), [currentMonday])
@@ -512,15 +514,22 @@ export function PCPTab({ empresaAtivaId }: { empresaAtivaId?: string | null }) {
   return (
     <div className="space-y-6">
 
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-2">
 
         <Card className="bg-card border-border shadow-sm">
-          <CardHeader className="pb-2">
+          <CardHeader
+            className="pb-2 cursor-pointer select-none"
+            onClick={() => setExcecoesAbertas(v => !v)}
+          >
             <CardTitle className="text-sm font-semibold uppercase tracking-wider text-muted-foreground flex items-center justify-between">
-              Gerenciamento de Exceções
-              <ShieldAlert className="h-4 w-4 text-primary" />
+              <span className="flex items-center gap-2">
+                <ShieldAlert className="h-4 w-4 text-primary" />
+                Gerenciamento de Exceções
+              </span>
+              <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${excecoesAbertas ? "rotate-180" : ""}`} />
             </CardTitle>
           </CardHeader>
+          {excecoesAbertas && (
           <CardContent className="space-y-3">
             <div className="space-y-1">
               <Label className="text-[10px] uppercase font-bold text-muted-foreground">Data da Exceção</Label>
@@ -565,9 +574,71 @@ export function PCPTab({ empresaAtivaId }: { empresaAtivaId?: string | null }) {
               </div>
             )}
           </CardContent>
+          )}
         </Card>
 
-        <Card className="bg-card border-border shadow-sm md:col-span-2 flex flex-col">
+        <Card className="bg-card border-border shadow-sm">
+          <CardHeader
+            className="cursor-pointer select-none"
+            onClick={() => setDemandaAberta(v => !v)}
+          >
+            <CardTitle className="text-lg flex items-center justify-between">
+              <span>Programar Demanda Diária</span>
+              <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${demandaAberta ? "rotate-180" : ""}`} />
+            </CardTitle>
+            <CardDescription>Insira ordens de produção na fila de nivelamento</CardDescription>
+          </CardHeader>
+          {demandaAberta && (
+          <CardContent className="space-y-4">
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Número da OP</Label>
+              <Input placeholder="Ex: OP-2026-001" value={opNumber} onChange={(e) => setOpNumber(e.target.value)} className="bg-input border-border h-10" />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Data de Início</Label>
+              <DatePicker value={opDate} onChange={setOpDate} />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Produto / Roteiro</Label>
+              <Select value={opProductCode} onValueChange={setOpProductCode}>
+                <SelectTrigger className="bg-input border-border h-10"><SelectValue placeholder="Selecione o Roteiro" /></SelectTrigger>
+                <SelectContent className="bg-card border-border">
+                  {products.map((p) => <SelectItem key={p.code} value={p.code}>{p.code} - {p.description}</SelectItem>)}
+                  {products.length === 0 && <SelectItem value="none" disabled>Nenhum roteiro salvo</SelectItem>}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Quantidade Solicitada</Label>
+              <Input type="number" placeholder="Ex: 150" value={opQuantity} onChange={(e) => setOpQuantity(e.target.value)} className="bg-input border-border h-10" />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Regra de Tempo Base</Label>
+              <Select value={opRule} onValueChange={(v: "soma" | "media" | "gargalo") => setOpRule(v)}>
+                <SelectTrigger className="bg-input border-border h-10"><SelectValue /></SelectTrigger>
+                <SelectContent className="bg-card border-border">
+                  <SelectItem value="soma">Soma dos Tempos do Roteiro</SelectItem>
+                  <SelectItem value="media">Média dos Tempos</SelectItem>
+                  <SelectItem value="gargalo">Tempo da Operação Gargalo</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-center justify-between p-3 bg-muted/30 border border-border rounded-lg">
+              <div className="flex flex-col gap-0.5">
+                <Label className="text-xs font-bold">Agrupar Setup?</Label>
+                <span className="text-[10px] text-muted-foreground">Zera setup desta OP</span>
+              </div>
+              <Switch checked={opGroupSetup} onCheckedChange={setOpGroupSetup} />
+            </div>
+            <Button className="w-full h-10 font-bold uppercase tracking-wider bg-primary hover:opacity-90 text-primary-foreground" onClick={handleAddOP}>
+              <Plus className="h-4 w-4 mr-2" /> Inserir Ordem
+            </Button>
+          </CardContent>
+          )}
+        </Card>
+      </div>
+
+        <Card className="bg-card border-border shadow-sm flex flex-col">
           <CardHeader className="pb-4 border-b border-border flex flex-row items-center justify-between">
             <CardTitle className="text-sm font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
               <TrendingUp className="h-4 w-4 text-primary" /> Visão de Carga Nivelada (Por Máquina)
@@ -795,62 +866,8 @@ export function PCPTab({ empresaAtivaId }: { empresaAtivaId?: string | null }) {
             )}
           </CardContent>
         </Card>
-      </div>
 
-      <div className="grid gap-6 md:grid-cols-3">
-        <Card className="bg-card border-border shadow-sm col-span-1">
-          <CardHeader>
-            <CardTitle className="text-lg">Programar Demanda Diária</CardTitle>
-            <CardDescription>Insira ordens de produção na fila de nivelamento</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-1.5">
-              <Label className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Número da OP</Label>
-              <Input placeholder="Ex: OP-2026-001" value={opNumber} onChange={(e) => setOpNumber(e.target.value)} className="bg-input border-border h-10" />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Data de Início</Label>
-              <DatePicker value={opDate} onChange={setOpDate} />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Produto / Roteiro</Label>
-              <Select value={opProductCode} onValueChange={setOpProductCode}>
-                <SelectTrigger className="bg-input border-border h-10"><SelectValue placeholder="Selecione o Roteiro" /></SelectTrigger>
-                <SelectContent className="bg-card border-border">
-                  {products.map((p) => <SelectItem key={p.code} value={p.code}>{p.code} - {p.description}</SelectItem>)}
-                  {products.length === 0 && <SelectItem value="none" disabled>Nenhum roteiro salvo</SelectItem>}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Quantidade Solicitada</Label>
-              <Input type="number" placeholder="Ex: 150" value={opQuantity} onChange={(e) => setOpQuantity(e.target.value)} className="bg-input border-border h-10" />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Regra de Tempo Base</Label>
-              <Select value={opRule} onValueChange={(v: "soma" | "media" | "gargalo") => setOpRule(v)}>
-                <SelectTrigger className="bg-input border-border h-10"><SelectValue /></SelectTrigger>
-                <SelectContent className="bg-card border-border">
-                  <SelectItem value="soma">Soma dos Tempos do Roteiro</SelectItem>
-                  <SelectItem value="media">Média dos Tempos</SelectItem>
-                  <SelectItem value="gargalo">Tempo da Operação Gargalo</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="flex items-center justify-between p-3 bg-muted/30 border border-border rounded-lg">
-              <div className="flex flex-col gap-0.5">
-                <Label className="text-xs font-bold">Agrupar Setup?</Label>
-                <span className="text-[10px] text-muted-foreground">Zera setup desta OP</span>
-              </div>
-              <Switch checked={opGroupSetup} onCheckedChange={setOpGroupSetup} />
-            </div>
-            <Button className="w-full h-10 font-bold uppercase tracking-wider bg-primary hover:opacity-90 text-primary-foreground" onClick={handleAddOP}>
-              <Plus className="h-4 w-4 mr-2" /> Inserir Ordem
-            </Button>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-card border-border shadow-sm md:col-span-2">
+        <Card className="bg-card border-border shadow-sm">
           <CardHeader>
             <CardTitle className="text-lg">Fila de Ordens de Produção Ativas</CardTitle>
             <CardDescription>Gerencie e visualize todas as OPs programadas</CardDescription>
@@ -896,7 +913,7 @@ export function PCPTab({ empresaAtivaId }: { empresaAtivaId?: string | null }) {
             )}
           </CardContent>
         </Card>
-      </div>
+
     </div>
   )
 }
