@@ -1129,7 +1129,12 @@ export function ApontamentoTab({ empresaAtivaId }: { empresaAtivaId?: string | n
                   const segundosDisplay = segundosMap[s.apontamentoId] ?? s.segundosAcumulados
                   const emPausaEsta = !!s.pausaInicioTimestamp
                   const ciclo = s.cicloPlanejadoSeg
-                  const pct = ciclo && ciclo > 0 && segundosDisplay > 0 ? (segundosDisplay / ciclo) * 100 : null
+                  // O tempo decorrido é da sessão inteira (pode ter várias peças, não só uma).
+                  // Por isso o ritmo é avaliado dentro do ciclo atual (tempo decorrido % ciclo),
+                  // não pelo tempo total acumulado contra o ciclo de 1 peça só.
+                  const pecasNoTempo = ciclo && ciclo > 0 ? Math.floor(segundosDisplay / ciclo) : 0
+                  const tempoNoCicloAtual = ciclo && ciclo > 0 ? segundosDisplay - pecasNoTempo * ciclo : segundosDisplay
+                  const pct = ciclo && ciclo > 0 && segundosDisplay > 0 ? (tempoNoCicloAtual / ciclo) * 100 : null
                   const semaforo = emPausaEsta
                     ? { cor: "text-amber-500", bg: "bg-amber-500/10", borda: "border-amber-500/30", label: "Em pausa", barra: "bg-amber-500" }
                     : pct === null
@@ -1161,7 +1166,7 @@ export function ApontamentoTab({ empresaAtivaId }: { empresaAtivaId?: string | n
                               <div className={`h-full rounded-full transition-all ${semaforo.barra}`} style={{ width: `${Math.min(100, pct ?? 0)}%` }} />
                             </div>
                             <p className="text-[10px] text-muted-foreground">
-                              Ciclo padrão: {formatarTempo(ciclo)}{pct !== null && ` — ${pct.toFixed(0)}%`}
+                              Ciclo padrão: {formatarTempo(ciclo)} · Peça ~{pecasNoTempo + 1} do lote{pct !== null && ` — ${pct.toFixed(0)}%`}
                             </p>
                           </div>
                         )}
