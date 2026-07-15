@@ -9,7 +9,7 @@ import { PCPTab } from "@/components/pcp-tab"
 import { ApontamentoTab } from "@/components/apontamento-tab"
 import { ExcecoesTab } from "@/components/excecoes-tab"
 import { EstoqueTab } from "@/components/estoque-tab"
-import { RelatoriosTab } from "@/components/relatorios-tab"
+import { RelatoriosTab, RELATORIOS_CONFIG, type RelatoId } from "@/components/relatorios-tab"
 import { DashboardTab } from "@/components/dashboard-tab"
 import { MaquinasTab } from "@/components/maquinas-tab"
 import { ManutencaoTab } from "@/components/manutencao-tab"
@@ -89,6 +89,7 @@ export default function ExataApp() {
   const [novoTurno,       setNovoTurno]       = useState({ nome: "", hora_inicio: "", hora_fim: "", dias_semana: ["1","2","3","4","5"] })
 
   const [activeTab,    setActiveTab]    = useState<TabId>("dashboard")
+  const [relatorioAtivo, setRelatorioAtivo] = useState<RelatoId>("oee")
   const [collapsed,    setCollapsed]    = useState(false)
   const [mobileOpen,   setMobileOpen]   = useState(false)
   const [mounted,      setMounted]      = useState(false)
@@ -664,13 +665,28 @@ export default function ExataApp() {
 
           <nav className="flex-1 min-h-0 overflow-y-auto px-2 py-3 space-y-1">
             {NAV_ITEMS.map((item) => (
-              <NavButton
-                key={item.id}
-                {...item}
-                isActive={activeTab === item.id}
-                isCollapsed={collapsed}
-                onClick={() => goTab(item.id)}
-              />
+              <React.Fragment key={item.id}>
+                <NavButton
+                  {...item}
+                  isActive={activeTab === item.id}
+                  isCollapsed={collapsed}
+                  onClick={() => goTab(item.id)}
+                />
+                {item.id === "relatorios" && activeTab === "relatorios" && !collapsed && (
+                  <div className="ml-4 pl-3 border-l-2 border-border space-y-0.5 py-1">
+                    {RELATORIOS_CONFIG.map((r) => (
+                      <button
+                        key={r.id}
+                        onClick={() => setRelatorioAtivo(r.id)}
+                        className={`w-full text-left px-3 py-2 rounded-lg text-xs font-bold transition-colors
+                          ${relatorioAtivo === r.id ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-muted hover:text-foreground"}`}
+                      >
+                        {r.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </React.Fragment>
             ))}
           </nav>
 
@@ -725,20 +741,35 @@ export default function ExataApp() {
               const Icon = item.icon
               const isActive = activeTab === item.id
               return (
-                <button
-                  key={item.id}
-                  onClick={() => goTab(item.id)}
-                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left transition-all
-                    ${isActive ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:bg-muted hover:text-foreground"}`}
-                >
-                  <Icon className="h-5 w-5 flex-shrink-0" />
-                  <div className="flex flex-col min-w-0">
-                    <span className="text-sm font-bold leading-tight">{item.label}</span>
-                    <span className={`text-[10px] leading-tight truncate ${isActive ? "text-primary-foreground/70" : "text-muted-foreground"}`}>
-                      {item.sublabel}
-                    </span>
-                  </div>
-                </button>
+                <React.Fragment key={item.id}>
+                  <button
+                    onClick={() => goTab(item.id)}
+                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left transition-all
+                      ${isActive ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:bg-muted hover:text-foreground"}`}
+                  >
+                    <Icon className="h-5 w-5 flex-shrink-0" />
+                    <div className="flex flex-col min-w-0">
+                      <span className="text-sm font-bold leading-tight">{item.label}</span>
+                      <span className={`text-[10px] leading-tight truncate ${isActive ? "text-primary-foreground/70" : "text-muted-foreground"}`}>
+                        {item.sublabel}
+                      </span>
+                    </div>
+                  </button>
+                  {item.id === "relatorios" && isActive && (
+                    <div className="ml-6 pl-3 border-l-2 border-border space-y-0.5 py-1">
+                      {RELATORIOS_CONFIG.map((r) => (
+                        <button
+                          key={r.id}
+                          onClick={() => { setRelatorioAtivo(r.id); setMobileOpen(false) }}
+                          className={`w-full text-left px-3 py-2 rounded-lg text-xs font-bold transition-colors
+                            ${relatorioAtivo === r.id ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-muted hover:text-foreground"}`}
+                        >
+                          {r.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </React.Fragment>
               )
             })}
           </nav>
@@ -829,7 +860,7 @@ export default function ExataApp() {
 
             {activeTab === "relatorios" && (
               <div className="animate-in fade-in duration-300">
-                <RelatoriosTab empresaAtivaId={empresaAtivaId} />
+                <RelatoriosTab empresaAtivaId={empresaAtivaId} relatorioSelecionado={relatorioAtivo} onChangeRelatorio={setRelatorioAtivo} />
               </div>
             )}
 
