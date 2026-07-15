@@ -794,9 +794,9 @@ export function GBOTab({ user, empresaAtivaId }: { user: { id: string }, empresa
               <div id="gbo-chart-container" className="bg-card rounded-3xl shadow-sm border border-border p-6 print:border-none print:shadow-none print:p-0">
                 <GBOChart operations={operations} timeUnit={timeUnit} taktTime={calcType === "takt" && operations.length > 0 ? (timeUnit === "minutes" ? totalCycleTime * 60 : totalCycleTime) : undefined} taktTimeUnit="seconds" demandUnit="un" />
               </div>
-              <div className="flex justify-end mt-2 print:hidden">
+              <div className="flex flex-col sm:flex-row sm:items-start gap-3 mt-2 print:hidden">
                 {/* BOM */}
-                <div className="w-full mb-4 bg-card border border-border rounded-2xl shadow-sm overflow-hidden">
+                <div className="flex-1 min-w-0 bg-card border border-border rounded-2xl shadow-sm overflow-hidden">
                   <button
                     onClick={() => setShowBom(!showBom)}
                     className="w-full flex items-center justify-between px-6 py-4 hover:bg-muted/50 transition-colors"
@@ -881,7 +881,7 @@ export function GBOTab({ user, empresaAtivaId }: { user: { id: string }, empresa
                   )}
                 </div>
 
-                <Button onClick={handleSaveProduct} disabled={isLoading} className="bg-primary hover:opacity-90 text-primary-foreground font-bold uppercase tracking-widest h-12 px-8 rounded-xl shadow-md transition-all">
+                <Button onClick={handleSaveProduct} disabled={isLoading} className="bg-primary hover:opacity-90 text-primary-foreground font-bold uppercase tracking-widest h-12 px-8 rounded-xl shadow-md transition-all shrink-0 whitespace-nowrap">
                   <Save className="h-5 w-5 mr-2" /> {isLoading ? "Sincronizando..." : "Salvar e Sincronizar Nuvem"}
                 </Button>
               </div>
