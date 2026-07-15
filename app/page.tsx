@@ -663,7 +663,7 @@ export default function ExataApp() {
             </div>
           )}
 
-          <nav className="flex-1 min-h-0 overflow-y-auto px-2 py-3 space-y-1">
+          <nav className="flex-1 min-h-0 overflow-y-auto custom-scrollbar px-2 py-3 space-y-1">
             {NAV_ITEMS.map((item) => (
               <React.Fragment key={item.id}>
                 <NavButton
@@ -736,7 +736,7 @@ export default function ExataApp() {
             </button>
           </div>
 
-          <nav className="flex-1 min-h-0 overflow-y-auto px-3 py-3 space-y-1">
+          <nav className="flex-1 min-h-0 overflow-y-auto custom-scrollbar px-3 py-3 space-y-1">
             {NAV_ITEMS.map((item) => {
               const Icon = item.icon
               const isActive = activeTab === item.id
