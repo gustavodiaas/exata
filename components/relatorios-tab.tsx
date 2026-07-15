@@ -63,7 +63,15 @@ interface Operacao {
 }
 
 type Periodo = "7d" | "30d" | "90d" | "custom"
-type RelatoId = "oee" | "refugo" | "ciclo" | "consumo" | "paradas"
+export type RelatoId = "oee" | "refugo" | "ciclo" | "consumo" | "paradas"
+
+export const RELATORIOS_CONFIG: { id: RelatoId; label: string }[] = [
+  { id: "oee", label: "OEE por Máquina" },
+  { id: "refugo", label: "Refugo por Produto" },
+  { id: "ciclo", label: "Ciclo Real vs Planejado" },
+  { id: "consumo", label: "Consumo de Materiais" },
+  { id: "paradas", label: "Ranking de Paradas" },
+]
 
 function formatNum(n: number, dec = 1) {
   return n.toLocaleString("pt-BR", { minimumFractionDigits: dec, maximumFractionDigits: dec })
@@ -98,12 +106,22 @@ function CustomTooltip({ active, payload, label }: any) {
 
 // ─── Componente principal ─────────────────────────────────────────────────────
 
-export function RelatoriosTab({ empresaAtivaId }: { empresaAtivaId?: string | null }) {
+export function RelatoriosTab({
+  empresaAtivaId,
+  relatorioSelecionado,
+  onChangeRelatorio,
+}: {
+  empresaAtivaId?: string | null
+  relatorioSelecionado?: RelatoId
+  onChangeRelatorio?: (id: RelatoId) => void
+}) {
   const [loading, setLoading] = useState(true)
   const [periodo, setPeriodo] = useState<Periodo>("30d")
   const [dataInicio, setDataInicio] = useState("")
   const [dataFim, setDataFim] = useState("")
-  const [relatorioAtivo, setRelatorioAtivo] = useState<RelatoId>("oee")
+  const [relatorioAtivoInterno, setRelatorioAtivoInterno] = useState<RelatoId>("oee")
+  const relatorioAtivo = relatorioSelecionado ?? relatorioAtivoInterno
+  const setRelatorioAtivo = onChangeRelatorio ?? setRelatorioAtivoInterno
 
   const [apontamentos, setApontamentos] = useState<Apontamento[]>([])
   const [pausas, setPausas] = useState<Pausa[]>([])
@@ -375,14 +393,6 @@ export function RelatoriosTab({ empresaAtivaId }: { empresaAtivaId?: string | nu
     return { totalProduzidas, totalRefugo, totalRetrabalho, totalSegundos, totalPausaSeg, taxaRefugo, oeeGeral }
   }, [apontamentos, pausas, dadosOEE])
 
-  const RELATORIOS: { id: RelatoId; label: string; icon: React.ElementType }[] = [
-    { id: "oee", label: "OEE por Máquina", icon: BarChart3 },
-    { id: "refugo", label: "Refugo por Produto", icon: AlertTriangle },
-    { id: "ciclo", label: "Ciclo Real vs Planejado", icon: Clock },
-    { id: "consumo", label: "Consumo de Materiais", icon: Package },
-    { id: "paradas", label: "Ranking de Paradas", icon: TrendingDown },
-  ]
-
   if (loading) {
     return (
       <div className="flex h-40 items-center justify-center text-muted-foreground text-xs font-bold uppercase tracking-widest animate-pulse">
@@ -439,20 +449,11 @@ export function RelatoriosTab({ empresaAtivaId }: { empresaAtivaId?: string | nu
         ))}
       </div>
 
-      {/* Seletor de relatório */}
-      <div className="flex gap-1 bg-muted/50 p-1 rounded-xl overflow-x-auto">
-        {RELATORIOS.map(r => (
-          <button
-            key={r.id}
-            onClick={() => setRelatorioAtivo(r.id)}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-all whitespace-nowrap
-              ${relatorioAtivo === r.id ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
-          >
-            <r.icon className="h-3.5 w-3.5" />
-            {r.label}
-          </button>
-        ))}
-      </div>
+      {/* Seletor de relatório: agora fica no submenu da barra lateral */}
+      <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
+        Visualizando: <span className="text-primary">{RELATORIOS_CONFIG.find(r => r.id === relatorioAtivo)?.label}</span>
+      </p>
+
 
       {/* ─── OEE ─────────────────────────────────────────────────────────────── */}
       {relatorioAtivo === "oee" && (
