@@ -752,6 +752,8 @@ export function GBOTab({ user, empresaAtivaId }: { user: { id: string }, empresa
             </div>
           </div>
 
+          {/* Importar / Exportar / Baixar Modelo — ocultos a pedido, código mantido pra reativar depois */}
+          <div className="hidden">
           <div className="flex gap-3">
             <button onClick={handleImportExcel} disabled={isLoading} className="flex-1 h-12 flex items-center justify-center bg-card border border-border text-muted-foreground font-bold text-xs rounded-xl hover:bg-muted transition-colors shadow-sm">
               <Upload className="h-4 w-4 mr-2" /> Importar
@@ -775,6 +777,8 @@ export function GBOTab({ user, empresaAtivaId }: { user: { id: string }, empresa
           <button onClick={downloadTemplate} disabled={isLoading} className="w-full h-12 flex items-center justify-center bg-card border border-border text-muted-foreground font-bold text-xs rounded-xl hover:bg-muted transition-colors shadow-sm">
             <FileSpreadsheet className="h-4 w-4 mr-2 text-green-600" /> Baixar Modelo Padrão (Excel)
           </button>
+          </div>
+
 
           <div className="bg-card border border-border rounded-2xl shadow-sm p-6">
             <DraggableOperationsList operations={operations} timeUnit={timeUnit} onReorder={reorderOperations} onRemove={removeOperation} onEdit={editOperation} />
