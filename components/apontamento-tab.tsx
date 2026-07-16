@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from "react"
 import { supabase } from "@/components/supabase"
 import { useToast } from "@/hooks/use-toast"
-import { NativeSelect } from "@/components/native-select"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
   Play, Pause, Square, Plus, Trash2, ClipboardList, TrendingUp,
   AlertTriangle, CheckCircle2, Clock, Package, Factory, ChevronDown, X, Wrench
@@ -114,19 +114,27 @@ function ModalPausa({ grupos, onConfirm, onCancel }: {
         <div className="space-y-3">
           <div className="space-y-1.5">
             <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Grupo</label>
-            <NativeSelect value={grupoId} onChange={e => { setGrupoId(e.target.value); setSubgrupoId("") }}>
-              <option value="">Selecione o grupo</option>
-              {grupos.map(g => <option key={g.id} value={g.id}>{g.nome}</option>)}
-            </NativeSelect>
+            <Select value={grupoId} onValueChange={(v) => { setGrupoId(v); setSubgrupoId("") }}>
+              <SelectTrigger className="w-full h-10 rounded-xl border border-border bg-input text-foreground text-sm outline-none focus:ring-2 focus:ring-primary transition-all">
+                <SelectValue placeholder="Selecione o grupo" />
+              </SelectTrigger>
+              <SelectContent className="bg-card border-border">
+                {grupos.map(g => <SelectItem key={g.id} value={g.id}>{g.nome}</SelectItem>)}
+              </SelectContent>
+            </Select>
           </div>
 
           {grupo && (
             <div className="space-y-1.5">
               <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Motivo</label>
-              <NativeSelect value={subgrupoId} onChange={e => setSubgrupoId(e.target.value)}>
-                <option value="">Selecione o motivo</option>
-                {grupo.subgrupos.map(s => <option key={s.id} value={s.id}>{s.nome}</option>)}
-              </NativeSelect>
+              <Select value={subgrupoId} onValueChange={setSubgrupoId}>
+                <SelectTrigger className="w-full h-10 rounded-xl border border-border bg-input text-foreground text-sm outline-none focus:ring-2 focus:ring-primary transition-all">
+                  <SelectValue placeholder="Selecione o motivo" />
+                </SelectTrigger>
+                <SelectContent className="bg-card border-border">
+                  {grupo.subgrupos.map(s => <SelectItem key={s.id} value={s.id}>{s.nome}</SelectItem>)}
+                </SelectContent>
+              </Select>
             </div>
           )}
         </div>
@@ -1066,12 +1074,16 @@ export function ApontamentoTab({ empresaAtivaId }: { empresaAtivaId?: string | n
             {/* Formulário de início — sempre visível, pode iniciar outra sessão mesmo com sessões já rodando */}
             <div className="space-y-1.5">
               <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Ordem de Produção</label>
-              <NativeSelect value={ordemSelecionadaId} onChange={e => { setOrdemSelecionadaId(e.target.value); setOperacaoSelecionadaId("") }}>
-                <option value="">Selecione a OP</option>
-                {resumos.filter(r => !r.fechada).map(r => (
-                  <option key={r.op.id} value={r.op.id}>{r.op.numero_op} — {r.op.produto_codigo}</option>
-                ))}
-              </NativeSelect>
+              <Select value={ordemSelecionadaId} onValueChange={(v) => { setOrdemSelecionadaId(v); setOperacaoSelecionadaId("") }}>
+                <SelectTrigger className="w-full h-10 rounded-xl border border-border bg-input text-foreground text-sm outline-none focus:ring-2 focus:ring-primary transition-all">
+                  <SelectValue placeholder="Selecione a OP" />
+                </SelectTrigger>
+                <SelectContent className="bg-card border-border">
+                  {resumos.filter(r => !r.fechada).map(r => (
+                    <SelectItem key={r.op.id} value={r.op.id}>{r.op.numero_op} — {r.op.produto_codigo}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             {ordemAtual && (
@@ -1099,17 +1111,21 @@ export function ApontamentoTab({ empresaAtivaId }: { empresaAtivaId?: string | n
                 ) : operacoes.length === 0 ? (
                   <p className="text-xs text-muted-foreground px-1">Nenhuma operação no roteiro deste produto.</p>
                 ) : (
-                  <NativeSelect value={operacaoSelecionadaId} onChange={e => setOperacaoSelecionadaId(e.target.value)}>
-                    <option value="">Selecione a operação</option>
-                    {operacoes.map(op => {
-                      const jaRodando = sessoes.some(s => s.operacaoId === op.id)
-                      return (
-                        <option key={op.id} value={op.id} disabled={jaRodando}>
-                          {op.ordem}. {op.nome}{op.maquina_codigo ? ` — ${op.maquina_codigo}` : ""}{jaRodando ? " (já em andamento)" : ""}
-                        </option>
-                      )
-                    })}
-                  </NativeSelect>
+                  <Select value={operacaoSelecionadaId} onValueChange={setOperacaoSelecionadaId}>
+                    <SelectTrigger className="w-full h-10 rounded-xl border border-border bg-input text-foreground text-sm outline-none focus:ring-2 focus:ring-primary transition-all">
+                      <SelectValue placeholder="Selecione a operação" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-card border-border">
+                      {operacoes.map(op => {
+                        const jaRodando = sessoes.some(s => s.operacaoId === op.id)
+                        return (
+                          <SelectItem key={op.id} value={op.id} disabled={jaRodando}>
+                            {op.ordem}. {op.nome}{op.maquina_codigo ? ` — ${op.maquina_codigo}` : ""}{jaRodando ? " (já em andamento)" : ""}
+                          </SelectItem>
+                        )
+                      })}
+                    </SelectContent>
+                  </Select>
                 )}
               </div>
             )}
