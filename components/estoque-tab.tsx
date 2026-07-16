@@ -3,6 +3,8 @@
 import React, { useState, useEffect, useMemo } from "react"
 import { supabase } from "@/components/supabase"
 import { useToast } from "@/hooks/use-toast"
+import { CountUp } from "@/components/count-up"
+import { Skeleton } from "@/components/ui/skeleton"
 import {
   Select,
   SelectContent,
@@ -509,8 +511,30 @@ export function EstoqueTab({
 
   if (loading) {
     return (
-      <div className="flex h-40 items-center justify-center text-muted-foreground text-xs font-bold uppercase tracking-widest animate-pulse">
-        Carregando estoque...
+      <div className="space-y-6 pb-12">
+        <div className="flex items-center justify-between flex-wrap gap-3">
+          <div className="space-y-2">
+            <Skeleton className="h-5 w-24" />
+            <Skeleton className="h-3 w-36" />
+          </div>
+          <div className="flex items-center gap-2">
+            <Skeleton className="h-9 w-9 rounded-xl" />
+            <Skeleton className="h-9 w-24 rounded-xl" />
+            <Skeleton className="h-9 w-32 rounded-xl" />
+          </div>
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="bg-card border border-border rounded-2xl px-5 py-4 flex items-center gap-3 shadow-sm">
+              <Skeleton className="h-10 w-10 rounded-xl flex-shrink-0" />
+              <div className="space-y-1.5 flex-1">
+                <Skeleton className="h-2.5 w-20" />
+                <Skeleton className="h-5 w-16" />
+              </div>
+            </div>
+          ))}
+        </div>
+        <Skeleton className="h-64 w-full rounded-2xl" />
       </div>
     )
   }
@@ -570,18 +594,20 @@ export function EstoqueTab({
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {[
-          { label: "Valor total em estoque", value: formatBRL(kpis.valorTotal), icon: BarChart3, color: "text-primary" },
-          { label: "Matéria-prima", value: formatBRL(kpis.mp), icon: Package, color: "text-primary" },
-          { label: "Produto acabado", value: formatBRL(kpis.pa), icon: TrendingUp, color: "text-green-600" },
-          { label: "Itens abaixo do mínimo", value: kpis.abaixoMinimo, icon: AlertTriangle, color: kpis.abaixoMinimo > 0 ? "text-destructive" : "text-muted-foreground" },
-        ].map(({ label, value, icon: Icon, color }) => (
+          { label: "Valor total em estoque", value: kpis.valorTotal, isCurrency: true, icon: BarChart3, color: "text-primary" },
+          { label: "Matéria-prima", value: kpis.mp, isCurrency: true, icon: Package, color: "text-primary" },
+          { label: "Produto acabado", value: kpis.pa, isCurrency: true, icon: TrendingUp, color: "text-green-600" },
+          { label: "Itens abaixo do mínimo", value: kpis.abaixoMinimo, isCurrency: false, icon: AlertTriangle, color: kpis.abaixoMinimo > 0 ? "text-destructive" : "text-muted-foreground" },
+        ].map(({ label, value, isCurrency, icon: Icon, color }) => (
           <div key={label} className="bg-card border border-border rounded-2xl px-5 py-4 flex items-center gap-3 shadow-sm">
             <div className="h-10 w-10 flex items-center justify-center rounded-xl bg-muted flex-shrink-0">
               <Icon className={`h-5 w-5 ${color}`} />
             </div>
             <div className="min-w-0">
               <p className="text-[10px] text-muted-foreground font-medium leading-tight">{label}</p>
-              <p className="text-lg font-bold text-foreground mt-0.5 truncate">{value}</p>
+              <p className="text-lg font-bold text-foreground mt-0.5 truncate">
+                {isCurrency ? <CountUp value={value} decimals={2} prefix="R$ " /> : <CountUp value={value} decimals={0} />}
+              </p>
             </div>
           </div>
         ))}
