@@ -9,6 +9,9 @@ import { supabase } from "@/components/supabase"
 import { CountUp } from "@/components/count-up"
 import { StatusDot } from "@/components/status-dot"
 import { Skeleton } from "@/components/ui/skeleton"
+import { ChartTooltip } from "@/components/chart-tooltip"
+import { EmptyState } from "@/components/empty-state"
+import { Sparkline } from "@/components/sparkline"
 import {
   TrendingUp, TrendingDown, Package, AlertTriangle, CheckCircle2,
   Clock, RefreshCw, Factory, Boxes, Wrench,
@@ -67,19 +70,7 @@ function toDateStr(d: Date) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
 }
 
-const CustomTooltip = ({ active, payload, label }: any) => {
-  if (!active || !payload?.length) return null
-  return (
-    <div className="bg-card border border-border rounded-xl shadow-lg px-4 py-3 text-xs space-y-1">
-      <p className="font-bold text-foreground mb-1">{label}</p>
-      {payload.map((p: any, i: number) => (
-        <p key={i} style={{ color: p.color }} className="font-medium">
-          {p.name}: <strong>{typeof p.value === "number" ? p.value.toLocaleString("pt-BR") : p.value}</strong>
-        </p>
-      ))}
-    </div>
-  )
-}
+// (tooltip dos gráficos agora vem de @/components/chart-tooltip)
 
 // ─── Componente principal ─────────────────────────────────────────────────────
 
@@ -209,6 +200,23 @@ export function DashboardTab({ empresaAtivaId }: { empresaAtivaId: string | null
 
     return { totalProduzidas, totalRefugo, taxaRefugo, opsAbertas, opsConcluidas, opsAtrasadas, maqAtivas, estoquesCriticos, estoquesZerados, totalTempoPausa }
   }, [apontamentos, ordens, saldos, pausas])
+
+  // ─── Tendência de produção nos últimos 7 dias (sparkline do KPI) ───────────
+  const tendenciaProducao7d = useMemo(() => {
+    const hoje = new Date()
+    const dias: string[] = []
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(hoje)
+      d.setDate(d.getDate() - i)
+      dias.push(toDateStr(d))
+    }
+    const porDia: Record<string, number> = Object.fromEntries(dias.map(d => [d, 0]))
+    for (const a of apontamentos) {
+      const dia = toDateStr(new Date(a.created_at))
+      if (dia in porDia) porDia[dia] += (a.pecas_produzidas || 0)
+    }
+    return dias.map(d => porDia[d])
+  }, [apontamentos])
 
   // ─── Produção por máquina ──────────────────────────────────────────────────
 
@@ -377,7 +385,8 @@ export function DashboardTab({ empresaAtivaId }: { empresaAtivaId: string | null
             suffix: "",
             icon: Package,
             color: "text-primary",
-            sub: `${kpis.totalRefugo} refugo`
+            sub: `${kpis.totalRefugo} refugo`,
+            spark: tendenciaProducao7d,
           },
           {
             label: "Taxa de refugo",
@@ -406,7 +415,7 @@ export function DashboardTab({ empresaAtivaId }: { empresaAtivaId: string | null
             color: kpis.estoquesCriticos + kpis.estoquesZerados > 0 ? "text-destructive" : "text-green-600",
             sub: kpis.estoquesZerados > 0 ? `${kpis.estoquesZerados} zerado${kpis.estoquesZerados > 1 ? "s" : ""}` : "Estoque ok"
           },
-        ].map(({ label, value, decimals, suffix, icon: Icon, color, sub }) => (
+        ].map(({ label, value, decimals, suffix, icon: Icon, color, sub, spark }: any) => (
           <div key={label} className="bg-card border border-border rounded-2xl px-5 py-4 shadow-sm">
             <div className="flex items-center gap-3 mb-2">
               <div className="h-9 w-9 flex items-center justify-center rounded-xl bg-muted flex-shrink-0">
@@ -418,6 +427,7 @@ export function DashboardTab({ empresaAtivaId }: { empresaAtivaId: string | null
               <CountUp value={value} decimals={decimals} suffix={suffix} />
             </p>
             <p className={`text-[10px] font-bold mt-1 ${color}`}>{sub}</p>
+            {spark && <div className="mt-2 -mx-1"><Sparkline data={spark} color={color} /></div>}
           </div>
         ))}
       </div>
@@ -436,7 +446,7 @@ export function DashboardTab({ empresaAtivaId }: { empresaAtivaId: string | null
           </div>
           <div className="divide-y divide-border">
             {maquinas.length === 0 && (
-              <p className="px-5 py-4 text-xs text-muted-foreground">Nenhuma máquina cadastrada</p>
+              <EmptyState icon={Wrench} title="Nenhuma máquina cadastrada" className="py-8" />
             )}
             {statusMaquinas.map(({ maq, statusLabel, statusColor, statusBg, apAtivo, pausaAberta }) => (
               <div key={maq.id} className="flex items-center justify-between px-5 py-3">
@@ -510,14 +520,14 @@ export function DashboardTab({ empresaAtivaId }: { empresaAtivaId: string | null
           </h3>
           <p className="text-[11px] text-muted-foreground mb-4">Peças produzidas no período</p>
           {producaoPorMaquina.length === 0 ? (
-            <div className="h-40 flex items-center justify-center text-xs text-muted-foreground">Sem apontamentos no período</div>
+            <EmptyState icon={Factory} title="Sem apontamentos no período" className="py-10" />
           ) : (
             <ResponsiveContainer width="100%" height={220}>
               <BarChart data={producaoPorMaquina} layout="vertical">
                 <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="hsl(var(--border))" />
                 <XAxis type="number" tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} />
                 <YAxis dataKey="nome" type="category" tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} width={55} />
-                <Tooltip content={<CustomTooltip />} />
+                <Tooltip content={<ChartTooltip />} />
                 <Bar dataKey="produzidas" name="Produzidas" fill="hsl(var(--primary))" radius={[0, 4, 4, 0]} barSize={18} />
                 <Bar dataKey="refugo" name="Refugo" fill="#ef4444" radius={[0, 4, 4, 0]} barSize={18} />
               </BarChart>
