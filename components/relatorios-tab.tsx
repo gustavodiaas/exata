@@ -2,6 +2,8 @@
 
 import React, { useState, useEffect, useMemo } from "react"
 import { supabase } from "@/components/supabase"
+import { CountUp } from "@/components/count-up"
+import { Skeleton } from "@/components/ui/skeleton"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { DatePicker } from "@/components/date-picker"
 import {
@@ -395,8 +397,26 @@ export function RelatoriosTab({
 
   if (loading) {
     return (
-      <div className="flex h-40 items-center justify-center text-muted-foreground text-xs font-bold uppercase tracking-widest animate-pulse">
-        Carregando relatórios...
+      <div className="space-y-6 pb-12">
+        <div className="flex items-start justify-between gap-4 flex-wrap">
+          <div className="space-y-2">
+            <Skeleton className="h-5 w-24" />
+            <Skeleton className="h-3 w-48" />
+          </div>
+          <Skeleton className="h-9 w-36 rounded-xl" />
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="bg-card border border-border rounded-2xl px-5 py-4 flex items-center gap-3 shadow-sm">
+              <Skeleton className="h-10 w-10 rounded-xl flex-shrink-0" />
+              <div className="space-y-1.5 flex-1">
+                <Skeleton className="h-2.5 w-24" />
+                <Skeleton className="h-5 w-14" />
+              </div>
+            </div>
+          ))}
+        </div>
+        <Skeleton className="h-64 w-full rounded-2xl" />
       </div>
     )
   }
@@ -437,21 +457,31 @@ export function RelatoriosTab({
       {/* KPIs gerais */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {[
-          { label: "OEE médio geral", value: `${formatNum(kpis.oeeGeral)}%`, icon: BarChart3, color: kpis.oeeGeral >= 85 ? "text-green-600" : kpis.oeeGeral >= 60 ? "text-amber-500" : "text-destructive" },
-          { label: "Peças produzidas", value: kpis.totalProduzidas.toLocaleString("pt-BR"), icon: TrendingUp, color: "text-primary" },
-          { label: "Taxa de refugo", value: `${formatNum(kpis.taxaRefugo)}%`, icon: AlertTriangle, color: kpis.taxaRefugo > 5 ? "text-destructive" : "text-green-600" },
-          { label: "Tempo total em pausa", value: formatTempo(kpis.totalPausaSeg), icon: Clock, color: "text-amber-500" },
-        ].map(({ label, value, icon: Icon, color }) => (
+          { label: "OEE médio geral", value: kpis.oeeGeral, decimals: 1, suffix: "%", icon: BarChart3, color: kpis.oeeGeral >= 85 ? "text-green-600" : kpis.oeeGeral >= 60 ? "text-amber-500" : "text-destructive" },
+          { label: "Peças produzidas", value: kpis.totalProduzidas, decimals: 0, suffix: "", icon: TrendingUp, color: "text-primary" },
+          { label: "Taxa de refugo", value: kpis.taxaRefugo, decimals: 1, suffix: "%", icon: AlertTriangle, color: kpis.taxaRefugo > 5 ? "text-destructive" : "text-green-600" },
+        ].map(({ label, value, decimals, suffix, icon: Icon, color }) => (
           <div key={label} className="bg-card border border-border rounded-2xl px-5 py-4 flex items-center gap-3 shadow-sm">
             <div className="h-10 w-10 flex items-center justify-center rounded-xl bg-muted flex-shrink-0">
               <Icon className={`h-5 w-5 ${color}`} />
             </div>
             <div className="min-w-0">
               <p className="text-[10px] text-muted-foreground font-medium leading-tight">{label}</p>
-              <p className="text-lg font-bold text-foreground mt-0.5">{value}</p>
+              <p className="text-lg font-bold text-foreground mt-0.5">
+                <CountUp value={value} decimals={decimals} suffix={suffix} />
+              </p>
             </div>
           </div>
         ))}
+        <div className="bg-card border border-border rounded-2xl px-5 py-4 flex items-center gap-3 shadow-sm">
+          <div className="h-10 w-10 flex items-center justify-center rounded-xl bg-muted flex-shrink-0">
+            <Clock className="h-5 w-5 text-amber-500" />
+          </div>
+          <div className="min-w-0">
+            <p className="text-[10px] text-muted-foreground font-medium leading-tight">Tempo total em pausa</p>
+            <p className="text-lg font-bold text-foreground mt-0.5">{formatTempo(kpis.totalPausaSeg)}</p>
+          </div>
+        </div>
       </div>
 
       {/* Seletor de relatório: agora fica no submenu da barra lateral */}
