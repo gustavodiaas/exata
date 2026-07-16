@@ -10,7 +10,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { NativeSelect } from "@/components/native-select"
 import {
   Package, TrendingUp, TrendingDown, ArrowLeftRight, Plus, X,
   AlertTriangle, CheckCircle2, Search, RefreshCw,
@@ -604,12 +603,17 @@ export function EstoqueTab({
                 className="w-full h-9 pl-9 pr-3 rounded-lg border border-border bg-input text-foreground text-xs outline-none focus:ring-2 focus:ring-primary transition-all"
               />
             </div>
-            <NativeSelect value={filtroTipo} onChange={e => setFiltroTipo(e.target.value)}>
-              <option value="todos">Todos os tipos</option>
-              <option value="materia_prima">Matéria-Prima</option>
-              <option value="semi_acabado">Semi-Acabado</option>
-              <option value="produto_acabado">Produto Acabado</option>
-            </NativeSelect>
+            <Select value={filtroTipo} onValueChange={setFiltroTipo}>
+              <SelectTrigger className="w-full h-9 text-xs rounded-lg border border-border bg-input text-foreground outline-none focus:ring-2 focus:ring-primary transition-all">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="bg-card border-border">
+                <SelectItem value="todos">Todos os tipos</SelectItem>
+                <SelectItem value="materia_prima">Matéria-Prima</SelectItem>
+                <SelectItem value="semi_acabado">Semi-Acabado</SelectItem>
+                <SelectItem value="produto_acabado">Produto Acabado</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
 
           {saldosFiltrados.length === 0 ? (
@@ -692,15 +696,20 @@ export function EstoqueTab({
                 className="w-full h-9 pl-9 pr-3 rounded-lg border border-border bg-input text-foreground text-xs outline-none focus:ring-2 focus:ring-primary transition-all"
               />
             </div>
-            <NativeSelect value={filtroMov} onChange={e => setFiltroMov(e.target.value)}>
-              <option value="todos">Todos os tipos</option>
-              <option value="entrada">Recebimento</option>
-              <option value="saida_producao">Consumo OP</option>
-              <option value="entrada_producao">Produção Acabada</option>
-              <option value="ajuste_positivo">Ajuste +</option>
-              <option value="ajuste_negativo">Ajuste -</option>
-              <option value="refugo">Refugo</option>
-            </NativeSelect>
+            <Select value={filtroMov} onValueChange={setFiltroMov}>
+              <SelectTrigger className="w-full h-9 text-xs rounded-lg border border-border bg-input text-foreground outline-none focus:ring-2 focus:ring-primary transition-all">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="bg-card border-border">
+                <SelectItem value="todos">Todos os tipos</SelectItem>
+                <SelectItem value="entrada">Recebimento</SelectItem>
+                <SelectItem value="saida_producao">Consumo OP</SelectItem>
+                <SelectItem value="entrada_producao">Produção Acabada</SelectItem>
+                <SelectItem value="ajuste_positivo">Ajuste +</SelectItem>
+                <SelectItem value="ajuste_negativo">Ajuste -</SelectItem>
+                <SelectItem value="refugo">Refugo</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
 
           {movFiltradas.length === 0 ? (
@@ -791,11 +800,16 @@ export function EstoqueTab({
                   </div>
                   <div className="space-y-1.5">
                     <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Tipo *</label>
-                    <NativeSelect value={novoItem.tipo} onChange={e => setNovoItem(p => ({ ...p, tipo: e.target.value as any }))}>
-                      <option value="materia_prima">Matéria-Prima</option>
-                      <option value="semi_acabado">Semi-Acabado</option>
-                      <option value="produto_acabado">Produto Acabado</option>
-                    </NativeSelect>
+                    <Select value={novoItem.tipo} onValueChange={(v: any) => setNovoItem(p => ({ ...p, tipo: v }))}>
+                      <SelectTrigger className="w-full h-10 rounded-xl border border-border bg-input text-foreground text-sm outline-none focus:ring-2 focus:ring-primary transition-all">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent className="bg-card border-border">
+                        <SelectItem value="materia_prima">Matéria-Prima</SelectItem>
+                        <SelectItem value="semi_acabado">Semi-Acabado</SelectItem>
+                        <SelectItem value="produto_acabado">Produto Acabado</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
                   <div className="space-y-1.5">
                     <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Unidade *</label>
