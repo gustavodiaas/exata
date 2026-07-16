@@ -84,6 +84,8 @@ export function DashboardTab({ empresaAtivaId }: { empresaAtivaId: string | null
   const [maquinas, setMaquinas] = useState<Maquina[]>([])
   const [saldos, setSaldos] = useState<SaldoEstoque[]>([])
   const [pausas, setPausas] = useState<Pausa[]>([])
+  const [apontamentosAtivos, setApontamentosAtivos] = useState<Apontamento[]>([])
+  const [pausasAbertas, setPausasAbertas] = useState<Pausa[]>([])
   const [ultimaOperacaoPorProduto, setUltimaOperacaoPorProduto] = useState<Record<string, string>>({})
   const [ultimaAtualizacao, setUltimaAtualizacao] = useState<Date>(new Date())
 
@@ -110,7 +112,7 @@ export function DashboardTab({ empresaAtivaId }: { empresaAtivaId: string | null
       const inicioISO = new Date(dataInicio + "T00:00:00").toISOString()
       const fimISO = new Date(dataFim + "T23:59:59").toISOString()
 
-      const [{ data: ops }, { data: aps }, { data: mqs }, { data: sal }, { data: pss }, { data: prods }] = await Promise.all([
+      const [{ data: ops }, { data: aps }, { data: mqs }, { data: sal }, { data: pss }, { data: prods }, { data: apsAtivos }, { data: pssAbertas }] = await Promise.all([
         supabase.from("ordens_producao")
           .select("id, numero_op, produto_codigo, quantidade, data_programacao, status")
           .eq("empresa_id", empresaAtivaId)
@@ -133,6 +135,16 @@ export function DashboardTab({ empresaAtivaId }: { empresaAtivaId: string | null
         supabase.from("produtos")
           .select("codigo, operacoes(id, ordem)")
           .eq("empresa_id", empresaAtivaId),
+        // Status "ao vivo" das máquinas não pode depender do período de relatório selecionado —
+        // uma OP iniciada antes do início do período e ainda em andamento continua sendo "em andamento".
+        supabase.from("apontamentos")
+          .select("id, maquina_id, status, created_at")
+          .eq("empresa_id", empresaAtivaId)
+          .eq("status", "em_andamento"),
+        supabase.from("apontamento_pausas")
+          .select("apontamento_id, inicio, fim")
+          .eq("empresa_id", empresaAtivaId)
+          .is("fim", null),
       ])
 
       setOrdens((ops || []) as OrdemProducao[])
@@ -144,6 +156,8 @@ export function DashboardTab({ empresaAtivaId }: { empresaAtivaId: string | null
         insumo: s.insumos,
       })) as SaldoEstoque[])
       setPausas((pss || []) as Pausa[])
+      setApontamentosAtivos((apsAtivos || []) as Apontamento[])
+      setPausasAbertas((pssAbertas || []) as Pausa[])
 
       // Mapeia produto -> id da última operação do roteiro (a que realmente entrega a peça pronta)
       const mapaUltimaOp: Record<string, string> = {}
@@ -263,8 +277,8 @@ export function DashboardTab({ empresaAtivaId }: { empresaAtivaId: string | null
 
   const statusMaquinas = useMemo(() => {
     return maquinas.map(maq => {
-      const apAtivo = apontamentos.find(a => a.maquina_id === maq.id && a.status === "em_andamento")
-      const pausaAberta = apAtivo ? pausas.find(p => p.apontamento_id === apAtivo.id && !p.fim) : null
+      const apAtivo = apontamentosAtivos.find(a => a.maquina_id === maq.id && a.status === "em_andamento")
+      const pausaAberta = apAtivo ? pausasAbertas.find(p => p.apontamento_id === apAtivo.id && !p.fim) : null
       const ultimoAp = apontamentos
         .filter(a => a.maquina_id === maq.id)
         .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0]
@@ -296,7 +310,7 @@ export function DashboardTab({ empresaAtivaId }: { empresaAtivaId: string | null
 
       return { maq, statusLabel, statusColor, statusBg, apAtivo, pausaAberta }
     })
-  }, [maquinas, apontamentos, pausas])
+  }, [maquinas, apontamentos, pausas, apontamentosAtivos, pausasAbertas])
 
   if (loading) {
     return (
