@@ -844,8 +844,10 @@ export function ApontamentoTab({ empresaAtivaId }: { empresaAtivaId?: string | n
           }
         }
 
-        // 6. Encerra a OP
-        await supabase.from("ordens_producao").update({ status: "encerrada" }).eq("id", sessao.ordemId)
+        // 6. Encerra a OP — só no encerramento total. Parcial deixa a OP aberta pra continuar depois.
+        if (dados.encerramento === "encerrar") {
+          await supabase.from("ordens_producao").update({ status: "encerrada" }).eq("id", sessao.ordemId)
+        }
       }
     }
 
@@ -874,7 +876,9 @@ export function ApontamentoTab({ empresaAtivaId }: { empresaAtivaId?: string | n
       const totalSegundos = aps.reduce((s, a) => s + (a.cronometro_total_segundos || 0), 0)
       const pct = op.quantidade > 0 ? Math.min(100, (totalProduzidas / op.quantidade) * 100) : 0
       
-      const foiEncerradaManualmente = aps.some(a => a.encerramento === "encerrar" || a.encerramento === "encerrar_parcial")
+      // Só o encerramento total tranca a OP. Parcial é um "salvamento de progresso":
+      // registra o que já foi produzido, mas deixa a OP disponível pra continuar depois.
+      const foiEncerradaManualmente = aps.some(a => a.encerramento === "encerrar")
       const fechada = foiEncerradaManualmente || totalProduzidas >= op.quantidade
       
       return { op, aps, totalProduzidas, totalRefugo, totalRetrabalho, totalSegundos, pct, fechada }
