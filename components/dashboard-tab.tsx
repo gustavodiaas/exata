@@ -6,7 +6,6 @@ import {
   ResponsiveContainer, LineChart, Line, Legend, Cell
 } from "recharts"
 import { supabase } from "@/components/supabase"
-import { NativeSelect } from "@/components/native-select"
 import {
   TrendingUp, TrendingDown, Package, AlertTriangle, CheckCircle2,
   Clock, RefreshCw, Factory, Boxes, Wrench, PlayCircle, PauseCircle,
