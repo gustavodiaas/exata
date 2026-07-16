@@ -6,9 +6,12 @@ import {
   ResponsiveContainer, LineChart, Line, Legend, Cell
 } from "recharts"
 import { supabase } from "@/components/supabase"
+import { CountUp } from "@/components/count-up"
+import { StatusDot } from "@/components/status-dot"
+import { Skeleton } from "@/components/ui/skeleton"
 import {
   TrendingUp, TrendingDown, Package, AlertTriangle, CheckCircle2,
-  Clock, RefreshCw, Factory, Boxes, Wrench, PlayCircle, PauseCircle,
+  Clock, RefreshCw, Factory, Boxes, Wrench,
   BarChart3, Activity
 } from "lucide-react"
 
@@ -289,8 +292,44 @@ export function DashboardTab({ empresaAtivaId }: { empresaAtivaId: string | null
 
   if (loading) {
     return (
-      <div className="flex h-60 items-center justify-center text-xs text-muted-foreground animate-pulse font-bold uppercase tracking-widest">
-        Carregando painel...
+      <div className="space-y-6 pb-8">
+        <div className="flex items-center justify-between flex-wrap gap-3">
+          <div className="space-y-2">
+            <Skeleton className="h-5 w-28" />
+            <Skeleton className="h-3 w-40" />
+          </div>
+          <Skeleton className="h-9 w-40 rounded-xl" />
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="bg-card border border-border rounded-2xl px-5 py-4 shadow-sm space-y-3">
+              <div className="flex items-center gap-3">
+                <Skeleton className="h-9 w-9 rounded-xl" />
+                <Skeleton className="h-3 w-20" />
+              </div>
+              <Skeleton className="h-7 w-16" />
+              <Skeleton className="h-3 w-24" />
+            </div>
+          ))}
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="bg-card border border-border rounded-2xl shadow-sm p-5 space-y-3">
+            <Skeleton className="h-4 w-32" />
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="flex items-center justify-between">
+                <div className="space-y-1.5">
+                  <Skeleton className="h-3 w-16" />
+                  <Skeleton className="h-2.5 w-24" />
+                </div>
+                <Skeleton className="h-5 w-20 rounded-full" />
+              </div>
+            ))}
+          </div>
+          <div className="lg:col-span-2 bg-card border border-border rounded-2xl shadow-sm p-5">
+            <Skeleton className="h-4 w-40 mb-4" />
+            <Skeleton className="h-52 w-full" />
+          </div>
+        </div>
       </div>
     )
   }
@@ -333,14 +372,18 @@ export function DashboardTab({ empresaAtivaId }: { empresaAtivaId: string | null
         {[
           {
             label: "Peças produzidas",
-            value: kpis.totalProduzidas.toLocaleString("pt-BR"),
+            value: kpis.totalProduzidas,
+            decimals: 0,
+            suffix: "",
             icon: Package,
             color: "text-primary",
             sub: `${kpis.totalRefugo} refugo`
           },
           {
             label: "Taxa de refugo",
-            value: `${formatNum(kpis.taxaRefugo)}%`,
+            value: kpis.taxaRefugo,
+            decimals: 1,
+            suffix: "%",
             icon: TrendingDown,
             color: kpis.taxaRefugo > 5 ? "text-destructive" : kpis.taxaRefugo > 2 ? "text-amber-500" : "text-green-600",
             sub: kpis.taxaRefugo > 5 ? "Acima do limite" : "Dentro do limite"
@@ -348,6 +391,8 @@ export function DashboardTab({ empresaAtivaId }: { empresaAtivaId: string | null
           {
             label: "OPs em aberto",
             value: kpis.opsAbertas,
+            decimals: 0,
+            suffix: "",
             icon: Activity,
             color: "text-primary",
             sub: kpis.opsAtrasadas > 0 ? `${kpis.opsAtrasadas} atrasada${kpis.opsAtrasadas > 1 ? "s" : ""}` : `${kpis.opsConcluidas} concluída${kpis.opsConcluidas !== 1 ? "s" : ""}`
@@ -355,11 +400,13 @@ export function DashboardTab({ empresaAtivaId }: { empresaAtivaId: string | null
           {
             label: "Itens críticos no estoque",
             value: kpis.estoquesCriticos + kpis.estoquesZerados,
+            decimals: 0,
+            suffix: "",
             icon: Boxes,
             color: kpis.estoquesCriticos + kpis.estoquesZerados > 0 ? "text-destructive" : "text-green-600",
             sub: kpis.estoquesZerados > 0 ? `${kpis.estoquesZerados} zerado${kpis.estoquesZerados > 1 ? "s" : ""}` : "Estoque ok"
           },
-        ].map(({ label, value, icon: Icon, color, sub }) => (
+        ].map(({ label, value, decimals, suffix, icon: Icon, color, sub }) => (
           <div key={label} className="bg-card border border-border rounded-2xl px-5 py-4 shadow-sm">
             <div className="flex items-center gap-3 mb-2">
               <div className="h-9 w-9 flex items-center justify-center rounded-xl bg-muted flex-shrink-0">
@@ -367,7 +414,9 @@ export function DashboardTab({ empresaAtivaId }: { empresaAtivaId: string | null
               </div>
               <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider leading-tight">{label}</p>
             </div>
-            <p className="text-2xl font-black text-foreground">{value}</p>
+            <p className="text-2xl font-black text-foreground">
+              <CountUp value={value} decimals={decimals} suffix={suffix} />
+            </p>
             <p className={`text-[10px] font-bold mt-1 ${color}`}>{sub}</p>
           </div>
         ))}
@@ -380,8 +429,8 @@ export function DashboardTab({ empresaAtivaId }: { empresaAtivaId: string | null
           <div className="px-5 py-4 border-b border-border flex items-center gap-2">
             <Factory className="h-4 w-4 text-primary" />
             <h3 className="text-sm font-bold text-foreground">Máquinas agora</h3>
-            <span className="ml-auto flex items-center gap-1">
-              <span className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
+            <span className="ml-auto flex items-center gap-1.5">
+              <StatusDot color="green" />
               <span className="text-[10px] text-muted-foreground">Ao vivo</span>
             </span>
           </div>
@@ -396,10 +445,10 @@ export function DashboardTab({ empresaAtivaId }: { empresaAtivaId: string | null
                   <p className="text-[10px] text-muted-foreground truncate">{maq.nome}</p>
                 </div>
                 <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full ${statusBg}`}>
-                  {statusLabel === "Produzindo" && <PlayCircle className="h-3 w-3 text-green-600" />}
-                  {statusLabel === "Em pausa" && <PauseCircle className="h-3 w-3 text-amber-500" />}
+                  {statusLabel === "Produzindo" && <StatusDot color="green" />}
+                  {statusLabel === "Em pausa" && <StatusDot color="amber" pulse={false} />}
                   {(statusLabel === "Parada" || statusLabel === "Sem atividade" || statusLabel === "Inativa") && (
-                    <span className={`h-1.5 w-1.5 rounded-full ${statusLabel === "Sem atividade" ? "bg-amber-500" : "bg-muted-foreground/40"}`} />
+                    <StatusDot color={statusLabel === "Sem atividade" ? "amber" : "muted"} pulse={false} />
                   )}
                   <span className={`text-[10px] font-bold ${statusColor}`}>{statusLabel}</span>
                 </div>
