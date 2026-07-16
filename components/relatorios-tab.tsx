@@ -4,6 +4,8 @@ import React, { useState, useEffect, useMemo } from "react"
 import { supabase } from "@/components/supabase"
 import { CountUp } from "@/components/count-up"
 import { Skeleton } from "@/components/ui/skeleton"
+import { ChartTooltip } from "@/components/chart-tooltip"
+import { EmptyState as EmptyStateBase } from "@/components/empty-state"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { DatePicker } from "@/components/date-picker"
 import {
@@ -92,19 +94,7 @@ const CORES = ["hsl(var(--primary))", "#22c55e", "#f59e0b", "#ef4444", "#8b5cf6"
 
 // ─── Tooltip customizado ──────────────────────────────────────────────────────
 
-function CustomTooltip({ active, payload, label }: any) {
-  if (!active || !payload?.length) return null
-  return (
-    <div className="bg-card border border-border rounded-xl shadow-lg px-4 py-3 text-xs space-y-1">
-      <p className="font-bold text-foreground mb-1">{label}</p>
-      {payload.map((p: any, i: number) => (
-        <p key={i} style={{ color: p.color }} className="font-medium">
-          {p.name}: <strong>{p.value}{p.unit ?? ""}</strong>
-        </p>
-      ))}
-    </div>
-  )
-}
+// (tooltip dos gráficos agora vem de @/components/chart-tooltip)
 
 // ─── Componente principal ─────────────────────────────────────────────────────
 
@@ -494,7 +484,7 @@ export function RelatoriosTab({
       {relatorioAtivo === "oee" && (
         <div className="space-y-4">
           {dadosOEE.length === 0 ? (
-            <EmptyState label="Nenhum apontamento com máquina vinculada no período" />
+            <EmptyState icon={BarChart3} label="Nenhum apontamento com máquina vinculada no período" />
           ) : (
             <>
               {/* Avisos de dados insuficientes */}
@@ -522,7 +512,7 @@ export function RelatoriosTab({
                     <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
                     <XAxis dataKey="maquina" tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} />
                     <YAxis domain={[0, 100]} tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} unit="%" />
-                    <Tooltip content={<CustomTooltip />} />
+                    <Tooltip content={<ChartTooltip />} />
                     <Legend wrapperStyle={{ fontSize: 11 }} />
                     <Bar dataKey="disponibilidade" name="Disponibilidade" fill="#3b82f6" radius={[4, 4, 0, 0]} unit="%" />
                     <Bar dataKey="performance" name="Performance" fill="#8b5cf6" radius={[4, 4, 0, 0]} unit="%" />
@@ -572,7 +562,7 @@ export function RelatoriosTab({
       {relatorioAtivo === "refugo" && (
         <div className="space-y-4">
           {dadosRefugo.length === 0 ? (
-            <EmptyState label="Nenhum apontamento no período" />
+            <EmptyState icon={AlertTriangle} label="Nenhum apontamento no período" />
           ) : (
             <>
               <div className="bg-card border border-border rounded-2xl shadow-sm p-6">
@@ -583,7 +573,7 @@ export function RelatoriosTab({
                     <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
                     <XAxis dataKey="produto" tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} />
                     <YAxis tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} unit="%" />
-                    <Tooltip content={<CustomTooltip />} />
+                    <Tooltip content={<ChartTooltip />} />
                     <Legend wrapperStyle={{ fontSize: 11 }} />
                     <Bar dataKey="taxaRefugo" name="Refugo" radius={[4, 4, 0, 0]} unit="%">
                       {dadosRefugo.slice(0, 8).map((d, i) => (
@@ -631,7 +621,7 @@ export function RelatoriosTab({
       {relatorioAtivo === "ciclo" && (
         <div className="space-y-4">
           {dadosCiclo.length === 0 ? (
-            <EmptyState label="Nenhum apontamento com operação registrada no período" />
+            <EmptyState icon={Clock} label="Nenhum apontamento com operação registrada no período" />
           ) : (
             <>
               {dadosCiclo.some(d => d.semPadrao) && (
@@ -653,7 +643,7 @@ export function RelatoriosTab({
                     <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
                     <XAxis dataKey="operacao" tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} />
                     <YAxis tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} unit="min" />
-                    <Tooltip content={<CustomTooltip />} />
+                    <Tooltip content={<ChartTooltip />} />
                     <Legend wrapperStyle={{ fontSize: 11 }} />
                     <Bar dataKey="planejado" name="Planejado" fill="hsl(var(--muted-foreground))" radius={[4, 4, 0, 0]} unit="min" />
                     <Bar dataKey="real" name="Real" radius={[4, 4, 0, 0]} unit="min">
@@ -701,7 +691,7 @@ export function RelatoriosTab({
       {relatorioAtivo === "consumo" && (
         <div className="space-y-4">
           {dadosConsumo.length === 0 ? (
-            <EmptyState label="Nenhuma movimentação de consumo no período" />
+            <EmptyState icon={Package} label="Nenhuma movimentação de consumo no período" />
           ) : (
             <>
               <div className="bg-card border border-border rounded-2xl shadow-sm p-6">
@@ -713,7 +703,7 @@ export function RelatoriosTab({
                     <XAxis type="number" tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
                       tickFormatter={v => formatBRL(v)} />
                     <YAxis type="category" dataKey="codigo" tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} width={60} />
-                    <Tooltip content={<CustomTooltip />} />
+                    <Tooltip content={<ChartTooltip />} />
                     <Bar dataKey="valorTotal" name="Valor consumido" radius={[0, 4, 4, 0]}>
                       {dadosConsumo.slice(0, 8).map((_, i) => (
                         <Cell key={i} fill={CORES[i % CORES.length]} />
@@ -761,7 +751,7 @@ export function RelatoriosTab({
       {relatorioAtivo === "paradas" && (
         <div className="space-y-4">
           {dadosParadas.length === 0 ? (
-            <EmptyState label="Nenhuma parada registrada no período" />
+            <EmptyState icon={TrendingDown} label="Nenhuma parada registrada no período" />
           ) : (
             <>
               <div className="bg-card border border-border rounded-2xl shadow-sm p-6">
@@ -772,7 +762,7 @@ export function RelatoriosTab({
                     <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" horizontal={false} />
                     <XAxis type="number" tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} unit="h" />
                     <YAxis type="category" dataKey="motivo" tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} width={100} />
-                    <Tooltip content={<CustomTooltip />} />
+                    <Tooltip content={<ChartTooltip />} />
                     <Bar dataKey="horas" name="Horas paradas" radius={[0, 4, 4, 0]}>
                       {dadosParadas.map((_, i) => (
                         <Cell key={i} fill={CORES[i % CORES.length]} />
@@ -821,14 +811,13 @@ export function RelatoriosTab({
   )
 }
 
-function EmptyState({ label }: { label: string }) {
+function EmptyState({ label, icon }: { label: string; icon?: React.ElementType }) {
   return (
-    <div className="bg-card border border-border rounded-2xl shadow-sm flex flex-col items-center justify-center py-16 text-center px-6">
-      <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center mb-4">
-        <BarChart3 className="h-6 w-6 text-muted-foreground" />
-      </div>
-      <p className="text-sm font-bold text-foreground">Sem dados suficientes</p>
-      <p className="text-xs text-muted-foreground mt-1">{label}</p>
-    </div>
+    <EmptyStateBase
+      icon={icon ?? BarChart3}
+      title="Sem dados suficientes"
+      description={label}
+      className="bg-card border border-border rounded-2xl shadow-sm"
+    />
   )
 }
