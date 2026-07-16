@@ -14,8 +14,8 @@ import { DashboardTab } from "@/components/dashboard-tab"
 import { MaquinasTab } from "@/components/maquinas-tab"
 import { ManutencaoTab } from "@/components/manutencao-tab"
 import { OnboardingChecklist } from "@/components/onboarding-checklist"
-import { NativeSelect } from "@/components/native-select"
-import { NativeTimeInput } from "@/components/native-select"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { TimePicker } from "@/components/time-picker"
 import {
   Settings, Sun, Moon, Monitor, BookText, BarChart2, ClipboardCheck,
   CalendarClock, Menu, X, PanelLeftClose, PanelLeftOpen, Factory, Wrench, Key,
@@ -946,10 +946,15 @@ export default function ExataApp() {
                           <div className="flex gap-2">
                             <input type="number" placeholder="Ex: 8" value={defaultTime} onChange={e => setDefaultTime(e.target.value)}
                               className="flex-1 h-10 px-4 rounded-xl border border-border bg-input text-foreground text-sm outline-none focus:ring-2 focus:ring-primary transition-all" />
-                            <NativeSelect value={defaultTimeUnit} onChange={(e: any) => setDefaultTimeUnit(e.target.value)} className="w-28 h-10">
-                              <option value="hours">Horas</option>
-                              <option value="minutes">Minutos</option>
-                            </NativeSelect>
+                            <Select value={defaultTimeUnit} onValueChange={(v: any) => setDefaultTimeUnit(v)}>
+                              <SelectTrigger className="w-28 h-10 rounded-xl border border-border bg-input text-foreground text-sm outline-none focus:ring-2 focus:ring-primary transition-all">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent className="bg-card border-border">
+                                <SelectItem value="hours">Horas</SelectItem>
+                                <SelectItem value="minutes">Minutos</SelectItem>
+                              </SelectContent>
+                            </Select>
                           </div>
                         </div>
                       </div>
@@ -1039,11 +1044,11 @@ export default function ExataApp() {
                           </div>
                           <div className="space-y-1.5">
                             <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Início</label>
-                            <NativeTimeInput value={novoTurno.hora_inicio} onChange={e => setNovoTurno(p => ({...p, hora_inicio: e.target.value}))} />
+                            <TimePicker value={novoTurno.hora_inicio} onChange={v => setNovoTurno(p => ({...p, hora_inicio: v}))} />
                           </div>
                           <div className="space-y-1.5">
                             <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Fim</label>
-                            <NativeTimeInput value={novoTurno.hora_fim} onChange={e => setNovoTurno(p => ({...p, hora_fim: e.target.value}))} />
+                            <TimePicker value={novoTurno.hora_fim} onChange={v => setNovoTurno(p => ({...p, hora_fim: v}))} />
                           </div>
                         </div>
                         <div className="space-y-1.5">
