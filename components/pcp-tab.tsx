@@ -15,6 +15,7 @@ import {
 import { useToast } from "@/hooks/use-toast"
 import { supabase } from "@/components/supabase"
 import { DatePicker } from "@/components/date-picker"
+import { Skeleton } from "@/components/ui/skeleton"
 
 const DEFAULT_SHIFT_CAPACITY_SECONDS = 29880
 const DIAS_SEMANA = ["Segunda", "Terça", "Quarta", "Quinta", "Sexta"]
@@ -526,7 +527,22 @@ export function PCPTab({ empresaAtivaId }: { empresaAtivaId?: string | null }) {
   const isCurrentWeek = useMemo(() => currentMonday === getMondayOfWeek(toStr(new Date())), [currentMonday])
   const todayStr = toStr(new Date())
 
-  if (loading) return <div className="flex h-40 items-center justify-center text-muted-foreground text-xs uppercase tracking-widest animate-pulse">Sincronizando com a fábrica...</div>
+  if (loading) return (
+    <div className="space-y-6">
+      <div className="grid gap-4 md:grid-cols-2">
+        <Skeleton className="h-14 w-full rounded-2xl" />
+        <Skeleton className="h-14 w-full rounded-2xl" />
+      </div>
+      <div className="bg-card border border-border rounded-2xl p-5 space-y-4">
+        <Skeleton className="h-4 w-56" />
+        <div className="grid grid-cols-4 gap-3">
+          {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-16 w-full rounded-xl" />)}
+        </div>
+        <Skeleton className="h-72 w-full rounded-xl" />
+      </div>
+      <Skeleton className="h-48 w-full rounded-2xl" />
+    </div>
+  )
 
   return (
     <div className="space-y-6">
@@ -813,9 +829,9 @@ export function PCPTab({ empresaAtivaId }: { empresaAtivaId?: string | null }) {
                                     draggable={slice.isFirst}
                                     onDragStart={slice.isFirst ? (e) => handleDragStart(e, slice.op.id) : undefined}
                                     onDragEnd={slice.isFirst ? handleDragEnd : undefined}
-                                    className={`p-2 rounded-lg border shadow-sm flex flex-col gap-1 transition-colors
+                                    className={`p-2 rounded-lg border shadow-sm flex flex-col gap-1 transition-all duration-150
                                       ${slice.isFirst ? "cursor-grab active:cursor-grabbing" : "cursor-default opacity-80"}
-                                      ${draggingId === slice.op.id ? "border-primary bg-primary/10" : "bg-card border-border hover:border-primary/50"}
+                                      ${draggingId === slice.op.id ? "border-primary bg-primary/10 scale-[1.04] shadow-xl shadow-primary/20 z-10 relative" : "bg-card border-border hover:border-primary/50"}
                                     `}
                                   >
                                     <div className="absolute left-0 top-0 bottom-0 w-1 bg-primary/30 rounded-l-lg" />
