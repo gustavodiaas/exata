@@ -1268,11 +1268,13 @@ export function ApontamentoTab({ empresaAtivaId }: { empresaAtivaId?: string | n
                       </div>
                     </div>
 
-                    <div className="mt-3 h-2 bg-muted rounded-full overflow-hidden">
+                    <div className="mt-3 h-2 bg-muted rounded-full overflow-hidden relative">
                       <div
-                        className={`h-full rounded-full transition-all ${resumo.fechada ? "bg-green-500" : "bg-primary"}`}
+                        className={`h-full rounded-full transition-all relative overflow-hidden ${resumo.fechada ? "bg-green-500" : "bg-primary"}`}
                         style={{ width: `${resumo.pct}%` }}
-                      />
+                      >
+                        {!resumo.fechada && resumo.pct > 0 && <div className="progress-shimmer" />}
+                      </div>
                     </div>
 
                     <div className="mt-3 flex gap-4 text-[11px]">
