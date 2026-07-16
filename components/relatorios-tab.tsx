@@ -2,8 +2,8 @@
 
 import React, { useState, useEffect, useMemo } from "react"
 import { supabase } from "@/components/supabase"
-import { NativeSelect } from "@/components/native-select"
-import { NativeDateInput } from "@/components/native-select"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { DatePicker } from "@/components/date-picker"
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
   LineChart, Line, CartesianGrid, Legend, Cell
@@ -411,16 +411,21 @@ export function RelatoriosTab({
           <p className="text-sm text-muted-foreground mt-0.5">Análise de desempenho operacional</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          <NativeSelect variant="sm" value={periodo} onChange={e => setPeriodo(e.target.value as Periodo)} className="w-36">
-            <option value="7d">Últimos 7 dias</option>
-            <option value="30d">Últimos 30 dias</option>
-            <option value="90d">Últimos 90 dias</option>
-            <option value="custom">Personalizado</option>
-          </NativeSelect>
+          <Select value={periodo} onValueChange={(v: Periodo) => setPeriodo(v)}>
+            <SelectTrigger className="w-36 h-9 text-xs rounded-xl border border-border bg-input text-foreground outline-none focus:ring-2 focus:ring-primary transition-all">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent className="bg-card border-border">
+              <SelectItem value="7d">Últimos 7 dias</SelectItem>
+              <SelectItem value="30d">Últimos 30 dias</SelectItem>
+              <SelectItem value="90d">Últimos 90 dias</SelectItem>
+              <SelectItem value="custom">Personalizado</SelectItem>
+            </SelectContent>
+          </Select>
           {periodo === "custom" && (
             <>
-              <NativeDateInput value={dataInicio} onChange={e => setDataInicio(e.target.value)} />
-              <NativeDateInput value={dataFim} onChange={e => setDataFim(e.target.value)} />
+              <DatePicker value={dataInicio} onChange={setDataInicio} className="w-36" />
+              <DatePicker value={dataFim} onChange={setDataFim} className="w-36" />
             </>
           )}
           <button onClick={loadData} className="h-9 w-9 flex items-center justify-center rounded-xl border border-border text-muted-foreground hover:bg-muted transition-colors">
