@@ -158,9 +158,10 @@ function ModalPausa({ grupos, onConfirm, onCancel }: {
 
 // ─── Modal de Finalizar ────────────────────────────────────────────────────────
 
-function ModalFinalizar({ onConfirm, onCancel }: {
+function ModalFinalizar({ onConfirm, onCancel, loading }: {
   onConfirm: (dados: { produzidas: number; refugo: number; retrabalho: number; encerramento: "continuar" | "encerrar" | "encerrar_parcial" }) => void
   onCancel: () => void
+  loading?: boolean
 }) {
   const [produzidas, setProduzidas] = useState("")
   const [refugo, setRefugo] = useState("")
@@ -242,15 +243,16 @@ function ModalFinalizar({ onConfirm, onCancel }: {
         </div>
 
         <div className="flex gap-2 pt-1">
-          <button onClick={onCancel} className="flex-1 h-11 rounded-xl border border-border text-sm font-bold text-muted-foreground hover:bg-muted transition-colors">
+          <button onClick={onCancel} disabled={loading} className="flex-1 h-11 rounded-xl border border-border text-sm font-bold text-muted-foreground hover:bg-muted transition-colors disabled:opacity-50">
             Cancelar
           </button>
           <button
             onClick={handleConfirm}
-            disabled={!produzidas || parseInt(produzidas) <= 0}
-            className="flex-1 h-11 rounded-xl bg-primary text-primary-foreground text-sm font-bold hover:opacity-90 transition-all disabled:opacity-50"
+            disabled={!produzidas || parseInt(produzidas) <= 0 || loading}
+            className="flex-1 h-11 rounded-xl bg-primary text-primary-foreground text-sm font-bold hover:opacity-90 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
           >
-            Confirmar
+            {loading && <span className="h-3.5 w-3.5 border-2 border-primary-foreground/40 border-t-primary-foreground rounded-full animate-spin" />}
+            {loading ? "Processando..." : "Confirmar"}
           </button>
         </div>
       </div>
@@ -284,6 +286,8 @@ export function ApontamentoTab({ empresaAtivaId }: { empresaAtivaId?: string | n
   const [sessaoEmAcaoId, setSessaoEmAcaoId] = useState<string | null>(null)
   const [showModalPausa, setShowModalPausa] = useState(false)
   const [showModalFinalizar, setShowModalFinalizar] = useState(false)
+  const [finalizando, setFinalizando] = useState(false)
+  const finalizandoRef = useRef(false)
   const [dadosFinalizar, setDadosFinalizar] = useState<{ produzidas: number; refugo: number; retrabalho: number; encerramento: "continuar" | "encerrar" | "encerrar_parcial" } | null>(null)
   const [showAvisoEstoque, setShowAvisoEstoque] = useState(false)
   const [avisoItens, setAvisoItens] = useState<{ codigo: string; descricao: string; disponivel: number; necessario: number; unidade: string }[]>([])
@@ -571,17 +575,20 @@ export function ApontamentoTab({ empresaAtivaId }: { empresaAtivaId?: string | n
     produzidas: number; refugo: number; retrabalho: number
     encerramento: "continuar" | "encerrar" | "encerrar_parcial"
   }) => {
-    setShowModalFinalizar(false)
+    if (finalizandoRef.current) return // já tem uma finalização em andamento, ignora clique duplicado
+    finalizandoRef.current = true
+    setFinalizando(true)
 
     // Se não vai encerrar, não precisa verificar
     if (dados.encerramento === "continuar") {
+      setShowModalFinalizar(false)
       handleConfirmarFinalizar(dados)
       return
     }
 
     const sessao = sessoes.find(s => s.apontamentoId === sessaoEmAcaoId)
     const ordem = ordens.find(o => o.id === sessao?.ordemId)
-    if (!ordem) { handleConfirmarFinalizar(dados); return }
+    if (!ordem) { setShowModalFinalizar(false); handleConfirmarFinalizar(dados); return }
 
     const pecasBoas = dados.produzidas - dados.refugo
 
@@ -599,23 +606,25 @@ export function ApontamentoTab({ empresaAtivaId }: { empresaAtivaId?: string | n
         description: `O produto ${ordem.produto_codigo} não tem lista de materiais. O estoque não será atualizado automaticamente.`,
         variant: "destructive",
       })
+      setShowModalFinalizar(false)
       handleConfirmarFinalizar(dados)
       return
     }
 
-    // Verifica saldo de cada insumo
+    // Verifica saldo de cada insumo — uma única consulta em lote, não uma por item
     const insuficientes: typeof avisoItens = []
+    const idsInsumos = (bomData as any[]).map(b => b.insumo_id)
+    const { data: saldosAtuais } = await supabase
+      .from("saldo_estoque")
+      .select("insumo_id, saldo_atual")
+      .eq("empresa_id", empresaAtivaId!)
+      .in("insumo_id", idsInsumos)
+
+    const saldoPorInsumo = new Map((saldosAtuais || []).map((s: any) => [s.insumo_id, s.saldo_atual]))
 
     for (const bom of bomData as any[]) {
       const necessario = bom.quantidade * pecasBoas
-      const { data: saldo } = await supabase
-        .from("saldo_estoque")
-        .select("saldo_atual")
-        .eq("insumo_id", bom.insumo_id)
-        .eq("empresa_id", empresaAtivaId!)
-        .single()
-
-      const disponivel = saldo?.saldo_atual ?? 0
+      const disponivel = saldoPorInsumo.get(bom.insumo_id) ?? 0
       if (disponivel < necessario) {
         insuficientes.push({
           codigo: bom.insumos?.codigo ?? "",
@@ -630,8 +639,12 @@ export function ApontamentoTab({ empresaAtivaId }: { empresaAtivaId?: string | n
     if (insuficientes.length > 0) {
       setAvisoItens(insuficientes)
       setDadosFinalizar(dados)
+      setShowModalFinalizar(false)
       setShowAvisoEstoque(true)
+      finalizandoRef.current = false
+      setFinalizando(false)
     } else {
+      setShowModalFinalizar(false)
       handleConfirmarFinalizar(dados)
     }
   }
@@ -641,10 +654,11 @@ export function ApontamentoTab({ empresaAtivaId }: { empresaAtivaId?: string | n
     encerramento: "continuar" | "encerrar" | "encerrar_parcial"
   }) => {
     const sessao = sessoes.find(s => s.apontamentoId === sessaoEmAcaoId)
-    if (!sessao) return
+    if (!sessao) { finalizandoRef.current = false; setFinalizando(false); return }
     setShowModalFinalizar(false)
 
-    const emPausaAtual = !!sessao.pausaInicioTimestamp
+    try {
+      const emPausaAtual = !!sessao.pausaInicioTimestamp
     const agora = Date.now()
     const decorrido = emPausaAtual ? 0 : Math.floor((agora - sessao.inicioTimestamp) / 1000)
     const totalSegundos = sessao.segundosAcumulados + decorrido
@@ -671,180 +685,40 @@ export function ApontamentoTab({ empresaAtivaId }: { empresaAtivaId?: string | n
     if (error) { toast({ title: "Erro ao finalizar", description: error.message, variant: "destructive" }); return }
 
     // ── Integração com estoque ao encerrar ──────────────────────────────────
+    // Uma única chamada atômica no banco (função finalizar_apontamento_estoque),
+    // em vez de várias idas e vindas sequenciais: mais rápido e sem risco de
+    // corromper saldo quando várias sessões finalizam ao mesmo tempo.
     if (dados.encerramento !== "continuar") {
       const ordem = ordens.find(o => o.id === sessao.ordemId)
       if (ordem) {
         const pecasBoas = dados.produzidas - dados.refugo
 
-        // 1. Busca a BOM do produto
-        const { data: bomData } = await supabase
-          .from("bom_itens")
-          .select("insumo_id, quantidade, unidade_medida, insumos(codigo, descricao, unidade_medida)")
-          .eq("empresa_id", empresaAtivaId!)
-          .eq("produto_codigo", ordem.produto_codigo)
+        const { data: resultado, error: erroEstoque } = await supabase.rpc("finalizar_apontamento_estoque", {
+          p_empresa_id: empresaAtivaId,
+          p_ordem_id: sessao.ordemId,
+          p_produto_codigo: ordem.produto_codigo,
+          p_pecas_boas: pecasBoas,
+          p_refugo: dados.refugo,
+          p_observacao: `OP ${ordem.numero_op} — ${pecasBoas} peças boas`,
+        })
 
-        if (bomData && bomData.length > 0 && pecasBoas > 0) {
-          // 2. Para cada insumo da BOM, debita o consumo proporcional
-          for (const bom of bomData as any[]) {
-            const qtdConsumida = bom.quantidade * pecasBoas
+        if (erroEstoque) {
+          toast({ title: "Erro ao baixar estoque", description: erroEstoque.message, variant: "destructive" })
+          return
+        }
 
-            // Busca saldo atual
-            const { data: saldo } = await supabase
-              .from("saldo_estoque")
-              .select("saldo_atual, custo_medio")
-              .eq("insumo_id", bom.insumo_id)
-              .eq("empresa_id", empresaAtivaId!)
-              .single()
-
-            const saldoAnterior = saldo?.saldo_atual ?? 0
-            const custoMedio = saldo?.custo_medio ?? 0
-            const saldoPosterior = Math.max(0, saldoAnterior - qtdConsumida)
-
-            // Atualiza saldo
-            await supabase.from("saldo_estoque").upsert({
-              empresa_id: empresaAtivaId,
-              insumo_id: bom.insumo_id,
-              saldo_atual: saldoPosterior,
-              custo_medio: custoMedio,
-              updated_at: new Date().toISOString(),
-            }, { onConflict: "empresa_id,insumo_id" })
-
-            // Registra movimentação de consumo
-            await supabase.from("movimentacoes_estoque").insert({
-              empresa_id: empresaAtivaId,
-              insumo_id: bom.insumo_id,
-              tipo: "saida_producao",
-              quantidade: qtdConsumida,
-              quantidade_anterior: saldoAnterior,
-              quantidade_posterior: saldoPosterior,
-              custo_unitario: custoMedio,
-              valor_total: qtdConsumida * custoMedio,
-              origem: "op_automatico",
-              referencia_id: sessao.ordemId,
-              observacao: `OP ${ordem.numero_op} — ${pecasBoas} peças boas`,
-            })
-
-            // Avisa se foi a negativo
-            if (saldoAnterior < qtdConsumida) {
-              toast({
-                title: `⚠ Estoque insuficiente: ${bom.insumos?.codigo}`,
-                description: `Consumo: ${qtdConsumida} ${bom.unidade_medida} — Disponível: ${saldoAnterior.toFixed(3)}. Saldo foi a negativo.`,
-                variant: "destructive",
-              })
-            }
-          }
-
-          // 3. Calcula custo total da BOM para o produto acabado
-          const custoBomTotal = (bomData as any[]).reduce((acc, bom) => {
-            const saldoItem = acc // aproximação: usa custo médio atual
-            return acc
-          }, 0)
-
-          // Busca custo médio real de cada insumo para calcular custo do PA
-          let custoPA = 0
-          for (const bom of bomData as any[]) {
-            const { data: saldo } = await supabase
-              .from("saldo_estoque")
-              .select("custo_medio")
-              .eq("insumo_id", bom.insumo_id)
-              .eq("empresa_id", empresaAtivaId!)
-              .single()
-            custoPA += (saldo?.custo_medio ?? 0) * bom.quantidade
-          }
-
-          // 4. Entrada do produto acabado no estoque
-          const { data: produtoPA } = await supabase
-            .from("insumos")
-            .select("id, unidade_medida, codigo")
-            .eq("empresa_id", empresaAtivaId!)
-            .eq("codigo", ordem.produto_codigo)
-            .single()
-
-          if (produtoPA) {
-            const { data: saldoPA } = await supabase
-              .from("saldo_estoque")
-              .select("saldo_atual, custo_medio")
-              .eq("insumo_id", produtoPA.id)
-              .eq("empresa_id", empresaAtivaId!)
-              .single()
-
-            const saldoAnteriorPA = saldoPA?.saldo_atual ?? 0
-            const custoMedioAnteriorPA = saldoPA?.custo_medio ?? 0
-            const saldoPosteriorPA = saldoAnteriorPA + pecasBoas
-            const novoCustoMedioPA = saldoAnteriorPA === 0
-              ? custoPA
-              : ((saldoAnteriorPA * custoMedioAnteriorPA) + (pecasBoas * custoPA)) / saldoPosteriorPA
-
-            await supabase.from("saldo_estoque").upsert({
-              empresa_id: empresaAtivaId,
-              insumo_id: produtoPA.id,
-              saldo_atual: saldoPosteriorPA,
-              custo_medio: novoCustoMedioPA,
-              updated_at: new Date().toISOString(),
-            }, { onConflict: "empresa_id,insumo_id" })
-
-            await supabase.from("movimentacoes_estoque").insert({
-              empresa_id: empresaAtivaId,
-              insumo_id: produtoPA.id,
-              tipo: "entrada_producao",
-              quantidade: pecasBoas,
-              quantidade_anterior: saldoAnteriorPA,
-              quantidade_posterior: saldoPosteriorPA,
-              custo_unitario: custoPA,
-              valor_total: pecasBoas * custoPA,
-              origem: "op_automatico",
-              referencia_id: sessao.ordemId,
-              observacao: `OP ${ordem.numero_op} — produção encerrada`,
+        const avisos = (resultado as any)?.avisos as { insumo: string; consumo: number; disponivel: number }[] | undefined
+        if (avisos && avisos.length > 0) {
+          for (const a of avisos) {
+            toast({
+              title: `⚠ Estoque insuficiente: ${a.insumo}`,
+              description: `Consumo: ${a.consumo} — Disponível: ${a.disponivel.toFixed(3)}. Saldo foi a negativo.`,
+              variant: "destructive",
             })
           }
         }
 
-        // 5. Refugo — saída separada do produto acabado se houver
-        if (dados.refugo > 0) {
-          const { data: produtoPA } = await supabase
-            .from("insumos")
-            .select("id, unidade_medida")
-            .eq("empresa_id", empresaAtivaId!)
-            .eq("codigo", ordem.produto_codigo)
-            .single()
-
-          if (produtoPA) {
-            const { data: saldoPA } = await supabase
-              .from("saldo_estoque")
-              .select("saldo_atual, custo_medio")
-              .eq("insumo_id", produtoPA.id)
-              .eq("empresa_id", empresaAtivaId!)
-              .single()
-
-            const saldoAnterior = saldoPA?.saldo_atual ?? 0
-            const custoMedio = saldoPA?.custo_medio ?? 0
-            const saldoPosterior = Math.max(0, saldoAnterior - dados.refugo)
-
-            await supabase.from("saldo_estoque").upsert({
-              empresa_id: empresaAtivaId,
-              insumo_id: produtoPA.id,
-              saldo_atual: saldoPosterior,
-              custo_medio: custoMedio,
-              updated_at: new Date().toISOString(),
-            }, { onConflict: "empresa_id,insumo_id" })
-
-            await supabase.from("movimentacoes_estoque").insert({
-              empresa_id: empresaAtivaId,
-              insumo_id: produtoPA.id,
-              tipo: "refugo",
-              quantidade: dados.refugo,
-              quantidade_anterior: saldoAnterior,
-              quantidade_posterior: saldoPosterior,
-              custo_unitario: custoMedio,
-              valor_total: dados.refugo * custoMedio,
-              origem: "op_automatico",
-              referencia_id: sessao.ordemId,
-              observacao: `OP ${ordem.numero_op} — peças refugadas`,
-            })
-          }
-        }
-
-        // 6. Encerra a OP — só no encerramento total. Parcial deixa a OP aberta pra continuar depois.
+        // Encerra a OP — só no encerramento total. Parcial deixa a OP aberta pra continuar depois.
         if (dados.encerramento === "encerrar") {
           await supabase.from("ordens_producao").update({ status: "encerrada" }).eq("id", sessao.ordemId)
         }
@@ -856,7 +730,11 @@ export function ApontamentoTab({ empresaAtivaId }: { empresaAtivaId?: string | n
     await loadData()
 
     const labels = { continuar: "Apontamento salvo", encerrar: "OP encerrada e estoque atualizado", encerrar_parcial: "OP encerrada parcialmente e estoque atualizado" }
-    toast({ title: `✅ ${labels[dados.encerramento]}` })
+      toast({ title: `✅ ${labels[dados.encerramento]}` })
+    } finally {
+      finalizandoRef.current = false
+      setFinalizando(false)
+    }
   }
 
   // ─── Resumos por OP ────────────────────────────────────────────────────────
@@ -981,6 +859,7 @@ export function ApontamentoTab({ empresaAtivaId }: { empresaAtivaId?: string | n
         <ModalFinalizar
           onConfirm={verificarEstoqueEFinalizar}
           onCancel={() => setShowModalFinalizar(false)}
+          loading={finalizando}
         />
       )}
 
@@ -1024,19 +903,25 @@ export function ApontamentoTab({ empresaAtivaId }: { empresaAtivaId?: string | n
 
             <div className="flex gap-2">
               <button
-                onClick={() => { setShowAvisoEstoque(false); setDadosFinalizar(null) }}
-                className="flex-1 h-11 rounded-xl border border-border text-sm font-bold text-muted-foreground hover:bg-muted transition-colors"
+                onClick={() => { setShowAvisoEstoque(false); setDadosFinalizar(null); finalizandoRef.current = false; setFinalizando(false) }}
+                disabled={finalizando}
+                className="flex-1 h-11 rounded-xl border border-border text-sm font-bold text-muted-foreground hover:bg-muted transition-colors disabled:opacity-50"
               >
                 Cancelar
               </button>
               <button
                 onClick={() => {
+                  if (finalizandoRef.current) return
+                  finalizandoRef.current = true
+                  setFinalizando(true)
                   setShowAvisoEstoque(false)
                   if (dadosFinalizar) handleConfirmarFinalizar(dadosFinalizar)
                 }}
-                className="flex-1 h-11 rounded-xl bg-amber-500 text-white text-sm font-bold hover:opacity-90 transition-all"
+                disabled={finalizando}
+                className="flex-1 h-11 rounded-xl bg-amber-500 text-white text-sm font-bold hover:opacity-90 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
               >
-                Encerrar mesmo assim
+                {finalizando && <span className="h-3.5 w-3.5 border-2 border-white/40 border-t-white rounded-full animate-spin" />}
+                {finalizando ? "Processando..." : "Encerrar mesmo assim"}
               </button>
             </div>
           </div>
