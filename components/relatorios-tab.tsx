@@ -14,7 +14,8 @@ import {
 } from "recharts"
 import {
   TrendingUp, TrendingDown, AlertTriangle, Clock, Package,
-  BarChart3, Filter, Download, RefreshCw, ChevronDown
+  BarChart3, Filter, Download, RefreshCw, ChevronDown,
+  type LucideIcon
 } from "lucide-react"
 
 // ─── Interfaces ───────────────────────────────────────────────────────────────
@@ -811,7 +812,7 @@ export function RelatoriosTab({
   )
 }
 
-function EmptyState({ label, icon }: { label: string; icon?: React.ElementType }) {
+function EmptyState({ label, icon }: { label: string; icon?: LucideIcon }) {
   return (
     <EmptyStateBase
       icon={icon ?? BarChart3}
